@@ -936,7 +936,22 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isCraftStoryModalOpen, setIsCraftStoryModalOpen] = useState<boolean>(false);
 
   // Main Application Multi-Tab Horizontal Navigation
-  const [activeNavTab, setActiveNavTab] = useState<AppNavTab>('home');
+  const [activeNavTab, setActiveNavTab] = useState<AppNavTab>(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        const params = new URLSearchParams(window.location.search);
+        const tab = params.get('tab') || params.get('section');
+        if (tab && ['home', 'artisan', 'lookbook', 'workshops', 'tiktok', 'journal', 'craft', 'track', 'orders'].includes(tab)) {
+          return tab as AppNavTab;
+        }
+        const hash = window.location.hash.replace('#', '').toLowerCase();
+        if (hash && ['home', 'artisan', 'lookbook', 'workshops', 'tiktok', 'journal', 'craft', 'track', 'orders'].includes(hash)) {
+          return hash as AppNavTab;
+        }
+      }
+    } catch {}
+    return 'home';
+  });
 
   // Social Media Showcase Tab State ('tiktok' | 'journal')
   const [activeSocialTab, setActiveSocialTab] = useState<'tiktok' | 'journal'>('tiktok');
