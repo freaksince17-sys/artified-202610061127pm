@@ -1,0 +1,32 @@
+{
+  "ART-2026-5526": {
+    "orderId": "ART-2026-5526",
+    "customerName": "Lamar Anzelov",
+    "phone": "9703726980",
+    "deliveryAddress": "175/25, Kathmandu Valley",
+    "deliveryZoneName": "Kathmandu Valley",
+    "paymentMethodText": "Direct Order / Cash on Delivery",
+    "paymentStatus": "Paid & Verified",
+    "items": [
+      {
+        "title": "Caviar Pearl Bag",
+        "image": "/og-image.jpg",
+        "quantity": 1,
+        "price": 2499,
+        "customization": "Handcrafted by Sahina Shrestha"
+      }
+    ],
+    "total": 2499,
+    "orderPlacedDate": "Recent Order",
+    "estimatedDeliveryDate": "1-2 business days",
+    "currentPhase": "out_for_delivery",
+    "progressPercentage": 85,
+    "artisanName": "Sahina Shrestha",
+    "artisanRole": "Founder and Creator",
+    "studioLocation": "Artified Workshop, Kathmandu, Nepal",
+    "liveCraftNotes": "Your Caviar Pearl Bag was meticulously hand-woven and inspected at our Kathmandu workshop. It has been handed over to our express courier for delivery to your doorstep.",
+    "courierPartner": "Kathmandu Valley Express Courier",
+    "consignmentCode": "KTM-EXP-5526",
+    "updatedAt": "2026-10-03T08:15:00.000Z"
+  }
+}

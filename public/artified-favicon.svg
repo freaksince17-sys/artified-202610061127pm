@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" fill="none">
+  <defs>
+    <!-- High-end Brush stroke filter -->
+    <filter id="brush-filter" x="-10%" y="-10%" width="120%" height="120%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.08" numOctaves="3" result="noise" />
+      <feDisplacementMap in="SourceGraphic" in2="noise" scale="1.5" xChannelSelector="R" yChannelSelector="G" />
+    </filter>
+
+    <!-- Pearl Shimmer Gradient -->
+    <radialGradient id="pearl-shimmer" cx="35%" cy="30%" r="65%">
+      <stop offset="0%" stop-color="#FFFFFF" />
+      <stop offset="35%" stop-color="#FFF9F2" />
+      <stop offset="70%" stop-color="#EFE4D6" />
+      <stop offset="90%" stop-color="#DFCDB8" />
+      <stop offset="100%" stop-color="#C4B097" />
+    </radialGradient>
+
+    <!-- Pearl Highlight Gloss -->
+    <linearGradient id="pearl-gloss" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.95" />
+      <stop offset="45%" stop-color="#FFFFFF" stop-opacity="0.4" />
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0" />
+    </linearGradient>
+
+    <!-- Pearl Soft Shadow -->
+    <filter id="pearl-shadow" x="-30%" y="-30%" width="160%" height="140%">
+      <feDropShadow dx="0" dy="1.5" stdDeviation="1.5" flood-color="#000000" flood-opacity="0.22" />
+    </filter>
+  </defs>
+
+  <!-- Background Circle (Beige Aesthetic) -->
+  <circle cx="60" cy="60" r="54" fill="#FAF8F5" stroke="#E8DFD8" stroke-width="2" />
+
+  <!-- Iconic Brush-stroke Letter 'A' (Derived from the main wordmark, centered beautifully) -->
+  <g fill="#0D0C0B" filter="url(#brush-filter)" transform="translate(14, 11)">
+    <!-- Left Leg -->
+    <path d="M 52 14 C 47 18 36 48 24 82 C 21 91 19 96 17 99 C 15 101 19 103 24 100 C 27 98 32 86 35 77 C 38 68 47 43 51 28 C 53 23 54 18 52 14 Z" />
+    <!-- Right Leg -->
+    <path d="M 50 14 C 54 13 60 17 64 26 C 70 41 81 72 87 88 C 90 96 93 100 95 101 C 98 102 96 97 93 90 C 86 73 75 42 66 23 C 61 14 55 12 50 14 Z" />
+    <!-- Head Accent -->
+    <path d="M 48 11 C 51 9 58 11 58 15 C 57 19 50 20 46 17 C 45 14 46 12 48 11 Z" />
+    <!-- Crossbar -->
+    <path d="M 14 73 C 16 69 24 69 37 69 C 48 69 64 69 74 68 C 78 68 81 71 78 74 C 75 76 66 76 52 75 C 38 75 24 76 16 77 C 12 77 11 75 14 73 Z" />
+  </g>
+
+  <!-- Signature Atelier Pearl on 'A' crossbar -->
+  <g filter="url(#pearl-shadow)" transform="translate(14, 11)">
+    <circle cx="53" cy="72" r="7.5" fill="url(#pearl-shimmer)" />
+    <ellipse cx="51" cy="69.5" rx="3" ry="1.8" fill="url(#pearl-gloss)" />
+  </g>
+</svg>

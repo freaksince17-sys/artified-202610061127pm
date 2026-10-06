@@ -1,0 +1,7 @@
+User-agent: Googlebot-Image
+Allow: /
+
+User-agent: *
+Allow: /
+
+Sitemap: https://www.artified.com.np/sitemap.xml

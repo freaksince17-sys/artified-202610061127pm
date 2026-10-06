@@ -1,0 +1,296 @@
+{
+  "entities": {
+    "Product": {
+      "title": "Product",
+      "description": "Handcrafted jewelry or bag product item in the Artified_np catalog",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 256 },
+        "subtitle": { "type": "string", "maxLength": 500 },
+        "category": { "type": "string", "maxLength": 64 },
+        "price": { "type": "number" },
+        "originalPrice": { "type": "number" },
+        "rating": { "type": "number" },
+        "reviewsCount": { "type": "number" },
+        "isHandmade": { "type": "boolean" },
+        "isBestSeller": { "type": "boolean" },
+        "isNewArrival": { "type": "boolean" },
+        "inStock": { "type": "boolean" },
+        "stockCount": { "type": "number" },
+        "leadTime": { "type": "string", "maxLength": 256 },
+        "dimensions": { "type": "string", "maxLength": 256 },
+        "weight": { "type": "string", "maxLength": 128 },
+        "description": { "type": "string", "maxLength": 8000 },
+        "stylingTip": { "type": "string", "maxLength": 2000 },
+        "materials": { "type": "array" },
+        "careNotes": { "type": "array" },
+        "images": { "type": "array" },
+        "tags": { "type": "array" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "title", "price", "category", "images"]
+    },
+    "InstagramJournalItem": {
+      "title": "InstagramJournalItem",
+      "description": "Instagram visual journal and showcase post item",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 256 },
+        "handle": { "type": "string", "maxLength": 128 },
+        "caption": { "type": "string", "maxLength": 4000 },
+        "thumbnail": { "type": "string" },
+        "videoUrl": { "type": "string", "maxLength": 1000 },
+        "postUrl": { "type": "string", "maxLength": 1000 },
+        "likes": { "type": "string", "maxLength": 64 },
+        "views": { "type": "string", "maxLength": 64 },
+        "showViews": { "type": "boolean" },
+        "showLikes": { "type": "boolean" },
+        "taggedProductId": { "type": "string", "maxLength": 128 },
+        "taggedProductName": { "type": "string", "maxLength": 256 },
+        "taggedProductPrice": { "type": "number" }
+      },
+      "required": ["id", "title", "postUrl"]
+    },
+    "ArtisanProfile": {
+      "title": "ArtisanProfile",
+      "description": "Master artisan profile data, bio, atelier location, avatar image URL, and craft pillars",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "maxLength": 128 },
+        "role": { "type": "string", "maxLength": 128 },
+        "experience": { "type": "string", "maxLength": 128 },
+        "location": { "type": "string", "maxLength": 256 },
+        "avatarUrl": { "type": "string" },
+        "avatarUpdatedAt": { "type": "string" },
+        "heroQuote": { "type": "string", "maxLength": 1000 },
+        "bioParagraph1": { "type": "string", "maxLength": 3000 },
+        "bioParagraph2": { "type": "string", "maxLength": 3000 },
+        "bioParagraph3": { "type": "string", "maxLength": 3000 },
+        "instagramHandle": { "type": "string", "maxLength": 128 },
+        "instagramFollowers": { "type": "string", "maxLength": 64 },
+        "totalPiecesCrafted": { "type": "number" },
+        "materialsUsed": { "type": "array" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["name", "role", "avatarUrl"]
+    },
+    "InstagramSettings": {
+      "title": "InstagramSettings",
+      "description": "Official store Instagram handle and profile web URL",
+      "type": "object",
+      "properties": {
+        "handle": { "type": "string", "maxLength": 128 },
+        "profileUrl": { "type": "string", "maxLength": 1000 },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["handle", "profileUrl"]
+    },
+    "SellerAuth": {
+      "title": "SellerAuth",
+      "description": "Hashed credentials and security salt for Seller Studio authentication",
+      "type": "object",
+      "properties": {
+        "passwordHash": { "type": "string", "maxLength": 256 },
+        "salt": { "type": "string", "maxLength": 128 },
+        "hasCustom": { "type": "boolean" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["passwordHash", "hasCustom"]
+    },
+    "TrackedOrder": {
+      "title": "TrackedOrder",
+      "description": "Customer order with real-time handcrafting and delivery status updates, secured by user ID and session token",
+      "type": "object",
+      "properties": {
+        "orderId": { "type": "string", "maxLength": 128 },
+        "docId": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "sessionToken": { "type": "string", "maxLength": 256 },
+        "customerName": { "type": "string", "maxLength": 256 },
+        "phone": { "type": "string", "maxLength": 64 },
+        "deliveryAddress": { "type": "string", "maxLength": 1000 },
+        "deliveryZoneName": { "type": "string", "maxLength": 256 },
+        "paymentMethodText": { "type": "string", "maxLength": 128 },
+        "paymentStatus": { "type": "string", "maxLength": 128 },
+        "items": { "type": "array" },
+        "total": { "type": "number" },
+        "orderPlacedDate": { "type": "string", "maxLength": 128 },
+        "estimatedDeliveryDate": { "type": "string", "maxLength": 128 },
+        "currentPhase": { "type": "string", "maxLength": 128 },
+        "progressPercentage": { "type": "number" },
+        "artisanName": { "type": "string", "maxLength": 128 },
+        "artisanRole": { "type": "string", "maxLength": 128 },
+        "studioLocation": { "type": "string", "maxLength": 256 },
+        "liveCraftNotes": { "type": "string", "maxLength": 2000 },
+        "milestones": { "type": "array" },
+        "riderName": { "type": "string", "maxLength": 128 },
+        "riderPhone": { "type": "string", "maxLength": 64 },
+        "trackingNumber": { "type": "string", "maxLength": 128 },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["orderId", "customerName", "currentPhase", "progressPercentage"]
+    },
+    "WaitlistSubscriber": {
+      "title": "WaitlistSubscriber",
+      "description": "User subscription for out-of-stock product restock notification alert",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "productId": { "type": "string", "maxLength": 128 },
+        "productTitle": { "type": "string", "maxLength": 256 },
+        "email": { "type": "string", "format": "email", "maxLength": 256 },
+        "phone": { "type": "string", "maxLength": 64 },
+        "requestedAt": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "notified"] },
+        "notified": { "type": "boolean" },
+        "notifiedAt": { "type": "string" },
+        "restockedStockCount": { "type": "number" }
+      },
+      "required": ["productId", "email", "requestedAt"]
+    },
+    "NewsletterSubscriber": {
+      "title": "NewsletterSubscriber",
+      "description": "Subscriber record for new collection launches and secret drops",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "format": "email", "maxLength": 256 },
+        "subscribedAt": { "type": "string" },
+        "source": { "type": "string", "maxLength": 64 },
+        "discountCode": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["email", "subscribedAt"]
+    },
+    "UserWishlist": {
+      "title": "UserWishlist",
+      "description": "Customer persistent wishlist collection synced across devices",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "productIds": { "type": "array" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["userId", "productIds", "updatedAt"]
+    },
+    "ProductReview": {
+      "title": "ProductReview",
+      "description": "Customer rating and text feedback submitted for a handcrafted product",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "productId": { "type": "string", "maxLength": 128 },
+        "productTitle": { "type": "string", "maxLength": 256 },
+        "author": { "type": "string", "maxLength": 128 },
+        "location": { "type": "string", "maxLength": 128 },
+        "rating": { "type": "number" },
+        "comment": { "type": "string", "maxLength": 4000 },
+        "verified": { "type": "boolean" },
+        "date": { "type": "string", "maxLength": 64 },
+        "customerPhoto": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "productId", "author", "rating", "comment"]
+    },
+    "WorkshopMedia": {
+      "title": "WorkshopMedia",
+      "description": "Artisan training and masterclass photos and videos led by Sahina Shrestha for interested candidates and artisans",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "type": { "type": "string", "enum": ["image", "video"] },
+        "title": { "type": "string", "maxLength": 256 },
+        "workshopTitle": { "type": "string", "maxLength": 256 },
+        "batchName": { "type": "string", "maxLength": 128 },
+        "date": { "type": "string", "maxLength": 128 },
+        "location": { "type": "string", "maxLength": 256 },
+        "url": { "type": "string", "maxLength": 2048 },
+        "thumbnailUrl": { "type": "string", "maxLength": 2048 },
+        "caption": { "type": "string", "maxLength": 4000 },
+        "craftTechnique": { "type": "string", "maxLength": 256 },
+        "attendeesCount": { "type": "number" },
+        "instructor": { "type": "string", "maxLength": 128 },
+        "featured": { "type": "boolean" },
+        "aspectRatio": { "type": "string", "enum": ["vertical", "square", "horizontal"] },
+        "tags": { "type": "array" },
+        "duration": { "type": "string", "maxLength": 64 },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "type", "title", "workshopTitle", "url"]
+    },
+    "WorkshopGroupEntity": {
+      "title": "WorkshopGroupEntity",
+      "description": "Masterclass workshop categories and curriculum with auto-generated notes and details",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "groupKey": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 256 },
+        "badge": { "type": "string", "maxLength": 128 },
+        "date": { "type": "string", "maxLength": 128 },
+        "location": { "type": "string", "maxLength": 256 },
+        "instructor": { "type": "string", "maxLength": 128 },
+        "attendeesCount": { "type": "number" },
+        "tagline": { "type": "string", "maxLength": 256 },
+        "description": { "type": "string", "maxLength": 4000 },
+        "keyTechniques": { "type": "array" },
+        "whatsappMessage": { "type": "string", "maxLength": 500 },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "groupKey", "title", "description"]
+    }
+  },
+  "firestore": {
+    "/products/{productId}": {
+      "schema": "Product",
+      "description": "Live catalog products accessible to all buyers and editable by seller"
+    },
+    "/workshop_groups/{groupId}": {
+      "schema": "WorkshopGroupEntity",
+      "description": "Workshop masterclasses and cohorts created by seller"
+    },
+    "/workshop_gallery/{itemId}": {
+      "schema": "WorkshopMedia",
+      "description": "Training photos and videos from masterclasses and craft workshops"
+    },
+    "/instagram_journal/{itemId}": {
+      "schema": "InstagramJournalItem",
+      "description": "Instagram journal posts editable by admins"
+    },
+    "/store_settings/{settingId}": {
+      "schema": "ArtisanProfile",
+      "description": "Store-wide configurations including artisan_profile, instagram settings, and seller_auth"
+    },
+    "/activeProfile/{profileId}": {
+      "schema": "ArtisanProfile",
+      "description": "Master artisan profile data and biography"
+    },
+    "/users/{userId}/tracked_orders/{orderId}": {
+      "schema": "TrackedOrder",
+      "description": "Secure customer sub-collection for order tracking keyed by user ID"
+    },
+    "/tracked_orders/{orderId}": {
+      "schema": "TrackedOrder",
+      "description": "Real-time orders with shipping and crafting milestone status secured by session token and order ID"
+    },
+    "/waitlist_subscribers/{subscriberId}": {
+      "schema": "WaitlistSubscriber",
+      "description": "Waitlist subscriptions for restock alert notifications"
+    },
+    "/newsletter_subscribers/{subscriberId}": {
+      "schema": "NewsletterSubscriber",
+      "description": "Subscribers for upcoming collection drops"
+    },
+    "/user_wishlists/{userId}": {
+      "schema": "UserWishlist",
+      "description": "Customer wishlist synchronized to cloud"
+    },
+    "/product_reviews/{reviewId}": {
+      "schema": "ProductReview",
+      "description": "Customer reviews and feedback with ratings for products"
+    }
+  }
+}

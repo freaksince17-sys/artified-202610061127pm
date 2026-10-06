@@ -1,0 +1,81 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Products catalog
+    match /products/{productId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // Workshop training gallery photos & videos
+    match /workshop_gallery/{itemId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // Workshop masterclasses & groups created by seller
+    match /workshop_groups/{groupId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // TikTok & Instagram showcase
+    match /tiktok_reels/{reelId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    match /instagram_journal/{itemId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // Store settings (artisan profile, instagram settings, seller auth hash)
+    match /store_settings/{settingId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // Active profile
+    match /activeProfile/{profileId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // User-keyed sub-collection for secure order tracking
+    match /users/{userId}/tracked_orders/{orderId} {
+      allow read, write: if true;
+    }
+
+    // Direct tracked orders collection
+    match /tracked_orders/{orderId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // Customer subscriptions and wishlists
+    match /waitlist_subscribers/{subscriberId} {
+      allow read, write: if true;
+    }
+
+    match /newsletter_subscribers/{subscriberId} {
+      allow read, write: if true;
+    }
+
+    match /user_wishlists/{userId} {
+      allow read, write: if true;
+    }
+
+    match /product_reviews/{reviewId} {
+      allow read, write: if true;
+    }
+
+    match /error_logs/{logId} {
+      allow read, write: if true;
+    }
+
+    match /test/{testId} {
+      allow read, write: if true;
+    }
+  }
+}

@@ -1,0 +1,447 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1"
+        xmlns:xhtml="http://www.w3.org/1999/xhtml">
+
+  <!-- 1. Primary Storefront Homepage -->
+  <url>
+    <loc>https://www.artified.com.np/</loc>
+    <lastmod>2026-10-04</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+  </url>
+
+  <!-- 2. Curated Product Collections / Categories -->
+  <url>
+    <loc>https://www.artified.com.np/?category=all</loc>
+    <lastmod>2026-10-04</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://www.artified.com.np/?category=pearl-bags</loc>
+    <lastmod>2026-10-04</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://www.artified.com.np/?category=pearl-necklaces</loc>
+    <lastmod>2026-10-04</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://www.artified.com.np/?category=macrame</loc>
+    <lastmod>2026-10-04</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://www.artified.com.np/?category=accessories</loc>
+    <lastmod>2026-10-04</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://www.artified.com.np/?category=new-arrivals</loc>
+    <lastmod>2026-10-04</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://www.artified.com.np/?category=best-sellers</loc>
+    <lastmod>2026-10-04</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <!-- 3. Key Brand Story & Customer Care Sections -->
+  <url>
+    <loc>https://www.artified.com.np/#meet-artisan</loc>
+    <lastmod>2026-10-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.artified.com.np/#customer-reviews</loc>
+    <lastmod>2026-10-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.artified.com.np/#instagram-journal</loc>
+    <lastmod>2026-10-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+
+  <!-- 4. Individual Handcrafted Products (With Google Image Metadata) -->
+  <url>
+    <loc>https://www.artified.com.np/?product=apsara-layered-pearl-collar</loc>
+    <lastmod>2026-10-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.artified.com.np/og-image.jpg</image:loc>
+      <image:title>Caviar Pearl Bag</image:title>
+      <image:caption>Introducing the elegant Pearl Beaded Bag, a versatile accessory suitable for all occasions. This top-handle bag is a stylish addition to any outfit, perfect for adding a touch of sophistication to your look. The pearl beading adds a luxurious and timeless appeal, making it a standout piece in the women&apos;s bags collection. Whether it&apos;s a casual day out or a special event, this bag is designed to complement your style effortlessly</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.artified.com.np/?product=chandra-baroque-pearl-choker</loc>
+    <lastmod>2026-10-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.artified.com.np/og-image.jpg</image:loc>
+      <image:title>Pearl Beaded Adjustable Choker</image:title>
+      <image:caption>This elegant multi-strand necklace features smooth, lustrous off-white faux pearls arranged in cascading tiers against a white jewelry display bust. The design incorporates varied bead sizes, blending delicate smaller beads with prominent, larger pearls to create a dynamic sense of depth, texture, and sophisticated vintage glamour.</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.artified.com.np/?product=lalitpur-bloom-pearl-tote</loc>
+    <lastmod>2026-10-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.artified.com.np/og-image.jpg</image:loc>
+      <image:title>Pearl Beaded Bag</image:title>
+      <image:caption>A beautiful handmade pearl handbag featuring a structured rectangular body crafted from rows of creamy white pearls. The bag has a matching rounded pearl handle and a distinctive decorative pearl clasp at the front. Its elegant, intricate design gives it a luxurious yet timeless appearance, making it suitable for weddings, parties, formal events, and special occasions.</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.artified.com.np/?product=maya-aurelia-pearl-bag</loc>
+    <lastmod>2026-10-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.artified.com.np/og-image.jpg</image:loc>
+      <image:title>Red Pearl Beaded Bag</image:title>
+      <image:caption>Introducing the elegant Pearl Beaded Handbag, a stylish accessory for any special occasion. This handbag features a secure lockable design with magnetic snaps for easy access. The exquisite pearl beading adds a touch of sophistication, making it a perfect choice for formal events or evening gatherings. Its compact size and versatile style make it an ideal companion for women who appreciate both fashion and functionality. Elevate your ensemble with this charming Pearl Beaded Handbag and make a statement wherever you go</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.artified.com.np/?product=tara-micro-pearl-clutch</loc>
+    <lastmod>2026-10-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.artified.com.np/og-image.jpg</image:loc>
+      <image:title>Three Layer Pearl Necklace with Earrings</image:title>
+      <image:caption>It&apos;s very elegant  and necklace set. This necklace is made with fresh water pearl strung through a dainty gem for a touch of detail. It is an excellent piece to add to your look. You don&apos;t need to layer other necklace, it&apos;s already set! the style of the necklace, can be simple and casual or dramatic and make a statement. You can wear either  formal occasion.
+
+A perfect gift for girlfriend, bestie, mother, birthdays, anniversaries, bridesmaids, friendship, and sisters.
+
+*To last longer, please take off during shower, swimming, workout, etc.
+Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotions and oils exposure to prevent accelerated discoloration, oxidation and tarnishing.</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.artified.com.np/?product=art-1790333862243-jt5hs</loc>
+    <lastmod>2026-10-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.artified.com.np/og-image.jpg</image:loc>
+      <image:title>3 Layer Pearl Beaded Choker</image:title>
+      <image:caption>Enhance your style with this elegant multi-layer pearl necklace, beautifully handcrafted in Nepal. Featuring lustrous pearls arranged in a graceful layered design, it adds a sophisticated touch to both traditional and modern outfits. The adjustable backside allows you to customize the fit according to your preference, making it comfortable and versatile for various occasions.</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.artified.com.np/?product=art-1790325037121-9xbrf</loc>
+    <lastmod>2026-10-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.artified.com.np/og-image.jpg</image:loc>
+      <image:title>3 Layer Pearl Necklace</image:title>
+      <image:caption>Add a touch of timeless sophistication to your jewellery collection with this beautiful 3 Layer Pearl Necklace. Featuring three graceful strands of lustrous pearls, its classic design creates an elegant layered look that complements both traditional and modern outfits. Handmade in Nepal and adjustable from the back for a comfortable, customized fit, this versatile necklace is perfect for everyday wear, parties, weddings, and other special occasions.</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.artified.com.np/?product=art-1790324281944-pmbwp</loc>
+    <lastmod>2026-10-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.artified.com.np/og-image.jpg</image:loc>
+      <image:title>3 Layer Pearl Rose Necklace</image:title>
+      <image:caption>Elevate your style with the Blush Pearl Cascade Necklace, a stunning three-layer design combining lustrous white pearls with delicate blush-pink beads for a soft and sophisticated finish. Each layer is thoughtfully arranged at a different length to create a graceful cascading effect that complements a variety of necklines. Carefully crafted with durable threading and an adjustable back for a customized fit, this elegant necklace is perfect for both everyday and formal occasions, and makes a beautiful gift for birthdays, weddings, anniversaries, and other special moments.</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.artified.com.np/?product=art-1790324546687-yv635</loc>
+    <lastmod>2026-10-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.artified.com.np/og-image.jpg</image:loc>
+      <image:title>3 Layer Pearl Ruby Necklace</image:title>
+      <image:caption>Make a bold and elegant statement with this stunning 3 Layer Pearl Necklace, featuring lustrous white pearls beautifully paired with rich ruby-red beads. Each layer is designed at a different length, creating a graceful cascading effect that adds depth and sophistication to any outfit. Carefully strung with durable thread and adjustable at the back for a customized fit, this versatile necklace is perfect for festive occasions, parties, weddings, or adding a vibrant touch to everyday style.</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.artified.com.np/?product=art-1790322203088-a18e2</loc>
+    <lastmod>2026-10-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.artified.com.np/og-image.jpg</image:loc>
+      <image:title>4 Layer Pearl Necklace</image:title>
+      <image:caption>Elevate your jewellery collection with this elegant four-layer pearl necklace, thoughtfully handmade in Nepal. Featuring beautifully arranged lustrous pearls in varying sizes, its graceful layered design adds sophistication and timeless charm to any outfit. Crafted with high-quality materials and an adjustable back closure, it offers a comfortable, customizable fit and is perfect for weddings, parties, festive occasions, or adding a refined touch to everyday fashion.</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.artified.com.np/?product=art-1790334477287-j6dmv</loc>
+    <lastmod>2026-10-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.artified.com.np/og-image.jpg</image:loc>
+      <image:title>5 Layer Pearl Choker</image:title>
+      <image:caption>Add timeless elegance to your jewellery collection with this stunning five-layer pearl choker. Crafted with high-quality materials and carefully strung on durable thread, it offers a beautiful finish with lasting wear. Its sophisticated design complements both formal and casual outfits, making it a versatile fashion accessory and a thoughtful gift for birthdays, weddings, anniversaries, and other special occasions.</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.artified.com.np/?product=art-1790333088486-tfyux</loc>
+    <lastmod>2026-10-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.artified.com.np/og-image.jpg</image:loc>
+      <image:title>5 layer pearl necklace with earrings</image:title>
+      <image:caption>Elevate your look with this elegant five-layer pearl necklace and matching earrings, thoughtfully handcrafted in Nepal. Featuring beautifully arranged layers of lustrous pearls, this timeless jewellery set adds sophistication to both traditional and modern outfits. The adjustable backside allows you to customize the fit and wear it comfortably for any occasion.</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.artified.com.np/?product=art-1790323549756-24tl6</loc>
+    <lastmod>2026-10-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.artified.com.np/og-image.jpg</image:loc>
+      <image:title>Beaded Pearl Layer Necklace With Earring Set</image:title>
+      <image:caption>Add a touch of timeless elegance to your look with this stunning layered pearl necklace, beautifully designed for women who appreciate sophisticated style. Crafted with high-quality artificial pearls that offer a lustrous, polished finish, the necklace is carefully strung on durable thread for lasting wear. Its secure and easy-to-use clasp ensures a comfortable fit, making it a versatile accessory for both formal occasions and everyday outfits.</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.artified.com.np/?product=art-1790339383059-2rnmf</loc>
+    <lastmod>2026-10-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.artified.com.np/og-image.jpg</image:loc>
+      <image:title>Crystal Bead Bracelets with Heart Clasp</image:title>
+      <image:caption>Celebrate a special bond with this beautiful Magnetic Heart Connection Couple Bracelet Set, designed as a meaningful accessory for couples and loved ones. Featuring smooth 8mm beads, a slightly stretchy design, and matching magnetic heart charms, these bracelets symbolize attraction, connection, and togetherness. Made with agate, howlite, and stainless steel, they make a thoughtful gift for anniversaries, birthdays, weddings, engagements, Valentine’s Day, or any memorable occasion.</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.artified.com.np/?product=art-1790325879806-igc0d</loc>
+    <lastmod>2026-10-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.artified.com.np/og-image.jpg</image:loc>
+      <image:title>Elegant Pearl Beaded Choker</image:title>
+      <image:caption>Add a touch of timeless elegance to your look with this beautiful pearl beaded choker. Featuring multiple strands of lustrous pearl beads arranged in an intricate layered design, it creates a sophisticated statement while complementing both traditional and modern outfits. Handmade in Nepal, this versatile necklace is perfect for parties, weddings, festive celebrations, formal events, or everyday styling. The adjustable backside lets you customize the fit according to your preference, making it both stylish and comfortable to wear.</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.artified.com.np/?product=art-1790338448845-1fpyt</loc>
+    <lastmod>2026-10-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.artified.com.np/og-image.jpg</image:loc>
+      <image:title>Freshwater Pearl Dainty Elegance Necklace Set</image:title>
+      <image:caption>Add effortless elegance to your jewellery collection with this beautiful freshwater pearl necklace set, carefully designed with delicate detailing for a refined finish. Its graceful style can complement both simple casual outfits and sophisticated formal looks, making it a versatile statement piece that requires no additional layering. Handmade in Nepal with an adjustable backside for a personalized fit, it also makes a thoughtful gift for girlfriends, best friends, mothers, sisters, bridesmaids, and special occasions.</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.artified.com.np/?product=art-1790323202380-nw0zi</loc>
+    <lastmod>2026-10-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.artified.com.np/og-image.jpg</image:loc>
+      <image:title>Handmade Macrame Plant Hanger (flower pot not included)</image:title>
+      <image:caption>Elevate your space with this exquisite handmade macramé plant hanger, crafted from high-quality natural fibers for a beautiful and durable finish. Its timeless bohemian design complements modern and traditional interiors, while the versatile structure is suitable for a variety of round or square pots and can be used indoors, outdoors, on balconies, patios, kitchens, or living spaces. Strong, stylish, and thoughtfully hand-knotted, it adds warmth and natural charm to any home while making a beautiful gift for plant lovers.</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.artified.com.np/?product=art-1790340560909-u8pd5</loc>
+    <lastmod>2026-10-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.artified.com.np/og-image.jpg</image:loc>
+      <image:title>Lustrous Pearl Hoop Earrings</image:title>
+      <image:caption>Add a graceful touch to your jewellery collection with these Golden Pearl Halo Drop Earrings, featuring lustrous white pearls complemented by delicate golden beads in an elegant circular design. Handmade with attention to detail, these lightweight earrings combine classic pearl beauty with a modern minimalist style, making them suitable for casual outings, special occasions, and everyday wear. The ear-wire closure provides a simple and comfortable wearing experience.</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.artified.com.np/?product=art-1790321559072-ym8ui</loc>
+    <lastmod>2026-10-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.artified.com.np/og-image.jpg</image:loc>
+      <image:title>Pearl and Beads Embedded Hand Bag</image:title>
+      <image:caption>This elegant handmade beaded bag features a rich blend of pearl white, smoky gray, and charcoal beads, creating a sophisticated monochrome look. Its intricate beadwork and matching beaded strap add texture, shine, and a luxurious handcrafted feel. The neutral color palette makes it versatile enough for both everyday styling and special occasions.</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.artified.com.np/?product=art-1790337745190-egjbv</loc>
+    <lastmod>2026-10-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.artified.com.np/og-image.jpg</image:loc>
+      <image:title>Pearl Beaded Adjustable Necklace</image:title>
+      <image:caption>Add a touch of timeless elegance to your jewellery collection with this beautifully crafted pearl beaded necklace. Featuring lustrous pearls arranged in a classic design, it effortlessly complements both traditional and modern outfits. Handmade in Nepal, the adjustable backside allows you to customize the length according to your preference, making it a versatile accessory for every occasion.</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.artified.com.np/?product=art-1790336051475-r3dos</loc>
+    <lastmod>2026-10-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.artified.com.np/og-image.jpg</image:loc>
+      <image:title>Pearl Beaded Bracelet</image:title>
+      <image:caption>Add a touch of timeless elegance to your jewellery collection with this beautifully crafted pearl beaded bracelet. Made in Nepal with authentic materials and detailed craftsmanship, its adjustable design provides a comfortable fit for different wrist sizes. With its classic pearl finish and versatile style, it is suitable for casual outings, formal events, celebrations, and everyday wear at a reasonable price.</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.artified.com.np/?product=art-1790334939460-sj7ss</loc>
+    <lastmod>2026-10-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.artified.com.np/og-image.jpg</image:loc>
+      <image:title>Pearl Beaded Keyring Set Of 4</image:title>
+      <image:caption>Add a charming touch to your everyday essentials with this elegant red beaded keyring set of four. Designed for easy attachment to bags, keys, purses, and other accessories, these stylish keyrings are practical, eye-catching, and affordable. With multiple designs available, they also make a thoughtful gift for friends, family, and loved ones.</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.artified.com.np/?product=art-1790326308284-gd3uy</loc>
+    <lastmod>2026-10-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.artified.com.np/og-image.jpg</image:loc>
+      <image:title>Pearl Cascade Beaded Choker</image:title>
+      <image:caption>Elevate your style with this elegant pearl beaded choker, featuring beautifully arranged pearl beads in a layered and graceful design. Handmade in Nepal, this versatile necklace is a perfect addition to any women’s fashion jewelry collection. Its sophisticated appearance makes it suitable for weddings, parties, festive celebrations, formal events, and everyday occasions. The adjustable backside allows you to customize the fit according to your preference, ensuring both comfort and elegance.</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.artified.com.np/?product=art-1790327324377-hhpsn</loc>
+    <lastmod>2026-10-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.artified.com.np/og-image.jpg</image:loc>
+      <image:title>Pearl Cascade Beaded Necklace</image:title>
+      <image:caption>Enhance your jewelry collection with this stunning pearl beaded necklace, featuring multiple layers of beautifully arranged artificial pearls that capture the lustrous appearance of real pearls. The pearls are carefully strung on a durable thread and secured with a sturdy, easy-to-use clasp for comfortable and reliable wear. Its elegant and versatile design makes it perfect for formal events, parties, celebrations, or casual outings, effortlessly complementing any outfit while adding a sophisticated statement.</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.artified.com.np/?product=art-1790338888219-gysij</loc>
+    <lastmod>2026-10-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.artified.com.np/og-image.jpg</image:loc>
+      <image:title>Pearl Dewdrop Cascade Choker</image:title>
+      <image:caption>Elevate your jewellery collection with the Pearl Dewdrop Cascade Choker, a beautifully handcrafted piece featuring delicate pearl beadwork and a graceful statement pearl pendant at the center. Handmade in Nepal, its elegant design blends timeless charm with modern sophistication, making it a beautiful choice for both traditional and contemporary outfits. The adjustable backside allows you to customize the fit according to your preference.</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.artified.com.np/?product=art-1790338084245-atu6j</loc>
+    <lastmod>2026-10-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.artified.com.np/og-image.jpg</image:loc>
+      <image:title>Pearl Majesty Multi-Layer Choker</image:title>
+      <image:caption>Make a sophisticated statement with the Pearl Majesty Multi-Layer Choker, designed for women who appreciate timeless elegance and graceful style. Featuring multiple layers of lustrous faux pearls, this beautiful necklace adds a refined touch to any outfit. Perfect for weddings, evening parties, banquets, dates, special celebrations, or as a thoughtful gift, it effortlessly enhances both traditional and contemporary looks.</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.artified.com.np/?product=art-1790333487706-sx4lk</loc>
+    <lastmod>2026-10-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.artified.com.np/og-image.jpg</image:loc>
+      <image:title>Pearl Petal Cascade Necklace</image:title>
+      <image:caption>Add timeless elegance to your jewellery collection with this beautifully crafted beaded pearl necklace. Featuring lustrous artificial pearls arranged in a graceful cascading pattern, it creates a distinctive statement look while remaining versatile enough for both traditional and modern outfits. The secure clasp and durable threading provide comfortable, reliable wear for special occasions or everyday styling.</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.artified.com.np/?product=art-1790323807676-ytboo</loc>
+    <lastmod>2026-10-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.artified.com.np/og-image.jpg</image:loc>
+      <image:title>Pearl Royale Set</image:title>
+      <image:caption>Add a touch of timeless elegance to your jewellery collection with this beautiful handmade pearl necklace, thoughtfully crafted in Nepal. Its versatile design makes it perfect for both special occasions and everyday styling, effortlessly complementing a variety of outfits. Featuring an adjustable back closure, the necklace can be customized to your preferred fit for comfortable and elegant wear.</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.artified.com.np/?product=art-1790340220660-1ix2y</loc>
+    <lastmod>2026-10-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.artified.com.np/og-image.jpg</image:loc>
+      <image:title>Pearl Whisper Minimalist Choker</image:title>
+      <image:caption>Add a subtle touch of elegance to your look with the Pearl Whisper Minimalist Choker. Featuring a delicate beaded design, this handmade necklace blends simplicity with a charming boho-inspired aesthetic. Its lightweight and durable construction makes it comfortable for everyday styling, while the lobster-claw closure provides a secure and convenient fit. Perfect for layering or wearing on its own.</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.artified.com.np/?product=art-1790321852789-zvpym</loc>
+    <lastmod>2026-10-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.artified.com.np/og-image.jpg</image:loc>
+      <image:title>Round Pearl Bag</image:title>
+      <image:caption>This elegant pearl beaded bag showcases a delicate blend of oversized pearls and tiny beads arranged in an intricate, textured pattern. The soft ivory tones create a timeless, feminine look, while the beautiful satin ribbon and pearl flower detail add a romantic, luxurious touch. Perfect for weddings, parties, and special occasions, this handmade piece makes a graceful statement accessory.</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.artified.com.np/?product=art-1790339748217-gx4df</loc>
+    <lastmod>2026-10-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.artified.com.np/og-image.jpg</image:loc>
+      <image:title>Silk Serenity Luxe Scrunchie Set of 4</image:title>
+      <image:caption>Elevate your everyday hair styling with the Silk Serenity Luxe Scrunchie Set, featuring four beautiful shades to complement different outfits and moods. Made with smooth, hair-friendly silk fabric, these scrunchies provide a gentle hold while helping reduce friction, frizz, and hair breakage. Lightweight and comfortable, they are especially perfect for summer styling, keeping your hair neatly secured without compromising your hairstyle.</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.artified.com.np/?product=art-1790334149869-7te6x</loc>
+    <lastmod>2026-10-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.artified.com.np/og-image.jpg</image:loc>
+      <image:title>Twisted Pearl Choker</image:title>
+      <image:caption>Add a graceful touch to your jewellery collection with this elegant layered pearl necklace, handcrafted in Nepal. Featuring beautifully arranged pearls in a delicate multi-layer design, it offers a timeless and sophisticated look that complements both traditional and modern outfits. The adjustable backside allows you to customize the fit according to your preference, making it comfortable for various occasions.</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.artified.com.np/?product=art-1790336632322-nkqr5</loc>
+    <lastmod>2026-10-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.artified.com.np/og-image.jpg</image:loc>
+      <image:title>Two Layer Pearl Choker</image:title>
+      <image:caption>Enhance your jewellery collection with this elegant two-layer pearl choker, beautifully handcrafted in Nepal. Featuring two graceful rows of lustrous pearls with a classic layered design, it adds sophistication and charm to both traditional and modern outfits. The adjustable backside allows you to customize the fit according to your preference, making it comfortable and versatile for every occasion.</image:caption>
+    </image:image>
+  </url>
+</urlset>
