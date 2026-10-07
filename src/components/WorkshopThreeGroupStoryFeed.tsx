@@ -128,13 +128,13 @@ const CohortStorytellingPlayer: React.FC<{
           <Sparkles className="w-7 h-7" />
         </div>
         <span className="inline-block px-3 py-1 rounded-full bg-[#C5A880]/25 text-[#E6CA9E] text-xs font-bold uppercase tracking-wider mb-2">
-          Upcoming Masterclass Cohort
+          Upcoming Workshop Batch
         </span>
         <h4 className="font-serif text-lg font-bold text-white mb-2">
           {group.title}
         </h4>
         <p className="text-xs text-white/70 max-w-sm mb-4 leading-relaxed">
-          {group.description || 'Hands-on artisan training cohort led by Sahina Shrestha in Kathmandu. Open for new candidates.'}
+          {group.description || 'Hands-on artisan training workshop led by Sahina Shrestha in Kathmandu. Open for new candidates.'}
         </p>
         <span className="text-[11px] text-[#C5A880] font-mono">
           📅 {group.date || 'Starting Soon'} • 📍 {group.location || 'Kathmandu Workshop'}
@@ -333,7 +333,7 @@ const CohortStorytellingPlayer: React.FC<{
             <div className="absolute bottom-3 left-3 right-14 flex items-center justify-between pointer-events-none z-20">
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-semibold bg-black/75 backdrop-blur-md text-white/95 border border-white/20">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                <span>Kathmandu Atelier Recording</span>
+                <span>Kathmandu Workshop Recording</span>
               </span>
             </div>
 
@@ -622,18 +622,50 @@ export const WorkshopThreeGroupStoryFeed: React.FC<WorkshopThreeGroupStoryFeedPr
     const phone = '9779767573721';
     const text = encodeURIComponent(
       group.whatsappMessage || 
-      `Namaste Sahina Shrestha! ✨ I would love to register for your upcoming "${group.title}" masterclass in Kathmandu.`
+      `Namaste Sahina Shrestha! ✨ I would love to register for your upcoming "${group.title}" in Kathmandu.`
     );
     window.open(`https://wa.me/${phone}?text=${text}`, '_blank');
   };
 
   if (!groups || groups.length === 0) {
     return (
-      <div className="text-center py-12 bg-white dark:bg-[#181716] rounded-2xl border border-[#E8DFD8] dark:border-[#2E2C29]">
-        <Sparkles className="w-8 h-8 text-[#C5A880] mx-auto mb-2" />
-        <p className="text-sm font-semibold text-[#1C1B1A] dark:text-white">
-          No workshop masterclass cohorts available right now.
+      <div className="text-center py-16 px-4 bg-white dark:bg-[#1A1918] rounded-3xl border border-dashed border-[#E8DFD8] dark:border-[#2A2825] my-6 shadow-sm">
+        <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-[#C5A880]/15 flex items-center justify-center text-[#C5A880]">
+          <Sparkles className="w-8 h-8" />
+        </div>
+        <h3 className="text-xl font-serif font-bold text-[#1C1B1A] dark:text-[#FAF8F5] mb-2">
+          {isSellerMode ? 'Workshops Cleaned & Ready' : 'Handmade Workshops in Kathmandu'}
+        </h3>
+        <p className="text-sm text-[#736C65] dark:text-[#9E9790] max-w-md mx-auto mb-6">
+          {isSellerMode
+            ? 'Ready to launch your handcrafting workshop! Upload photos and videos directly to Firebase Storage with instant info extraction.'
+            : 'New workshop schedules and training sessions will be announced soon. Tap below to inquire or reserve upcoming seats via WhatsApp.'}
         </p>
+        {isSellerMode && onOpenUploadModal ? (
+          <button
+            type="button"
+            onClick={() => onOpenUploadModal()}
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-[#C5A880] hover:bg-[#b8986c] text-[#1C1B1A] font-bold text-xs uppercase tracking-wider transition-all shadow-md cursor-pointer hover:scale-102"
+          >
+            <Plus className="w-4 h-4" />
+            <span>+ Create Workshop (Upload Photos & Videos)</span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => {
+              const phone = '9779767573721';
+              const text = encodeURIComponent(
+                'Namaste Sahina Shrestha! ✨ I am interested in joining your upcoming handmade craft workshop in Kathmandu.'
+              );
+              window.open(`https://wa.me/${phone}?text=${text}`, '_blank');
+            }}
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-[#25D366] hover:bg-[#20ba59] text-white font-bold text-xs uppercase tracking-wider transition-all shadow-md cursor-pointer"
+          >
+            <MessageCircle className="w-4 h-4 fill-white" />
+            <span>Inquire Upcoming Workshop Batches</span>
+          </button>
+        )}
       </div>
     );
   }
@@ -693,30 +725,7 @@ export const WorkshopThreeGroupStoryFeed: React.FC<WorkshopThreeGroupStoryFeedPr
         </div>
       )}
 
-      {groups.length === 0 ? (
-        <div className="text-center py-16 px-4 bg-white dark:bg-[#1A1918] rounded-3xl border border-dashed border-[#E8DFD8] dark:border-[#2A2825] my-6">
-          <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-[#C5A880]/15 flex items-center justify-center text-[#C5A880]">
-            <Sparkles className="w-8 h-8" />
-          </div>
-          <h3 className="text-xl font-serif font-bold text-[#1C1B1A] dark:text-[#FAF8F5] mb-2">
-            No Workshop Masterclasses Found
-          </h3>
-          <p className="text-sm text-[#736C65] dark:text-[#9E9790] max-w-md mx-auto mb-6">
-            All masterclasses have been deleted or no matching cohorts were found. You can create a new masterclass cohort anytime.
-          </p>
-          {isSellerMode && onOpenUploadModal && (
-            <button
-              type="button"
-              onClick={() => onOpenUploadModal()}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#C5A880] hover:bg-[#b8986c] text-[#1C1B1A] font-bold text-xs uppercase tracking-wider transition-all shadow-md cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Create / Add Masterclass</span>
-            </button>
-          )}
-        </div>
-      ) : (
-        groups.map((group, groupIdx) => {
+      {groups.map((group, groupIdx) => {
         const groupKey = group.groupKey || group.id;
         const currentActiveSlide = activeSlideMap[groupKey] || 0;
         const currentActiveItem = group.items[currentActiveSlide] || group.items[0];
@@ -738,17 +747,17 @@ export const WorkshopThreeGroupStoryFeed: React.FC<WorkshopThreeGroupStoryFeedPr
             {/* Top Accent Gradient Border */}
             <div className="absolute top-0 inset-x-0 h-1.5 bg-linear-to-r from-[#C5A880] via-[#8C5D36] to-[#C5A880]" />
 
-            {/* Workshop Top Banner: Cohort Badge, Stats & Action CTAs */}
+            {/* Workshop Top Banner: Batch Badge, Stats & Action CTAs */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3.5 mb-4 border-b border-[#F0EBE5] dark:border-[#262422]">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-[#C5A880]/20 text-[#8C5D36] dark:text-[#E6CA9E] border border-[#C5A880]/30">
                   <Sparkles className="w-3.5 h-3.5 text-[#C5A880]" />
-                  <span>{group.badge || `Masterclass #${groupIdx + 1}`}</span>
+                  <span>{group.badge || `Workshop #${groupIdx + 1}`}</span>
                 </span>
 
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-neutral-100 dark:bg-[#262422] text-[#5E5955] dark:text-[#C4BCB5]">
                   {totalMediaCount === 0 ? (
-                    <span>Upcoming Cohort • Open for Enrollment</span>
+                    <span>Upcoming Batch • Open for Registration</span>
                   ) : (
                     <>
                       {videoCount > 0 && (
@@ -772,7 +781,7 @@ export const WorkshopThreeGroupStoryFeed: React.FC<WorkshopThreeGroupStoryFeedPr
                     className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-black/5 dark:bg-white/10 hover:bg-black/10 text-xs font-semibold transition-all cursor-pointer"
                   >
                     <CheckSquare className="w-3.5 h-3.5 text-[#C5A880]" />
-                    <span>Select All in Cohort</span>
+                    <span>Select All in Workshop</span>
                   </button>
                 )}
 
@@ -781,7 +790,7 @@ export const WorkshopThreeGroupStoryFeed: React.FC<WorkshopThreeGroupStoryFeedPr
                     type="button"
                     onClick={() => onOpenUploadModal(groupKey)}
                     className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-[#C5A880] hover:bg-[#b8986c] text-[#1C1B1A] text-xs font-bold transition-all cursor-pointer shadow-xs"
-                    title="Upload photos or videos for this masterclass"
+                    title="Upload photos or videos for this workshop"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     <span>Add Media</span>
@@ -793,7 +802,7 @@ export const WorkshopThreeGroupStoryFeed: React.FC<WorkshopThreeGroupStoryFeedPr
                     type="button"
                     onClick={() => onEditGroup(group)}
                     className="p-1.5 rounded-xl bg-neutral-100 dark:bg-[#262422] hover:bg-neutral-200 text-[#5E5955] dark:text-[#C4BCB5] transition-colors cursor-pointer"
-                    title="Edit masterclass title, syllabus & details"
+                    title="Edit workshop title, description & details"
                   >
                     <Edit3 className="w-3.5 h-3.5 text-[#C5A880]" />
                   </button>
@@ -826,7 +835,7 @@ export const WorkshopThreeGroupStoryFeed: React.FC<WorkshopThreeGroupStoryFeedPr
                       type="button"
                       onClick={() => setConfirmDeleteGroupKey(groupKey)}
                       className="p-1.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 border border-red-500/20 transition-colors cursor-pointer"
-                      title="Delete this entire masterclass cohort"
+                      title="Delete workshop"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
@@ -1018,29 +1027,15 @@ export const WorkshopThreeGroupStoryFeed: React.FC<WorkshopThreeGroupStoryFeedPr
                     <div className="p-4 rounded-2xl bg-[#F7F4EE] dark:bg-[#141312] border border-[#E8DFD8] dark:border-[#262422] mb-3.5 shadow-2xs">
                       <div className="flex items-center gap-2 mb-2 text-[#8C5D36] dark:text-[#E6CA9E] text-[11px] font-bold uppercase tracking-wider">
                         <Sparkles className="w-3.5 h-3.5 text-[#C5A880]" />
-                        <span>Cohort Syllabus & Enrollment Details</span>
+                        <span>Workshop Details & Registration</span>
                       </div>
                       <p className="text-xs text-[#5E5955] dark:text-[#C4BCB5] leading-relaxed mb-3">
-                        {group.description || 'Hands-on intensive masterclass led by Sahina Shrestha. Practical guidance on authentic handcrafting in Kathmandu.'}
+                        {group.description || 'Hands-on practical workshop led by Sahina Shrestha in Kathmandu.'}
                       </p>
                       <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/15 text-emerald-800 dark:text-emerald-400 text-xs font-semibold">
                         <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                        <span>Accepting Applications • Limited Cohort Seats</span>
+                        <span>Accepting Inquiries • Small Batch Size</span>
                       </div>
-                    </div>
-                  )}
-
-                  {/* Cohort Key Techniques Pills */}
-                  {group.keyTechniques && group.keyTechniques.length > 0 && (
-                    <div className="flex flex-wrap items-center gap-1.5 mb-4">
-                      {group.keyTechniques.map((tech, tIdx) => (
-                        <span
-                          key={tIdx}
-                          className="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-neutral-100 dark:bg-[#201E1C] text-[#5E5955] dark:text-[#C4BCB5] border border-neutral-200 dark:border-white/5"
-                        >
-                          ✓ {tech}
-                        </span>
-                      ))}
                     </div>
                   )}
 
@@ -1048,15 +1043,15 @@ export const WorkshopThreeGroupStoryFeed: React.FC<WorkshopThreeGroupStoryFeedPr
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 py-2.5 border-t border-[#F0EBE5] dark:border-[#262422] text-xs text-[#7A746E] dark:text-[#A8A29D] mb-4">
                     <div className="flex items-center gap-1.5 truncate">
                       <Calendar className="w-3.5 h-3.5 text-[#C5A880] shrink-0" />
-                      <span className="truncate">{group.date || 'Sep - Oct 2026'}</span>
+                      <span className="truncate">{group.date || 'Starting Soon'}</span>
                     </div>
                     <div className="flex items-center gap-1.5 truncate">
                       <MapPin className="w-3.5 h-3.5 text-[#C5A880] shrink-0" />
-                      <span className="truncate">{group.location || 'Kathmandu Atelier'}</span>
+                      <span className="truncate">{group.location || 'Kathmandu Studio'}</span>
                     </div>
                     <div className="flex items-center gap-1.5 truncate col-span-2 sm:col-span-1">
                       <Users className="w-3.5 h-3.5 text-[#C5A880] shrink-0" />
-                      <span className="truncate">{group.attendeesCount || 15} Candidates</span>
+                      <span className="truncate">{group.attendeesCount || 15} Seats</span>
                     </div>
                   </div>
 
@@ -1085,8 +1080,7 @@ export const WorkshopThreeGroupStoryFeed: React.FC<WorkshopThreeGroupStoryFeedPr
             )}
           </div>
         );
-      })
-    )}
+      })}
     </div>
   );
 };

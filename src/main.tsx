@@ -43,6 +43,16 @@ try {
       deletedIds.push('ig-1791099498584');
       localStorage.setItem('artified_instagram_deleted_ids', JSON.stringify(deletedIds));
     }
+
+    // Purge legacy mock workshop groups and media cache
+    [
+      'artified_custom_workshop_groups_v8',
+      'artified_custom_workshop_groups_v7',
+      'artified_custom_workshop_groups_v6',
+      'artified_custom_workshop_media_v8',
+      'artified_custom_workshop_media_v7',
+      'artified_custom_workshop_media_v6'
+    ].forEach((k) => localStorage.removeItem(k));
   }
 } catch {}
 

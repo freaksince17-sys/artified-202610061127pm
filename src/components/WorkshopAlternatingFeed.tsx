@@ -373,7 +373,7 @@ export const WorkshopAlternatingFeed: React.FC<WorkshopAlternatingFeedProps> = (
                   {/* Workshop Batch Subtitle */}
                   {item.batchName && (
                     <p className="text-xs font-semibold text-[#C5A880] uppercase tracking-wider mb-3">
-                      {item.batchName} • Masterclass with {item.instructor || 'Sahina Shrestha'}
+                      {item.batchName} • Workshop with {item.instructor || 'Sahina Shrestha'}
                     </p>
                   )}
 

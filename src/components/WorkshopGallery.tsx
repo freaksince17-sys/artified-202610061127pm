@@ -28,11 +28,13 @@ import {
   getCustomWorkshopMediaFromStorage,
   fetchWorkshopGroups,
   deleteWorkshopGroup,
-  isMediaRelatedToGroup
+  isMediaRelatedToGroup,
+  deduplicateMediaItems
 } from '../data/workshops';
 import { WorkshopThreeGroupStoryFeed } from './WorkshopThreeGroupStoryFeed';
 import { WorkshopLightboxModal } from './WorkshopLightboxModal';
 import { UnifiedMasterclassModal } from './UnifiedMasterclassModal';
+import { MasterclassCreationModal } from './MasterclassCreationModal';
 import { ReplaceMediaModal } from './ReplaceMediaModal';
 import { useCart } from '../context/CartContext';
 import { db } from '../firebase';
@@ -65,6 +67,7 @@ export const WorkshopGallery: React.FC = () => {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   
   // Modals state
+  const [isCreationModalOpen, setIsCreationModalOpen] = useState(false);
   const [isMasterclassModalOpen, setIsMasterclassModalOpen] = useState(false);
   const [isReplaceModalOpen, setIsReplaceModalOpen] = useState(false);
   const [replaceTargetItem, setReplaceTargetItem] = useState<WorkshopMediaItem | null>(null);
@@ -161,11 +164,25 @@ export const WorkshopGallery: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
+  // Filter media items to ONLY those associated with active existing workshop groups (No orphans)
+  const activeGroupKeys = useMemo(() => {
+    return new Set(groupMetas.map((g) => g.groupKey || g.id).filter(Boolean));
+  }, [groupMetas]);
+
+  const activeMediaItems = useMemo(() => {
+    if (activeGroupKeys.size === 0) return [];
+    return mediaItems.filter((m) => {
+      if (!m.groupId) return false;
+      const cleanGroupId = m.groupId.replace(/^ws-group-/, '');
+      return activeGroupKeys.has(m.groupId) || activeGroupKeys.has(cleanGroupId) || activeGroupKeys.has(`ws-group-${cleanGroupId}`);
+    });
+  }, [mediaItems, activeGroupKeys]);
+
   // Filter items by search query if any
   const filteredMediaItems = useMemo(() => {
-    if (!searchQuery.trim()) return mediaItems;
+    if (!searchQuery.trim()) return activeMediaItems;
     const q = searchQuery.toLowerCase().trim();
-    return mediaItems.filter(
+    return activeMediaItems.filter(
       (m) =>
         m.title.toLowerCase().includes(q) ||
         m.caption.toLowerCase().includes(q) ||
@@ -173,7 +190,7 @@ export const WorkshopGallery: React.FC = () => {
         m.location.toLowerCase().includes(q) ||
         m.tags.some((t) => t.toLowerCase().includes(q))
     );
-  }, [mediaItems, searchQuery]);
+  }, [activeMediaItems, searchQuery]);
 
   // Construct workshop groups based on current group metadata
   const workshopGroups = useMemo(() => {
@@ -186,6 +203,10 @@ export const WorkshopGallery: React.FC = () => {
   };
 
   const handleOpenMasterclassEditor = (groupKey?: string) => {
+    if (!groupKey || groupKey === 'new-cohort' || workshopGroups.length === 0) {
+      setIsCreationModalOpen(true);
+      return;
+    }
     setTargetGroupKey(groupKey);
     setIsMasterclassModalOpen(true);
   };
@@ -232,7 +253,7 @@ export const WorkshopGallery: React.FC = () => {
   const openWhatsAppRegister = () => {
     const phone = '9779767573721';
     const text = encodeURIComponent(
-      'Namaste Sahina Shrestha! ✨ I am browsing the Workshop Masterclasses on your website and would like to register for the upcoming batch in Kathmandu.'
+      'Namaste Sahina Shrestha! ✨ I am browsing the Workshops on your website and would like to register for the upcoming batch in Kathmandu.'
     );
     window.open(`https://wa.me/${phone}?text=${text}`, '_blank');
   };
@@ -252,13 +273,13 @@ export const WorkshopGallery: React.FC = () => {
             </div>
 
             <h1 className="font-serif text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-white leading-tight mb-1.5">
-              Workshops & Training Masterclasses
+              Workshops & Craft Training
             </h1>
 
             <p className="text-xs sm:text-sm text-white/80 leading-relaxed max-w-xl mb-3.5 font-normal">
-              Explore hands-on masterclass series taught by founder & master artisan{' '}
+              Explore hands-on workshop series taught by founder & master artisan{' '}
               <strong className="text-[#E6CA9E] font-semibold">Sahina Shrestha</strong>:
-              Macrame knotting, waste pipe to sunflower eco-crafting, bridal pearl bag weaving, and new atelier cohorts.
+              Macrame knotting, waste pipe to sunflower eco-crafting, bridal pearl bag weaving, and new handmade sessions.
             </p>
 
             <div className="flex flex-wrap items-center gap-2.5">
@@ -275,21 +296,23 @@ export const WorkshopGallery: React.FC = () => {
                 <>
                   <button
                     type="button"
-                    onClick={() => handleOpenMasterclassEditor(undefined)}
-                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#C5A880] hover:bg-[#b8986c] text-[#1C1B1A] text-xs font-bold uppercase tracking-wider transition-all cursor-pointer shadow-sm"
+                    onClick={() => setIsCreationModalOpen(true)}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#C5A880] hover:bg-[#b8986c] text-[#1C1B1A] text-xs font-bold uppercase tracking-wider transition-all cursor-pointer shadow-sm hover:scale-102"
                   >
-                    <Edit3 className="w-3.5 h-3.5" />
-                    <span>Manage Masterclasses & Media</span>
+                    <FolderPlus className="w-3.5 h-3.5" />
+                    <span>+ Create Workshop</span>
                   </button>
 
-                  <button
-                    type="button"
-                    onClick={() => handleOpenMasterclassEditor('new-cohort')}
-                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/20 text-xs font-semibold uppercase tracking-wider transition-all cursor-pointer"
-                  >
-                    <FolderPlus className="w-3.5 h-3.5 text-[#C5A880]" />
-                    <span>+ New Masterclass</span>
-                  </button>
+                  {workshopGroups.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => handleOpenMasterclassEditor(undefined)}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/20 text-xs font-semibold uppercase tracking-wider transition-all cursor-pointer"
+                    >
+                      <Edit3 className="w-3.5 h-3.5 text-[#C5A880]" />
+                      <span>Manage Workshops & Media</span>
+                    </button>
+                  )}
                 </>
               )}
             </div>
@@ -349,16 +372,16 @@ export const WorkshopGallery: React.FC = () => {
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#1C1B1A] dark:bg-white text-white dark:text-[#1C1B1A] text-xs font-bold uppercase tracking-wider transition-all cursor-pointer shadow-xs"
             >
               <Edit3 className="w-3.5 h-3.5 text-[#C5A880]" />
-              <span>Edit Masterclasses & Media</span>
+              <span>Edit Workshops & Media</span>
             </button>
 
             <button
               type="button"
-              onClick={() => handleOpenMasterclassEditor('new-cohort')}
+              onClick={() => setIsCreationModalOpen(true)}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#C5A880] text-[#1C1B1A] text-xs font-bold uppercase tracking-wider transition-all cursor-pointer shadow-xs"
             >
               <FolderPlus className="w-3.5 h-3.5" />
-              <span>+ New Masterclass</span>
+              <span>+ New Workshop</span>
             </button>
           </div>
         </div>
@@ -374,7 +397,7 @@ export const WorkshopGallery: React.FC = () => {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search masterclasses, techniques, or video moments..."
+            placeholder="Search workshops, techniques, or video moments..."
             className="w-full pl-9 pr-4 py-1.5 bg-[#FAF8F5] dark:bg-[#201E1C] border border-[#E8DFD8] dark:border-white/10 rounded-xl text-xs text-[#1C1B1A] dark:text-white placeholder:text-[#7A746E] dark:placeholder:text-[#A8A29D] focus:outline-none focus:border-[#C5A880]"
           />
         </div>
@@ -383,15 +406,15 @@ export const WorkshopGallery: React.FC = () => {
         <div className="flex items-center gap-1.5 text-xs text-[#7A746E] dark:text-[#A8A29D] flex-wrap justify-end">
           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-black/5 dark:bg-white/5 font-semibold text-[#1C1B1A] dark:text-white">
             <Layers className="w-3.5 h-3.5 text-[#C5A880]" />
-            <span>{workshopGroups.length} Cohorts</span>
+            <span>{workshopGroups.length} Workshops</span>
           </span>
           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-black/5 dark:bg-white/5">
             <Video className="w-3.5 h-3.5 text-[#C5A880]" />
-            <span>{mediaItems.filter(i => i.type === 'video').length} Videos</span>
+            <span>{activeMediaItems.filter(i => i.type === 'video').length} Videos</span>
           </span>
           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-black/5 dark:bg-white/5">
             <Camera className="w-3.5 h-3.5 text-[#C5A880]" />
-            <span>{mediaItems.filter(i => i.type === 'image').length} Photos</span>
+            <span>{activeMediaItems.filter(i => i.type === 'image').length} Photos</span>
           </span>
         </div>
       </div>
@@ -415,6 +438,22 @@ export const WorkshopGallery: React.FC = () => {
         onClose={() => setLightboxIndex(null)}
         items={lightboxItems}
         initialIndex={lightboxIndex || 0}
+      />
+
+      {/* Masterclass Creation Modal (Firebase Storage & Gemini AI) */}
+      <MasterclassCreationModal
+        isOpen={isCreationModalOpen}
+        onClose={() => setIsCreationModalOpen(false)}
+        onMasterclassCreated={(newGroup, newItems) => {
+          setGroupMetas((prev) => {
+            const exists = prev.some((g) => g.id === newGroup.id || g.groupKey === newGroup.groupKey);
+            if (exists) {
+              return prev.map((g) => (g.id === newGroup.id || g.groupKey === newGroup.groupKey ? newGroup : g));
+            }
+            return [newGroup, ...prev];
+          });
+          setMediaItems((prev) => deduplicateMediaItems([...newItems, ...prev]));
+        }}
       />
 
       {/* Unified Masterclass & Media Management Modal (Both Edit in One Place) */}
@@ -442,7 +481,7 @@ export const WorkshopGallery: React.FC = () => {
           setMediaItems((prev) => prev.filter((m) => !allDeleted.includes(m.groupId || '')));
         }}
         onMediaUpdated={(updated) => {
-          setMediaItems(updated);
+          setMediaItems(deduplicateMediaItems(updated));
         }}
       />
 

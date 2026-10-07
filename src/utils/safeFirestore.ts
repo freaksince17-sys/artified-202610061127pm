@@ -21,7 +21,7 @@ export function setFirestoreQuotaExceeded(val: boolean) {
   } catch {}
 }
 
-// Automatically detect quota limit errors from exceptions
+// Automatically detect quota limit or oversized payload errors from exceptions
 export function detectQuotaError(err: any): boolean {
   if (!err) return false;
   const msg = (err.message || String(err)).toLowerCase();
@@ -30,10 +30,14 @@ export function detectQuotaError(err: any): boolean {
     msg.includes('quota exceeded') ||
     msg.includes('resource-exhausted') ||
     msg.includes('maximum backoff delay') ||
+    msg.includes('exceeds the limit') ||
+    msg.includes('payload size exceeds') ||
     msg.includes('exhausted') ||
     msg.includes('quota');
   if (isQuota) {
-    setFirestoreQuotaExceeded(true);
+    if (!msg.includes('payload size')) {
+      setFirestoreQuotaExceeded(true);
+    }
   }
   return isQuota;
 }

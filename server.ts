@@ -6,6 +6,8 @@ import crypto from 'crypto';
 import { PRODUCTS, DEFAULT_INSTAGRAM_ITEMS, DEFAULT_INSTAGRAM_HANDLE, DEFAULT_INSTAGRAM_PROFILE_URL, TIKTOK_REELS, DEFAULT_CRAFT_STORY } from './src/data/products.ts';
 import { DEFAULT_ARTISAN_PROFILE } from './src/data/artisanProfile.ts';
 import { generateSitemapXml } from './src/utils/sitemapGenerator.ts';
+import { GoogleGenAI } from '@google/genai';
+import { autoGenerateWorkshopGroup, autoGenerateMediaCaption } from './src/utils/workshopAIGenerator.ts';
 
 async function startServer() {
   const app = express();
@@ -591,15 +593,15 @@ async function startServer() {
             console.warn('Could not save client thumbnail:', tErr);
           }
         } else {
-          // Attempt ffmpeg extraction
+          // Attempt ffmpeg extraction if binary exists, otherwise fallback to video url
           try {
             const { execSync } = await import('child_process');
             execSync(`ffmpeg -y -ss 00:00:00.500 -i "${targetPath}" -vframes 1 -q:v 2 "${thumbPath}"`, { stdio: 'ignore' });
             if (fs.existsSync(thumbPath)) {
               thumbUrl = `/workshops/${thumbFilename}`;
             }
-          } catch (ffErr) {
-            console.warn('Notice: ffmpeg thumbnail generation note for workshop video:', ffErr);
+          } catch {
+            // ffmpeg not present or video format requires canvas frame; default thumbUrl is preserved
           }
         }
       }
@@ -612,7 +614,7 @@ async function startServer() {
         groupId: groupId || 'macrame',
         type: isVideo ? 'video' : 'image',
         title: cleanTitle,
-        workshopTitle: groupId === 'macrame' ? 'Macrame Handcrafting Masterclass' : (groupId === 'wastepipe-sunflower' ? 'Waste Pipe to Sunflower Making Workshop' : (groupId === 'pearl-bag' ? 'Pearl Bag Making Masterclass' : 'Artisan Masterclass')),
+        workshopTitle: groupId === 'macrame' ? 'Macrame Handcrafting Workshop' : (groupId === 'wastepipe-sunflower' ? 'Waste Pipe to Sunflower Making Workshop' : (groupId === 'pearl-bag' ? 'Pearl Bag Making Workshop' : 'Artisan Workshop')),
         url: publicUrl,
         thumbnailUrl: thumbUrl,
         caption: caption || `${cleanTitle} session recorded at Kathmandu Workshop, Nepal.`,
@@ -620,7 +622,7 @@ async function startServer() {
         location: 'Kathmandu, Nepal',
         date: new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
         instructor: 'Sahina Shrestha',
-        tags: ['Artisan Masterclass', 'Kathmandu Atelier'],
+        tags: ['Artisan Workshop', 'Kathmandu Studio'],
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
@@ -756,6 +758,273 @@ async function startServer() {
     } catch (err: any) {
       console.error('Error saving workshop_groups.json:', err);
       return res.status(500).json({ error: err.message || 'Failed to save workshop groups' });
+    }
+  });
+
+  // Shared Gemini Client
+  const getGeminiClient = () => {
+    if (!process.env.GEMINI_API_KEY) return null;
+    return new GoogleGenAI({
+      apiKey: process.env.GEMINI_API_KEY,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        }
+      }
+    });
+  };
+
+  // POST /api/gemini/extract-workshop-info - Deep Visual Feature Analysis using Gemini Pro Vision
+  app.post('/api/gemini/extract-workshop-info', async (req, res) => {
+    try {
+      const { images, imageBase64, mimeType, filename, mediaList, topic } = req.body;
+      const effectiveTopic = (topic || '').trim();
+
+      const ai = getGeminiClient();
+      if (ai) {
+        try {
+          const contents: any[] = [];
+
+          // Collect multiple visual frames/photos if provided
+          if (Array.isArray(images) && images.length > 0) {
+            for (const img of images.slice(0, 6)) {
+              if (img && img.imageBase64) {
+                const cleanBase64 = img.imageBase64.replace(/^data:[a-zA-Z0-9/]+;base64,/, '');
+                contents.push({
+                  inlineData: {
+                    mimeType: img.mimeType || 'image/jpeg',
+                    data: cleanBase64
+                  }
+                });
+              }
+            }
+          } else if (imageBase64 && typeof imageBase64 === 'string') {
+            const cleanBase64 = imageBase64.replace(/^data:[a-zA-Z0-9/]+;base64,/, '');
+            contents.push({
+              inlineData: {
+                mimeType: mimeType || 'image/jpeg',
+                data: cleanBase64
+              }
+            });
+          }
+
+          const visionPrompt = `You are the lead artisan director and master visual evaluator for "Artified Nepal", a luxury handmade craft studio founded and led by master artisan Sahina Shrestha in Kathmandu, Nepal.
+
+CRITICAL INSTRUCTIONS FOR VISUAL FEATURE ANALYSIS (GEMINI PRO VISION):
+1. PERFORM DEEP VISUAL FEATURE ANALYSIS on the provided visual media frame(s):
+   - Visual Craft & Technique Analysis: Look closely at the hands, motions, and physical pieces in the video/photo frames. Determine the exact artisan technique shown (e.g. square knotting, lark's head mounting, waste pipe botanical upcycling & petal molding, pearl bag cross-weaving, crochet floral sculpting, pottery wheel shaping, hand-embroidery, copper wire jewelry, etc.).
+   - Material & Tool Identification: Visually identify all tools and raw materials seen in the frames (e.g., 3-ply natural cotton cords, wooden hanging rings, pearl beads, nylon wire, hot glue, acrylic glaze, shaping scissors, terracotta clay, etc.).
+   - Visual Aesthetics & Palette: Note the color tones, textures, and finished artisan creations visible in the frame.
+   - COMPLETE DISREGARD OF FILENAMES: Do NOT deduce the topic from filenames (like "IMG_4920", "video.mp4", "download.mov", "clip_1"). Your entire evaluation MUST stem strictly from the visual contents and pixel evidence of the media.
+
+2. STRICT VOCABULARY RESTRICTIONS:
+   - Do NOT use the words "masterclass", "cohort", or "atelier" anywhere. Always use "Workshop", "Batch", "Studio", or "Session".
+3. NATURAL NARRATIVE ONLY (NO NUMBERED LISTS):
+   - Do NOT format the description with numbered points or "1.", "2.", "3.". Write a rich, atmospheric 2-3 sentence overview of what learners will experience and craft alongside Sahina Shrestha in Kathmandu.
+
+Return a JSON object with the following fields:
+- "title": Compelling, authentic workshop title derived from the visual craft (e.g., "Macrame Wall Hanging & Botanical Planters Workshop", "Upcycled Waste Pipe Sunflower Botanical Workshop", "Couture Pearl Beaded Bag Crafting Workshop")
+- "badge": Categorical badge (e.g. "Workshop • Fiber & Knotting Art", "Workshop • Botanical Eco-Craft", "Workshop • Luxury Bead Weaving")
+- "tagline": Elegant sub-heading highlighting the specific handcrafting technique
+- "description": Engaging 2-3 sentence summary of the hands-on craft session in Kathmandu
+- "craftTechnique": The exact specific handcrafting technique identified in the frames
+- "materials": Array of strings of physical materials and tools observed in the media
+- "level": Recommended skill level based on technique complexity ("Beginner Friendly", "Intermediate Artisan", or "All Skill Levels")
+- "duration": Estimated workshop duration (e.g. "2.5 Hours", "3 Hours")
+- "suggestedAttendees": Number between 12 and 16
+- "location": "Kathmandu, Nepal"
+- "instructor": "Sahina Shrestha"
+- "whatsappMessage": "Namaste Sahina! I would like to reserve a seat for the upcoming workshop in Kathmandu."
+
+Return ONLY valid JSON matching this schema, no markdown blocks.`;
+
+          contents.push(visionPrompt);
+
+          // Try Gemini Vision models with graceful fallback to domain rules
+          let responseText = '';
+          const candidateModels = ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-3.8-flash', 'gemini-3.1-pro-preview'];
+          
+          for (const modelName of candidateModels) {
+            try {
+              const response = await ai.models.generateContent({
+                model: modelName,
+                contents,
+                config: {
+                  responseMimeType: 'application/json'
+                }
+              });
+              if (response && response.text) {
+                responseText = response.text;
+                break;
+              }
+            } catch (_modelErr: any) {
+              // Silently try next model candidate or fall back gracefully
+            }
+          }
+
+          if (responseText) {
+            const cleanedText = responseText.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
+            const parsed = JSON.parse(cleanedText);
+
+            // Sanitize banned words
+            const cleanWord = (s?: string) => (s || '')
+              .replace(/masterclass/gi, 'Workshop')
+              .replace(/cohort\s*#?/gi, 'Batch #')
+              .replace(/atelier/gi, 'Studio');
+
+            if (parsed.title) parsed.title = cleanWord(parsed.title);
+            if (parsed.badge) parsed.badge = cleanWord(parsed.badge);
+            if (parsed.tagline) parsed.tagline = cleanWord(parsed.tagline);
+            if (parsed.craftTechnique) parsed.craftTechnique = cleanWord(parsed.craftTechnique);
+            if (parsed.description) {
+              parsed.description = parsed.description
+                .replace(/masterclass/gi, 'workshop')
+                .replace(/cohort/gi, 'batch')
+                .replace(/atelier/gi, 'studio')
+                .replace(/^\s*1\.\s*/gm, '')
+                .replace(/^\s*\d+\.\s*/gm, '');
+            }
+
+            return res.json({ success: true, data: parsed, source: 'gemini_pro_vision' });
+          }
+        } catch (_geminiErr: any) {
+          console.warn('Gemini vision analysis fallback notice:', _geminiErr?.message || _geminiErr);
+        }
+      }
+
+      const fallback = autoGenerateWorkshopGroup(effectiveTopic || 'Macrame & Fiber Art');
+      const cleanFallback = {
+        title: fallback.title.replace(/masterclass/gi, 'Workshop').replace(/cohort\s*#?/gi, 'Batch #'),
+        badge: fallback.badge.replace(/masterclass/gi, 'Workshop').replace(/cohort\s*#?/gi, 'Batch #'),
+        tagline: fallback.tagline.replace(/masterclass/gi, 'Workshop').replace(/cohort/gi, 'Batch'),
+        description: fallback.description.replace(/masterclass/gi, 'workshop').replace(/cohort/gi, 'batch').replace(/^\s*1\.\s*/gm, ''),
+        craftTechnique: 'Authentic Handcrafting Technique',
+        materials: ['Artisan Craft Materials', 'Kathmandu Studio Tools'],
+        level: 'All Skill Levels',
+        duration: '2.5 Hours',
+        suggestedAttendees: fallback.suggestedAttendees || 15,
+        location: fallback.location || 'Kathmandu, Nepal',
+        instructor: fallback.instructor || 'Sahina Shrestha',
+        whatsappMessage: `Namaste Sahina! I would like to join the upcoming ${fallback.title.replace(/masterclass/gi, 'Workshop')} in Kathmandu.`
+      };
+
+      return res.json({ success: true, data: cleanFallback, source: 'rules' });
+    } catch (err: any) {
+      console.error('Error extracting workshop info:', err);
+      return res.json({
+        success: true,
+        data: {
+          title: 'Macrame Wall Art & Planters Workshop',
+          badge: 'Workshop • Macrame & Fiber Art',
+          tagline: 'Cotton Cord Knotting • Botanical Planters & Tapestries',
+          description: 'Intensive hands-on training focusing on raw cotton cord knotting, symmetrical tension, wooden hoop attachments, and botanical hanger architecture under Sahina Shrestha’s guided mentorship in Kathmandu.',
+          craftTechnique: 'Square Knotting & Lark’s Head Mounting',
+          materials: ['3mm Natural Cotton Cord', 'Wooden Dowel', 'Brass Rings'],
+          level: 'Beginner Friendly',
+          duration: '2.5 Hours',
+          suggestedAttendees: 15,
+          location: 'Kathmandu, Nepal',
+          instructor: 'Sahina Shrestha',
+          whatsappMessage: 'Namaste Sahina! I would like to join the Macrame Wall Art & Planters Workshop in Kathmandu.'
+        },
+        source: 'fallback'
+      });
+    }
+  });
+
+  // POST /api/gemini/generate-masterclass - Auto-generate title, description using Gemini API
+  app.post('/api/gemini/generate-masterclass', async (req, res) => {
+    try {
+      const { topic, fileCount, mediaTypes } = req.body;
+      const effectiveTopic = (topic || '').trim() || 'Macrame Knotting & Wall Art';
+
+      const ai = getGeminiClient();
+      if (ai) {
+        try {
+          const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: `You are the chief artisan coordinator for "Artified Nepal", a luxury handmade craft brand led by founder and master artisan Sahina Shrestha in Kathmandu, Nepal.
+The artisan is creating a new hands-on Workshop session.
+Craft Topic or Idea: "${effectiveTopic}".
+Attached Media: ${fileCount || 0} photo/video files.
+
+Generate a structured JSON response with realistic Kathmandu workshop details:
+- "title": Captivating, authentic title (e.g., "Macrame Fiber Art & Botanical Hanger Workshop")
+- "badge": Short badge (e.g., "Workshop • Batch #01")
+- "tagline": Elegant tagline (e.g., "Ancestral Cotton Knotting & Contemporary Wall Tapestries")
+- "description": 2-3 engaging, descriptive sentences on what candidates will learn in Kathmandu under Sahina Shrestha. Do NOT format as numbered list or include "1.".
+- "suggestedAttendees": Number between 12 and 16.
+- "location": "Kathmandu, Nepal"
+- "instructor": "Sahina Shrestha"
+- "whatsappMessage": Friendly, pre-filled WhatsApp inquiry message for aspiring students.
+
+Do NOT use the words "masterclass", "cohort", or "atelier". Return ONLY valid JSON matching this schema, no markdown code blocks.`,
+            config: {
+              responseMimeType: 'application/json'
+            }
+          });
+
+          const rawText = response.text || '';
+          const cleanedText = rawText.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
+          const parsed = JSON.parse(cleanedText);
+          return res.json({ success: true, data: parsed, source: 'gemini' });
+        } catch (_geminiErr: any) {
+          // Graceful fallback to domain rules generator
+        }
+      }
+
+      // Fallback to high-fidelity rule-based generator
+      const fallback = autoGenerateWorkshopGroup(effectiveTopic);
+      return res.json({ success: true, data: fallback, source: 'atelier_rules' });
+    } catch (err: any) {
+      console.error('Error generating workshop info:', err);
+      const fallback = autoGenerateWorkshopGroup('Macrame & Fiber Art');
+      return res.json({ success: true, data: fallback, source: 'fallback' });
+    }
+  });
+
+  // POST /api/gemini/generate-caption - Auto-generate title, caption & technique for photos/videos
+  app.post('/api/gemini/generate-caption', async (req, res) => {
+    try {
+      const { filename, masterclassTitle, type } = req.body;
+      const cleanFilename = (filename || 'session_moment').replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
+
+      const ai = getGeminiClient();
+      if (ai) {
+        try {
+          const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: `You are creating an authentic, poetic title and caption for a ${type || 'photo'} in an artisanal craft workshop at "Artified Nepal" in Kathmandu led by Sahina Shrestha.
+Workshop: "${masterclassTitle || 'Artisan Workshop'}"
+File name/subject: "${cleanFilename}"
+
+Return a JSON object with:
+- "title": A clean, descriptive title (e.g. "Precision Cord Tensioning Technique")
+- "caption": 1-2 evocative sentences about this hands-on craft session in Kathmandu.
+- "craftTechnique": Name of the specific technique shown.
+- "tags": Array of 3-4 hashtags/tags.
+
+Do NOT use the words "masterclass", "cohort", or "atelier". Return ONLY valid JSON, no markdown fences.`,
+            config: {
+              responseMimeType: 'application/json'
+            }
+          });
+
+          const rawText = response.text || '';
+          const cleanedText = rawText.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
+          const parsed = JSON.parse(cleanedText);
+          return res.json({ success: true, data: parsed, source: 'gemini' });
+        } catch (_geminiErr: any) {
+          // Graceful fallback to domain rules generator
+        }
+      }
+
+      const fallback = autoGenerateMediaCaption(filename || 'craft_moment', masterclassTitle || 'Artisan Workshop');
+      return res.json({ success: true, data: fallback, source: 'atelier_rules' });
+    } catch (err: any) {
+      console.error('Error generating caption:', err);
+      const fallback = autoGenerateMediaCaption('craft_moment', 'Workshop');
+      return res.json({ success: true, data: fallback, source: 'fallback' });
     }
   });
 
@@ -1759,6 +2028,7 @@ async function startServer() {
         port: Number(port),
         host: '0.0.0.0',
         allowedHosts: true,
+        hmr: false,
       },
       appType: 'spa',
     });

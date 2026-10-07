@@ -22,6 +22,7 @@ import { SellerPaymentSettingsModal } from './SellerPaymentSettingsModal';
 import { SellerChangePasswordModal } from './SellerChangePasswordModal';
 import { ArtisanProfileEditModal } from './ArtisanProfileEditModal';
 import { UnifiedMasterclassModal } from './UnifiedMasterclassModal';
+import { MasterclassCreationModal } from './MasterclassCreationModal';
 
 export const SellerToolbar: React.FC = () => {
   const { 
@@ -51,6 +52,7 @@ export const SellerToolbar: React.FC = () => {
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
   const [isArtisanProfileOpen, setIsArtisanProfileOpen] = useState(false);
   const [isWorkshopModalOpen, setIsWorkshopModalOpen] = useState(false);
+  const [isMasterclassCreationOpen, setIsMasterclassCreationOpen] = useState(false);
 
   // Ensure persistent localStorage tokens are purged so website never opens with seller mode for visitors
   useEffect(() => {
@@ -178,12 +180,22 @@ export const SellerToolbar: React.FC = () => {
 
             <button
               type="button"
+              onClick={() => setIsMasterclassCreationOpen(true)}
+              className="w-full py-1.5 px-2.5 bg-[#C5A880] hover:bg-[#b8986c] text-[#1C1B1A] text-[11px] font-bold rounded-lg flex items-center justify-center gap-1.5 transition-colors shadow-xs"
+              title="Create new workshop with photos, videos, and instant info extraction"
+            >
+              <Sparkles className="w-3.5 h-3.5 fill-[#1C1B1A]" />
+              <span>+ Create Workshop (AI & Storage)</span>
+            </button>
+
+            <button
+              type="button"
               onClick={() => setIsWorkshopModalOpen(true)}
               className="w-full py-1.5 px-2.5 bg-[#C5A880]/20 hover:bg-[#C5A880]/30 text-[#E6CA9E] text-[11px] font-semibold rounded-lg flex items-center justify-center gap-1.5 transition-colors border border-[#C5A880]/40"
-              title="Edit masterclass details, syllabus, schedule, and upload photos/videos saved to public/workshops"
+              title="Edit workshop details, syllabus, schedule, and media"
             >
               <Award className="w-3.5 h-3.5 text-[#C5A880]" />
-              <span>Manage Masterclasses & Media</span>
+              <span>Manage Workshops & Media</span>
             </button>
 
             <button
@@ -305,6 +317,12 @@ export const SellerToolbar: React.FC = () => {
       <UnifiedMasterclassModal
         isOpen={isWorkshopModalOpen}
         onClose={() => setIsWorkshopModalOpen(false)}
+      />
+
+      {/* Masterclass Creation Modal with Firebase Storage & Gemini AI */}
+      <MasterclassCreationModal
+        isOpen={isMasterclassCreationOpen}
+        onClose={() => setIsMasterclassCreationOpen(false)}
       />
     </aside>
   );

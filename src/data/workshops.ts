@@ -12,51 +12,7 @@ import firebaseConfig from '../../firebase-applet-config.json';
 
 const BUCKET = firebaseConfig.storageBucket || 'amped-turbine-3mn89.firebasestorage.app';
 
-export const WORKSHOP_EVENTS: WorkshopEventSummary[] = [
-  {
-    id: 'ws-event-batch4',
-    title: 'Kathmandu Macrame & Floral Crafting Masterclass',
-    batchName: 'Batch 4 (Upcoming Cohort - Open for Enrollment)',
-    date: 'Starting Nov 2026',
-    location: 'Kathmandu, Nepal',
-    description: 'Comprehensive hands-on training on macrame cord knotting, petal shaping, structural rings, and finish sealing led by Sahina Shrestha.',
-    technique: 'Macrame Cord Tension & Floral Weaving',
-    attendeesCount: 18,
-    photosCount: 0,
-    videosCount: 0,
-    coverImage: '',
-    status: 'upcoming'
-  },
-  {
-    id: 'ws-event-batch3',
-    title: 'Waste Pipe to Sunflower Making Intensive',
-    batchName: 'Batch 3 (Completed Cohort)',
-    date: 'Sep 2026',
-    location: 'Kathmandu, Nepal',
-    description: 'Specialized session on transforming industrial waste pipes into blooming sunflowers with petal binding, seed texturing, and studio craft presentation.',
-    technique: 'Upcycled Pipe Ring Sectioning & Petal Binding',
-    attendeesCount: 15,
-    photosCount: 3,
-    videosCount: 1,
-    coverImage: '/workshops/pipe sunflower training.jpeg',
-    status: 'completed'
-  },
-  {
-    id: 'ws-event-upcoming',
-    title: 'Pearl Bag Making Masterclass',
-    batchName: 'Batch 5 (Winter Cohort - Open for Enrollment)',
-    date: 'Starting Dec 2026',
-    location: 'Kathmandu, Nepal',
-    description: 'Specialized couture workshop mastering pearl grid cross-weaving, reinforced monofilament tensioning, and sturdy handle construction for bridal and evening bags.',
-    technique: 'Pearl Grid Cross-Weaving & Structural Architecture',
-    attendeesCount: 12,
-    photosCount: 0,
-    videosCount: 0,
-    coverImage: '',
-    status: 'upcoming',
-    nextBatchDate: 'December 1, 2026'
-  }
-];
+export const WORKSHOP_EVENTS: WorkshopEventSummary[] = [];
 
 export interface WorkshopFolderAsset {
   id: string;
@@ -71,108 +27,15 @@ export interface WorkshopFolderAsset {
   suggestedCraftTechnique: string;
 }
 
-export const WORKSHOP_FOLDER_VIDEOS: WorkshopFolderAsset[] = [
-  {
-    id: 'pipe-sunflower-video',
-    name: 'pipe_sunflower_video.mp4',
-    type: 'video',
-    url: '/workshops/pipe_sunflower_video.mp4',
-    thumbnailUrl: '/workshops/pipe_sunflower_video_thumb.jpg',
-    category: 'sunflower',
-    title: 'Step-by-Step Waste Pipe to Sunflower Tutorial',
-    duration: '0:38',
-    description: 'Live tutorial transforming upcycled pipe rings into blooming yellow sunflowers.',
-    suggestedCraftTechnique: 'Upcycled Pipe Ring Sectioning & Petal Binding'
-  }
-];
+export const WORKSHOP_FOLDER_VIDEOS: WorkshopFolderAsset[] = [];
 
-export const WORKSHOP_FOLDER_PHOTOS: WorkshopFolderAsset[] = [
-  {
-    id: 'pipe-sunflower-training',
-    name: 'pipe sunflower training.jpeg',
-    type: 'image',
-    url: '/workshops/pipe sunflower training.jpeg',
-    thumbnailUrl: '/workshops/pipe sunflower training.jpeg',
-    category: 'sunflower',
-    title: 'Live Sunflower Training & Mentorship Session',
-    description: 'Instructor guiding students on eco-friendly upcycled foundation rings.',
-    suggestedCraftTechnique: 'Pipe Ring Core & Bead Wrapping'
-  },
-  {
-    id: 'pipe-sunglower-portrait',
-    name: 'pipe sunglower portrait.jpeg',
-    type: 'image',
-    url: '/workshops/pipe sunglower portrait.jpeg',
-    thumbnailUrl: '/workshops/pipe sunglower portrait.jpeg',
-    category: 'sunflower',
-    title: 'Candidate Holding Completed Blooming Sunflower',
-    description: 'Student proudly presenting her handcrafted textured yellow sunflower.',
-    suggestedCraftTechnique: 'Petal Layering & Core Binding'
-  },
-  {
-    id: 'pipe-sunflower-table',
-    name: 'pipe sunflower table.jpeg',
-    type: 'image',
-    url: '/workshops/pipe sunflower table.jpeg',
-    thumbnailUrl: '/workshops/pipe sunflower table.jpeg',
-    category: 'sunflower',
-    title: 'Founder and Creator Workshop Worktable with Sunflower Crafts',
-    description: 'Studio table display showing completed sunflowers, cord wraps, and student training materials.',
-    suggestedCraftTechnique: 'Sunflower Center Texture & Petal Shaping'
-  }
-];
+export const WORKSHOP_FOLDER_PHOTOS: WorkshopFolderAsset[] = [];
 
-export const ALL_WORKSHOP_FOLDER_ASSETS: WorkshopFolderAsset[] = [
-  ...WORKSHOP_FOLDER_VIDEOS,
-  ...WORKSHOP_FOLDER_PHOTOS
-];
+export const ALL_WORKSHOP_FOLDER_ASSETS: WorkshopFolderAsset[] = [];
 
 export const DEFAULT_WORKSHOP_MEDIA: WorkshopMediaItem[] = [];
 
-export const WORKSHOP_GROUPS_METADATA: Omit<WorkshopGroup, 'items'>[] = [
-  {
-    id: 'ws-group-macrame',
-    groupKey: 'macrame',
-    title: 'Macrame Handcrafting Masterclass',
-    badge: 'Masterclass #01',
-    date: 'Starting Nov 2026',
-    location: 'Kathmandu, Nepal',
-    instructor: 'Sahina Shrestha',
-    attendeesCount: 18,
-    tagline: 'Macrame Knotting & Fiber Art Cohort',
-    description: 'Comprehensive practical training on natural cotton cord tension, spiral knots, wooden ring attachments, and structural plant hangers.',
-    keyTechniques: ['Square & Spiral Knots', 'Cord Tensioning', 'Wooden Ring Planters', 'Wrap Knot Tassel Finishes'],
-    whatsappMessage: 'Namaste Sahina! I would like to join the Macrame Handcrafting Workshop in Kathmandu.'
-  },
-  {
-    id: 'ws-group-sunflower',
-    groupKey: 'wastepipe-sunflower',
-    title: 'Waste Pipe to Sunflower Making Workshop',
-    badge: 'Masterclass #02',
-    date: 'Starting Nov 2026',
-    location: 'Kathmandu, Nepal',
-    instructor: 'Sahina Shrestha',
-    attendeesCount: 15,
-    tagline: 'Eco-Upcycling Creative Crafting Cohort',
-    description: 'Creative eco-crafting workshop transforming discarded industrial pipes into vibrant blooming sunflowers with fabric wrapping, petal folding, and central seed texturing.',
-    keyTechniques: ['Pipe Ring Sectioning', 'Petal Folding & Binding', 'Central Seed Texturing', 'Eco-Bouquet Assembly'],
-    whatsappMessage: 'Namaste Sahina! I want to enroll in the Waste Pipe to Sunflower Making Workshop in Kathmandu.'
-  },
-  {
-    id: 'ws-group-pearl-bag',
-    groupKey: 'pearl-bag',
-    title: 'Pearl Bag Making Masterclass',
-    badge: 'Masterclass #03',
-    date: 'Starting Dec 2026',
-    location: 'Kathmandu, Nepal',
-    instructor: 'Sahina Shrestha',
-    attendeesCount: 12,
-    tagline: 'Bridal Pearl Bag & Monofilament Weaving Cohort',
-    description: 'Specialized couture workshop mastering pearl grid cross-weaving, reinforced monofilament tensioning, and sturdy handle construction for bridal and evening bags.',
-    keyTechniques: ['Pearl Grid Cross-Weaving', 'Tension Lock Knotting', 'Bridal Bag Architecture', 'Reinforced Handle Wiring'],
-    whatsappMessage: 'Namaste Sahina! I want to join the upcoming Pearl Bag Making Workshop in Kathmandu.'
-  }
-];
+export const WORKSHOP_GROUPS_METADATA: Omit<WorkshopGroup, 'items'>[] = [];
 
 export const BANNED_UNRELATED_MEDIA_PATTERNS = [
   'ws-macrame-vid-fake',
@@ -224,13 +87,18 @@ export function isLegacyFakeMacrameVideo(item: { id?: string; url?: string; type
   return !isMediaRelatedToGroup(item, 'macrame');
 }
 
-const CUSTOM_GROUPS_STORAGE_KEY = 'artified_custom_workshop_groups_v7';
-const CUSTOM_MEDIA_STORAGE_KEY = 'artified_custom_workshop_media_v7';
+const CUSTOM_GROUPS_STORAGE_KEY = 'artified_custom_workshop_groups_v12';
+const CUSTOM_MEDIA_STORAGE_KEY = 'artified_custom_workshop_media_v12';
 
 // Purge any contaminated legacy cache keys on initial import
 if (typeof window !== 'undefined') {
   try {
     [
+      'artified_custom_workshop_media_v11',
+      'artified_custom_workshop_media_v10',
+      'artified_custom_workshop_media_v9',
+      'artified_custom_workshop_media_v8',
+      'artified_custom_workshop_media_v7',
       'artified_custom_workshop_media_v6',
       'artified_custom_workshop_media_v5',
       'artified_custom_workshop_media_v4',
@@ -238,13 +106,24 @@ if (typeof window !== 'undefined') {
       'artified_custom_workshop_media_v2',
       'artified_custom_workshop_media_v1',
       'artified_custom_workshop_media',
+      'artified_custom_workshop_groups_v11',
+      'artified_custom_workshop_groups_v10',
+      'artified_custom_workshop_groups_v9',
+      'artified_custom_workshop_groups_v8',
+      'artified_custom_workshop_groups_v7',
       'artified_custom_workshop_groups_v6',
       'artified_custom_workshop_groups_v5',
       'artified_custom_workshop_groups_v4',
       'artified_custom_workshop_groups_v3',
       'artified_custom_workshop_groups_v2',
       'artified_custom_workshop_groups_v1',
-      'artified_custom_workshop_groups'
+      'artified_custom_workshop_groups',
+      'artified_deleted_workshop_ids_v11',
+      'artified_deleted_workshop_ids_v10',
+      'artified_deleted_workshop_ids_v9',
+      'artified_deleted_workshop_group_ids_v11',
+      'artified_deleted_workshop_group_ids_v10',
+      'artified_deleted_workshop_group_ids_v9'
     ].forEach((k) => {
       localStorage.removeItem(k);
     });
@@ -389,14 +268,25 @@ export async function saveWorkshopGroup(group: WorkshopGroup): Promise<void> {
   }, { merge: true });
 }
 
-export const DELETED_GROUP_IDS_STORAGE_KEY = 'artified_deleted_workshop_group_ids';
+export const DELETED_GROUP_IDS_STORAGE_KEY = 'artified_deleted_workshop_group_ids_v12';
+
+export const LEGACY_MOCK_GROUP_IDS = [
+  'ws-group-macrame',
+  'ws-group-sunflower',
+  'ws-group-pearl-bag',
+  'macrame',
+  'wastepipe-sunflower',
+  'pearl-bag',
+  'new-cohort'
+];
 
 export function getDeletedWorkshopGroupIds(): string[] {
   try {
     const raw = localStorage.getItem(DELETED_GROUP_IDS_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
+    const saved = raw ? JSON.parse(raw) : [];
+    return Array.from(new Set([...LEGACY_MOCK_GROUP_IDS, ...saved]));
   } catch {
-    return [];
+    return [...LEGACY_MOCK_GROUP_IDS];
   }
 }
 
@@ -452,23 +342,44 @@ export async function deleteWorkshopGroup(groupId: string, groupKey?: string): P
   );
   saveCustomWorkshopGroupsToStorage(localRemaining);
 
-  // 3. Mark media items in this group as deleted so they don't persist as orphans
+  // 3. Cascade Delete: Delete ALL media items belonging to this workshop from Firestore & LocalStorage
   try {
     const deletedMediaIds = getDeletedWorkshopMediaIds();
-    const mediaInGroup = DEFAULT_WORKSHOP_MEDIA.filter(
-      (m) => m.groupId === groupId || (groupKey && m.groupId === groupKey)
+    const currentCustomMedia = getCustomWorkshopMediaFromStorage();
+    const mediaToDelete = currentCustomMedia.filter(
+      (m) => idsToDelete.includes(m.groupId || '') || m.groupId === groupId || (groupKey && m.groupId === groupKey)
     );
-    mediaInGroup.forEach((m) => {
+
+    mediaToDelete.forEach((m) => {
       if (!deletedMediaIds.includes(m.id)) {
         deletedMediaIds.push(m.id);
       }
     });
     localStorage.setItem(DELETED_IDS_STORAGE_KEY, JSON.stringify(deletedMediaIds));
+
+    // Remove from local custom media storage
+    const remainingMedia = currentCustomMedia.filter(
+      (m) => !idsToDelete.includes(m.groupId || '') && m.groupId !== groupId && (!groupKey || m.groupId !== groupKey)
+    );
+    saveCustomWorkshopMediaToStorage(remainingMedia);
+
+    // Delete matching media docs from Firestore workshop_gallery
+    try {
+      const snap = await getDocs(collection(db, 'workshop_gallery'));
+      for (const d of snap.docs) {
+        const dData = d.data();
+        if (idsToDelete.includes(dData.groupId) || dData.groupId === groupId || (groupKey && dData.groupId === groupKey) || idsToDelete.includes(d.id)) {
+          await safeDeleteDoc(doc(db, 'workshop_gallery', d.id));
+        }
+      }
+    } catch (fsMediaErr) {
+      console.warn('Firestore workshop_gallery cascade delete notice:', fsMediaErr);
+    }
   } catch (e) {
     console.warn('Notice: Error clearing associated group media:', e);
   }
 
-  // 4. Delete Firestore document
+  // 4. Delete workshop_groups Firestore document
   try {
     for (const id of idsToDelete) {
       const docRef = doc(db, 'workshop_groups', id);
@@ -477,6 +388,31 @@ export async function deleteWorkshopGroup(groupId: string, groupKey?: string): P
   } catch (err) {
     console.warn('Notice: Firestore safeDeleteDoc error:', err);
   }
+}
+
+export function deduplicateMediaItems(items: WorkshopMediaItem[]): WorkshopMediaItem[] {
+  const seenIds = new Set<string>();
+  const seenUrls = new Set<string>();
+  const result: WorkshopMediaItem[] = [];
+
+  for (const item of items) {
+    if (!item || !item.id) continue;
+    const normUrl = (item.url || item.thumbnailUrl || '').trim().toLowerCase();
+    
+    // De-duplicate by ID
+    if (seenIds.has(item.id)) continue;
+    // De-duplicate by URL if not a placeholder
+    if (normUrl && !normUrl.includes('artisan_avatar') && !normUrl.includes('placeholder') && seenUrls.has(normUrl)) {
+      continue;
+    }
+
+    seenIds.add(item.id);
+    if (normUrl && !normUrl.includes('artisan_avatar') && !normUrl.includes('placeholder')) {
+      seenUrls.add(normUrl);
+    }
+    result.push(item);
+  }
+  return result;
 }
 
 export function buildWorkshopGroups(
@@ -491,9 +427,11 @@ export function buildWorkshopGroups(
     ? customGroupMetas.filter((g) => !deletedGroupIds.includes(g.id) && !deletedGroupIds.includes(g.groupKey))
     : WORKSHOP_GROUPS_METADATA.filter((g) => !deletedGroupIds.includes(g.id) && !deletedGroupIds.includes(g.groupKey));
 
+  const cleanMediaItems = deduplicateMediaItems(mediaItems);
+
   return activeMetas.map((groupMeta) => {
-    const groupItems = mediaItems.filter((m) => {
-      // 1. Must be genuinely related to this masterclass
+    const groupItems = cleanMediaItems.filter((m) => {
+      // 1. Must be genuinely related to this workshop
       if (!isMediaRelatedToGroup(m, groupMeta.groupKey)) {
         return false;
       }
@@ -501,26 +439,10 @@ export function buildWorkshopGroups(
       if (m.groupId) {
         return m.groupId === groupMeta.groupKey || m.groupId === groupMeta.id;
       }
-      const titleLower = (m.title + ' ' + (m.craftTechnique || '') + ' ' + (m.workshopTitle || '')).toLowerCase();
-      if (groupMeta.groupKey === 'macrame') {
-        return titleLower.includes('macrame') || titleLower.includes('knot');
-      }
-      if (groupMeta.groupKey === 'wastepipe-sunflower') {
-        return titleLower.includes('sunflower') || titleLower.includes('pipe') || titleLower.includes('waste');
-      }
-      if (groupMeta.groupKey === 'pearl-bag') {
-        return titleLower.includes('pearl');
-      }
-      return titleLower.includes(groupMeta.groupKey.toLowerCase()) || titleLower.includes(groupMeta.title.toLowerCase());
+      return false;
     });
 
-    // Fallback to default items if empty and matches group
-    const isDefaultGroup = ['macrame', 'wastepipe-sunflower', 'pearl-bag'].includes(groupMeta.groupKey);
-    const finalItems = groupItems.length > 0 
-      ? groupItems 
-      : isDefaultGroup 
-      ? DEFAULT_WORKSHOP_MEDIA.filter((m) => m.groupId === groupMeta.groupKey && !deletedGroupIds.includes(m.groupId) && isMediaRelatedToGroup(m, groupMeta.groupKey)) 
-      : [];
+    const finalItems = deduplicateMediaItems(groupItems);
 
     return {
       ...groupMeta,
@@ -529,14 +451,25 @@ export function buildWorkshopGroups(
   });
 }
 
-const DELETED_IDS_STORAGE_KEY = 'artified_deleted_workshop_ids';
+const DELETED_IDS_STORAGE_KEY = 'artified_deleted_workshop_ids_v12';
+
+export const LEGACY_MOCK_MEDIA_IDS = [
+  'ws-macrame-01',
+  'ws-sunflower-01',
+  'ws-sunflower-02',
+  'pipe-sunflower-video',
+  'pipe-sunflower-training',
+  'pipe-sunglower-portrait',
+  'pipe-sunflower-table'
+];
 
 export function getDeletedWorkshopMediaIds(): string[] {
   try {
     const raw = localStorage.getItem(DELETED_IDS_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
+    const saved = raw ? JSON.parse(raw) : [];
+    return Array.from(new Set([...LEGACY_MOCK_MEDIA_IDS, ...saved]));
   } catch {
-    return [];
+    return [...LEGACY_MOCK_MEDIA_IDS];
   }
 }
 
@@ -624,11 +557,23 @@ export async function saveWorkshopMediaItem(item: WorkshopMediaItem): Promise<vo
   existingLocal.push(item);
   saveCustomWorkshopMediaToStorage(existingLocal);
 
-  // Save to Firestore
+  // Save to Firestore with payload size guard
   const docRef = doc(db, 'workshop_gallery', item.id);
   const now = new Date().toISOString();
+  
+  let firestoreUrl = item.url;
+  let firestoreThumb = item.thumbnailUrl;
+  if (firestoreUrl && firestoreUrl.startsWith('data:') && firestoreUrl.length > 300000) {
+    firestoreUrl = `/workshops/${item.id}.jpg`;
+  }
+  if (firestoreThumb && firestoreThumb.startsWith('data:') && firestoreThumb.length > 300000) {
+    firestoreThumb = firestoreUrl;
+  }
+
   await safeSetDoc(docRef, {
     ...item,
+    url: firestoreUrl,
+    thumbnailUrl: firestoreThumb,
     updatedAt: now,
     createdAt: item.createdAt || now
   }, { merge: true });
@@ -757,24 +702,59 @@ export async function uploadWorkshopFileDirectly(payload: {
   craftTechnique?: string;
   thumbnailBase64?: string;
 }): Promise<WorkshopMediaItem | null> {
+  const cleanName = payload.filename.replace(/[^a-zA-Z0-9_.-]/g, '_');
+  const mediaId = `ws_media_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+  let finalUrl = payload.fileBase64;
+  let finalThumb = payload.thumbnailBase64 || payload.fileBase64;
+
+  // 1. Try Firebase Storage cloud upload
+  if (payload.fileBase64.startsWith('data:')) {
+    try {
+      const storagePath = `workshop_gallery/${Date.now()}_${cleanName}`;
+      const storageRef = ref(storage, storagePath);
+      const uploadRes = await uploadString(storageRef, payload.fileBase64, 'data_url');
+      const downloadUrl = await getDownloadURL(uploadRes.ref);
+      if (downloadUrl) {
+        finalUrl = downloadUrl;
+        if (!payload.thumbnailBase64) {
+          finalThumb = downloadUrl;
+        }
+      }
+    } catch (storageErr) {
+      console.warn('Firebase Storage upload notice, using persistent base64 data:', storageErr);
+    }
+  }
+
+  // 2. Try server disk save in background if API is available (non-blocking)
   try {
-    const res = await fetch('/api/workshop-upload', {
+    fetch('/api/workshop-upload', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
-    });
-    if (res.ok) {
-      const data = await res.json();
-      if (data && data.success && data.item) {
-        await saveWorkshopMediaItem(data.item);
-        return data.item;
-      }
-    }
-    throw new Error('Upload failed on server');
-  } catch (err) {
-    console.error('Error uploading workshop file directly:', err);
-    throw err;
-  }
+    }).catch(() => {});
+  } catch {}
+
+  const newItem: WorkshopMediaItem = {
+    id: mediaId,
+    groupId: payload.groupId,
+    type: payload.type,
+    title: payload.title || cleanName.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' '),
+    workshopTitle: payload.title || 'Artified Workshop',
+    url: finalUrl,
+    thumbnailUrl: finalThumb,
+    caption: payload.caption || `Workshop training highlight in Kathmandu, Nepal.`,
+    craftTechnique: payload.craftTechnique || 'Handcrafted Technique',
+    location: 'Kathmandu, Nepal',
+    date: new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+    instructor: 'Sahina Shrestha',
+    tags: ['Kathmandu Workshop', 'Handmade in Nepal'],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+
+  // 3. Save directly to Firestore and persistent local storage
+  await saveWorkshopMediaItem(newItem);
+  return newItem;
 }
 
 /**

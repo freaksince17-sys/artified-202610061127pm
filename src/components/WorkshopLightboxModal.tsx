@@ -320,7 +320,7 @@ export const WorkshopLightboxModal: React.FC<WorkshopLightboxModalProps> = ({
 
                 <div className="flex items-center gap-2 text-xs text-white/80">
                   <Sparkles className="w-3.5 h-3.5 text-[#C5A880]" />
-                  <span>Kathmandu Atelier Live Recording</span>
+                  <span>Kathmandu Workshop Recording</span>
                 </div>
               </div>
             </div>
