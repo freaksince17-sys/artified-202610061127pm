@@ -302,16 +302,24 @@ const CohortStorytellingPlayer: React.FC<{
               autoPlay
               muted={isMuted}
               preload="auto"
-              crossOrigin="anonymous"
-              onError={() => {
-                setMediaError('Video failed to stream or format is not supported by browser.');
+              onPlay={() => {
+                setIsPlaying(true);
+                setMediaError(null);
+              }}
+              onPause={() => setIsPlaying(false)}
+              onError={async () => {
+                // If failed, attempt auto-revival from storage before presenting error
+                try {
+                  const recovered = await refetchWorkshopMediaFromStorage(currentItem);
+                  if (recovered && recovered !== currentUrl && recovered !== currentItem.url) {
+                    setCurrentUrl(recovered);
+                    return;
+                  }
+                } catch {}
+                setMediaError('Video could not be streamed. Please check network connection or reload media.');
               }}
               className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-102"
-            >
-              <source src={currentUrl || currentItem.url} type="video/mp4" />
-              <source src={currentUrl || currentItem.url} type="video/webm" />
-              <source src={currentUrl || currentItem.url} type="video/quicktime" />
-            </video>
+            />
 
             {/* Center Play/Pause Overlay Button */}
             <button

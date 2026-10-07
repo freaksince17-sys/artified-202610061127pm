@@ -497,10 +497,91 @@ async function startServer() {
   });
 
   // Workshop directory for storing user-uploaded masterclass photos and videos
+  // Serve public media directories with HTTP Range 206 partial streaming support & CORS
+  const serveMediaWithRange = (mediaDir: string) => (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    try {
+      const decodedPath = decodeURIComponent(req.path.replace(/^\//, ''));
+      const filePath = path.resolve(mediaDir, decodedPath);
+
+      // Prevent directory traversal
+      if (!filePath.startsWith(mediaDir)) {
+        return res.status(403).send('Forbidden');
+      }
+
+      if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+        return next();
+      }
+
+      const stat = fs.statSync(filePath);
+      const fileSize = stat.size;
+      const range = req.headers.range;
+      const ext = path.extname(filePath).toLowerCase();
+
+      let contentType = 'application/octet-stream';
+      if (ext === '.mp4' || ext === '.m4v') contentType = 'video/mp4';
+      else if (ext === '.webm') contentType = 'video/webm';
+      else if (ext === '.mov') contentType = 'video/quicktime';
+      else if (ext === '.jpg' || ext === '.jpeg') contentType = 'image/jpeg';
+      else if (ext === '.png') contentType = 'image/png';
+      else if (ext === '.webp') contentType = 'image/webp';
+      else if (ext === '.gif') contentType = 'image/gif';
+
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Range, Accept-Ranges, Content-Range');
+      res.setHeader('Accept-Ranges', 'bytes');
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+
+      if (req.method === 'OPTIONS') {
+        return res.sendStatus(204);
+      }
+
+      if (range) {
+        const parts = range.replace(/bytes=/, '').split('-');
+        const start = parseInt(parts[0], 10);
+        const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+
+        if (start >= fileSize || end >= fileSize || start > end) {
+          res.status(416).setHeader('Content-Range', `bytes */${fileSize}`);
+          return res.end();
+        }
+
+        const chunksize = end - start + 1;
+        const fileStream = fs.createReadStream(filePath, { start, end });
+        const head = {
+          'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+          'Accept-Ranges': 'bytes',
+          'Content-Length': chunksize,
+          'Content-Type': contentType,
+        };
+        res.writeHead(206, head);
+        fileStream.pipe(res);
+      } else {
+        const head = {
+          'Content-Length': fileSize,
+          'Content-Type': contentType,
+        };
+        res.writeHead(200, head);
+        fs.createReadStream(filePath).pipe(res);
+      }
+    } catch (err) {
+      console.warn('Notice: Error serving media file:', err);
+      next();
+    }
+  };
+
   const workshopsDir = path.resolve(process.cwd(), 'public/workshops');
   if (!fs.existsSync(workshopsDir)) {
     fs.mkdirSync(workshopsDir, { recursive: true });
   }
+  const instagramVideosDir = path.resolve(process.cwd(), 'public/instagram_videos');
+  if (!fs.existsSync(instagramVideosDir)) {
+    fs.mkdirSync(instagramVideosDir, { recursive: true });
+  }
+
+  app.use('/workshops', serveMediaWithRange(workshopsDir));
+  app.use('/instagram_videos', serveMediaWithRange(instagramVideosDir));
+  app.use(express.static(path.resolve(process.cwd(), 'public')));
 
   // GET /api/workshop-files - List all physical files stored in public/workshops/
   app.get('/api/workshop-files', (_req, res) => {
@@ -1153,17 +1234,12 @@ Do NOT use the words "masterclass", "cohort", or "atelier". Return ONLY valid JS
     return res.json(verifiedVideos);
   });
 
-  // TikTok & Instagram local cache folders for smooth native video playback
+  // TikTok local cache folder for smooth native video playback
   const tiktokVideosDir = path.resolve(process.cwd(), 'public/tiktok_videos');
   if (!fs.existsSync(tiktokVideosDir)) {
     fs.mkdirSync(tiktokVideosDir, { recursive: true });
   }
-  app.use('/tiktok_videos', express.static(tiktokVideosDir));
-
-  const instagramVideosDir = path.resolve(process.cwd(), 'public/instagram_videos');
-  if (!fs.existsSync(instagramVideosDir)) {
-    fs.mkdirSync(instagramVideosDir, { recursive: true });
-  }
+  app.use('/tiktok_videos', serveMediaWithRange(tiktokVideosDir));
 
   // GET /api/instagram-video/:shortcode - Direct API endpoint to stream or fetch Instagram video
   app.get('/api/instagram-video/:shortcode', async (req, res, next) => {

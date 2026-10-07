@@ -271,15 +271,24 @@ export const WorkshopLightboxModal: React.FC<WorkshopLightboxModalProps> = ({
                 autoPlay
                 muted={isMuted}
                 preload="auto"
-                crossOrigin="anonymous"
                 onClick={togglePlay}
-                onError={() => setMediaError('Video failed to stream or format is not supported.')}
+                onPlay={() => {
+                  setIsPlaying(true);
+                  setMediaError(null);
+                }}
+                onPause={() => setIsPlaying(false)}
+                onError={async () => {
+                  try {
+                    const recovered = await refetchWorkshopMediaFromStorage(currentItem);
+                    if (recovered && recovered !== currentUrl && recovered !== currentItem.url) {
+                      setCurrentUrl(recovered);
+                      return;
+                    }
+                  } catch {}
+                  setMediaError('Video failed to stream. Please try re-fetching or check your network.');
+                }}
                 className="max-h-full max-w-full object-contain cursor-pointer"
-              >
-                <source src={currentUrl || currentItem.url} type="video/mp4" />
-                <source src={currentUrl || currentItem.url} type="video/webm" />
-                <source src={currentUrl || currentItem.url} type="video/quicktime" />
-              </video>
+              />
 
               {/* Play / Pause Center Overlay Button on Click */}
               {!isPlaying && (
