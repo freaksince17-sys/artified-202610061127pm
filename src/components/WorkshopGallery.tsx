@@ -170,11 +170,20 @@ export const WorkshopGallery: React.FC = () => {
   }, [groupMetas]);
 
   const activeMediaItems = useMemo(() => {
-    if (activeGroupKeys.size === 0) return [];
+    if (activeGroupKeys.size === 0) return mediaItems;
     return mediaItems.filter((m) => {
-      if (!m.groupId) return false;
-      const cleanGroupId = m.groupId.replace(/^ws-group-/, '');
-      return activeGroupKeys.has(m.groupId) || activeGroupKeys.has(cleanGroupId) || activeGroupKeys.has(`ws-group-${cleanGroupId}`);
+      if (!m.groupId) return true;
+      const cleanGroupId = m.groupId.toLowerCase().replace(/^ws-group-/, '');
+      if (activeGroupKeys.has(m.groupId) || activeGroupKeys.has(cleanGroupId) || activeGroupKeys.has(`ws-group-${cleanGroupId}`)) {
+        return true;
+      }
+      for (const k of activeGroupKeys) {
+        const normK = k.toLowerCase().replace(/^ws-group-/, '');
+        if (cleanGroupId.includes('macrame') && normK.includes('macrame')) return true;
+        if (cleanGroupId.includes('sunflower') && normK.includes('sunflower')) return true;
+        if (cleanGroupId.includes('pearl') && normK.includes('pearl')) return true;
+      }
+      return false;
     });
   }, [mediaItems, activeGroupKeys]);
 

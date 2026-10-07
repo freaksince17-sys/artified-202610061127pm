@@ -9,6 +9,8 @@ import {
 import { safeSetDoc, safeDeleteDoc } from '../utils/safeFirestore';
 import { ref, uploadBytes, uploadString, getDownloadURL } from 'firebase/storage';
 import firebaseConfig from '../../firebase-applet-config.json';
+import SAVED_WORKSHOP_GROUPS from './workshop_groups.json';
+import SAVED_WORKSHOP_MEDIA from './workshop_media.json';
 
 const BUCKET = firebaseConfig.storageBucket || 'amped-turbine-3mn89.firebasestorage.app';
 
@@ -33,9 +35,9 @@ export const WORKSHOP_FOLDER_PHOTOS: WorkshopFolderAsset[] = [];
 
 export const ALL_WORKSHOP_FOLDER_ASSETS: WorkshopFolderAsset[] = [];
 
-export const DEFAULT_WORKSHOP_MEDIA: WorkshopMediaItem[] = [];
+export const DEFAULT_WORKSHOP_MEDIA: WorkshopMediaItem[] = SAVED_WORKSHOP_MEDIA as WorkshopMediaItem[];
 
-export const WORKSHOP_GROUPS_METADATA: Omit<WorkshopGroup, 'items'>[] = [];
+export const WORKSHOP_GROUPS_METADATA: Omit<WorkshopGroup, 'items'>[] = SAVED_WORKSHOP_GROUPS as Omit<WorkshopGroup, 'items'>[];
 
 export const BANNED_UNRELATED_MEDIA_PATTERNS = [
   'ws-macrame-vid-fake',
@@ -51,7 +53,6 @@ export function isMediaRelatedToGroup(
 ): boolean {
   if (!item) return false;
   const url = (item.url || '').toLowerCase();
-  const title = (item.title || '').toLowerCase();
   const id = (item.id || '').toLowerCase();
   const group = targetGroupKey || item.groupId || '';
 
@@ -62,25 +63,21 @@ export function isMediaRelatedToGroup(
     }
   }
 
-  // 2. Direct group association
-  if (item.groupId && group) {
-    const normItem = item.groupId.replace(/^ws-group-/, '');
-    const normTarget = group.replace(/^ws-group-/, '');
-    if (normItem === normTarget || item.groupId === group || normItem === group || item.groupId === normTarget) {
-      return true;
-    }
-    // Only separate if item belongs to a completely different group
-    return false;
-  }
+  if (!group) return true;
 
-  // 3. Sunflower vs Macrame separation if no explicit groupId
-  if (group === 'macrame' || group === 'ws-group-macrame') {
-    if (url.includes('pipe') && url.includes('sunflower')) {
-      return false;
-    }
-  }
+  // 2. Direct group association & flexible normalization
+  const normItem = (item.groupId || '').toLowerCase().replace(/^ws-group-/, '');
+  const normTarget = group.toLowerCase().replace(/^ws-group-/, '');
 
-  return true;
+  if (normItem === normTarget) return true;
+  if (item.groupId === group || normItem === group || item.groupId === normTarget) return true;
+
+  // Match category stems
+  if (normItem.includes('macrame') && normTarget.includes('macrame')) return true;
+  if (normItem.includes('sunflower') && normTarget.includes('sunflower')) return true;
+  if (normItem.includes('pearl') && normTarget.includes('pearl')) return true;
+
+  return !item.groupId;
 }
 
 export function isLegacyFakeMacrameVideo(item: { id?: string; url?: string; type?: 'image' | 'video' }): boolean {
@@ -270,15 +267,7 @@ export async function saveWorkshopGroup(group: WorkshopGroup): Promise<void> {
 
 export const DELETED_GROUP_IDS_STORAGE_KEY = 'artified_deleted_workshop_group_ids_v12';
 
-export const LEGACY_MOCK_GROUP_IDS = [
-  'ws-group-macrame',
-  'ws-group-sunflower',
-  'ws-group-pearl-bag',
-  'macrame',
-  'wastepipe-sunflower',
-  'pearl-bag',
-  'new-cohort'
-];
+export const LEGACY_MOCK_GROUP_IDS: string[] = [];
 
 export function getDeletedWorkshopGroupIds(): string[] {
   try {
@@ -421,25 +410,20 @@ export function buildWorkshopGroups(
 ): WorkshopGroup[] {
   const deletedGroupIds = getDeletedWorkshopGroupIds();
   
-  // If customGroupMetas is passed (even if empty []), respect the caller's filtered array.
-  // Otherwise, default to WORKSHOP_GROUPS_METADATA excluding deleted groups.
-  const activeMetas = customGroupMetas !== undefined 
-    ? customGroupMetas.filter((g) => !deletedGroupIds.includes(g.id) && !deletedGroupIds.includes(g.groupKey))
-    : WORKSHOP_GROUPS_METADATA.filter((g) => !deletedGroupIds.includes(g.id) && !deletedGroupIds.includes(g.groupKey));
+  // If customGroupMetas is passed and non-empty, respect it; otherwise fallback to WORKSHOP_GROUPS_METADATA
+  const rawMetas = (customGroupMetas && customGroupMetas.length > 0)
+    ? customGroupMetas
+    : WORKSHOP_GROUPS_METADATA;
+
+  const activeMetas = rawMetas.filter(
+    (g) => !deletedGroupIds.includes(g.id) && !deletedGroupIds.includes(g.groupKey)
+  );
 
   const cleanMediaItems = deduplicateMediaItems(mediaItems);
 
   return activeMetas.map((groupMeta) => {
     const groupItems = cleanMediaItems.filter((m) => {
-      // 1. Must be genuinely related to this workshop
-      if (!isMediaRelatedToGroup(m, groupMeta.groupKey)) {
-        return false;
-      }
-
-      if (m.groupId) {
-        return m.groupId === groupMeta.groupKey || m.groupId === groupMeta.id;
-      }
-      return false;
+      return isMediaRelatedToGroup(m, groupMeta.groupKey) || isMediaRelatedToGroup(m, groupMeta.id);
     });
 
     const finalItems = deduplicateMediaItems(groupItems);
@@ -453,15 +437,7 @@ export function buildWorkshopGroups(
 
 const DELETED_IDS_STORAGE_KEY = 'artified_deleted_workshop_ids_v12';
 
-export const LEGACY_MOCK_MEDIA_IDS = [
-  'ws-macrame-01',
-  'ws-sunflower-01',
-  'ws-sunflower-02',
-  'pipe-sunflower-video',
-  'pipe-sunflower-training',
-  'pipe-sunglower-portrait',
-  'pipe-sunflower-table'
-];
+export const LEGACY_MOCK_MEDIA_IDS: string[] = [];
 
 export function getDeletedWorkshopMediaIds(): string[] {
   try {
@@ -537,7 +513,7 @@ export async function fetchWorkshopMedia(): Promise<WorkshopMediaItem[]> {
   }
 
   const allItems = Array.from(mergedMap.values());
-  saveCustomWorkshopMediaToStorage(allItems.filter((m) => !m.id.startsWith('ws-macrame') && !m.id.startsWith('ws-sunflower') && !m.id.startsWith('ws-pearl')));
+  saveCustomWorkshopMediaToStorage(allItems);
   return allItems;
 }
 

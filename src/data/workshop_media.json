@@ -1,1 +1,149 @@
-[]
+[
+  {
+    "id": "ws_media_macrame_pot",
+    "groupId": "macrame-wall-art-planters-workshop",
+    "type": "video",
+    "title": "Macrame Plant Pot Hanger Weaving",
+    "workshopTitle": "Macrame Wall Art & Planters Workshop",
+    "url": "/workshops/macrame_pot.mp4",
+    "thumbnailUrl": "/workshops/macrame_pot_thumb.jpg",
+    "caption": "Hands-on guided demonstration of spiral macrame knots and cradle base knotting for botanical hangers.",
+    "craftTechnique": "Botanical Cradle Knotting & Tensioning",
+    "location": "Kathmandu, Nepal",
+    "date": "Oct 2026",
+    "instructor": "Sahina Shrestha",
+    "tags": [
+      "Kathmandu Workshop",
+      "Macrame Planter",
+      "Sahina Shrestha"
+    ],
+    "createdAt": "2026-10-07T15:02:05.838Z",
+    "updatedAt": "2026-10-07T15:02:07.599Z"
+  },
+  {
+    "id": "ws_media_macrame_me_teaching",
+    "groupId": "macrame-wall-art-planters-workshop",
+    "type": "video",
+    "title": "One-on-One Cord Tension Mentorship",
+    "workshopTitle": "Macrame Wall Art & Planters Workshop",
+    "url": "/workshops/macrame_me_teaching.mp4",
+    "thumbnailUrl": "/workshops/macrame_me_teaching_thumb.jpg",
+    "caption": "Sahina Shrestha mentoring artisans on maintaining symmetrical cord tension and loop consistency.",
+    "craftTechnique": "Symmetrical Cord Tensioning",
+    "location": "Kathmandu, Nepal",
+    "date": "Oct 2026",
+    "instructor": "Sahina Shrestha",
+    "tags": [
+      "Kathmandu Workshop",
+      "Artisan Mentorship",
+      "Handmade Nepal"
+    ],
+    "createdAt": "2026-10-07T15:02:05.838Z",
+    "updatedAt": "2026-10-07T15:02:07.093Z"
+  },
+  {
+    "id": "ws_media_macrame_cloud",
+    "groupId": "macrame-wall-art-planters-workshop",
+    "type": "video",
+    "title": "Cloud Wall Hanging Finishing Loops",
+    "workshopTitle": "Macrame Wall Art & Planters Workshop",
+    "url": "/workshops/macrame_cloud.mp4",
+    "thumbnailUrl": "/workshops/macrame_cloud_thumb.jpg",
+    "caption": "Artisan practicing cloud fringe brushing and hoop alignment techniques for large wall tapestry pieces.",
+    "craftTechnique": "Fringe Brushing & Hoop Mounting",
+    "location": "Kathmandu, Nepal",
+    "date": "Oct 2026",
+    "instructor": "Sahina Shrestha",
+    "tags": [
+      "Kathmandu Workshop",
+      "Wall Art Tapestry",
+      "Macrame Knotting"
+    ],
+    "createdAt": "2026-10-07T15:02:05.838Z",
+    "updatedAt": "2026-10-07T15:02:05.840Z"
+  },
+  {
+    "id": "ws_media_macrame_group",
+    "groupId": "macrame-wall-art-planters-workshop",
+    "type": "image",
+    "title": "Artisan Cohort Hands-On Knotting",
+    "workshopTitle": "Macrame Wall Art & Planters Workshop",
+    "url": "/workshops/macrame_group.jpeg",
+    "thumbnailUrl": "/workshops/macrame_group.jpeg",
+    "caption": "Kathmandu artisan batch actively engaged in knotting square patterns under Sahina’s studio guidance.",
+    "craftTechnique": "Square Knot Architecture",
+    "location": "Kathmandu, Nepal",
+    "date": "Oct 2026",
+    "instructor": "Sahina Shrestha",
+    "tags": [
+      "Kathmandu Workshop",
+      "Community Batch",
+      "Empowerment"
+    ],
+    "createdAt": "2026-10-07T15:02:05.838Z",
+    "updatedAt": "2026-10-07T15:02:06.916Z"
+  },
+  {
+    "id": "ws_media_macrame_student",
+    "groupId": "macrame-wall-art-planters-workshop",
+    "type": "image",
+    "title": "Student Practicing Intricate Knots",
+    "workshopTitle": "Macrame Wall Art & Planters Workshop",
+    "url": "/workshops/macrame_student.jpeg",
+    "thumbnailUrl": "/workshops/macrame_student.jpeg",
+    "caption": "Individual participant refining cord measurements and wood-dowel loop attachments.",
+    "craftTechnique": "Dowel Loop Attachment",
+    "location": "Kathmandu, Nepal",
+    "date": "Oct 2026",
+    "instructor": "Sahina Shrestha",
+    "tags": [
+      "Kathmandu Workshop",
+      "Student Training",
+      "Fiber Art"
+    ],
+    "createdAt": "2026-10-07T15:02:05.838Z",
+    "updatedAt": "2026-10-07T15:02:08.102Z"
+  },
+  {
+    "id": "ws_media_macrame_desk",
+    "groupId": "macrame-wall-art-planters-workshop",
+    "type": "image",
+    "title": "Artisan Studio Workspace & Materials",
+    "workshopTitle": "Macrame Wall Art & Planters Workshop",
+    "url": "/workshops/macrame_desk.jpeg",
+    "thumbnailUrl": "/workshops/macrame_desk.jpeg",
+    "caption": "Atelier workbench prepared with 4mm natural cotton cords, measuring tapes, and wooden dowels.",
+    "craftTechnique": "Raw Cotton Cord Prep",
+    "location": "Kathmandu, Nepal",
+    "date": "Oct 2026",
+    "instructor": "Sahina Shrestha",
+    "tags": [
+      "Kathmandu Workshop",
+      "Atelier Tools",
+      "Natural Cotton"
+    ],
+    "createdAt": "2026-10-07T15:02:05.838Z",
+    "updatedAt": "2026-10-07T15:02:08.272Z"
+  },
+  {
+    "id": "ws_media_macrame_snap",
+    "groupId": "macrame-wall-art-planters-workshop",
+    "type": "image",
+    "title": "Completed Planter Hanger Detail",
+    "workshopTitle": "Macrame Wall Art & Planters Workshop",
+    "url": "/workshops/macrame_snap.jpeg",
+    "thumbnailUrl": "/workshops/macrame_snap_thumb.jpg",
+    "caption": "Completed handcrafted macrame planter showcase highlighting precise knot distribution and balance.",
+    "craftTechnique": "Knot Balancing & Inspection",
+    "location": "Kathmandu, Nepal",
+    "date": "Oct 2026",
+    "instructor": "Sahina Shrestha",
+    "tags": [
+      "Kathmandu Workshop",
+      "Finished Masterpiece",
+      "Planter Hanger"
+    ],
+    "createdAt": "2026-10-07T15:02:05.838Z",
+    "updatedAt": "2026-10-07T15:02:07.937Z"
+  }
+]

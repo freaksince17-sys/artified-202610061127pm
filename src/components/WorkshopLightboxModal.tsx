@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { WorkshopMediaItem } from '../types';
 import { refetchWorkshopMediaFromStorage } from '../utils/workshopDiagnostics';
+import { getWorkshopEmbeddedFallback } from '../data/workshopEmbeddedFallbacks';
 
 interface WorkshopLightboxModalProps {
   isOpen: boolean;
@@ -338,7 +339,15 @@ export const WorkshopLightboxModal: React.FC<WorkshopLightboxModalProps> = ({
               <img
                 src={currentUrl || currentItem.url}
                 alt={currentItem.title}
-                onError={() => setMediaError('Photo failed to load.')}
+                onError={() => {
+                  const fallback = getWorkshopEmbeddedFallback(currentUrl || currentItem.url || currentItem.thumbnailUrl);
+                  if (fallback && currentUrl !== fallback) {
+                    setCurrentUrl(fallback);
+                    setMediaError(null);
+                    return;
+                  }
+                  setMediaError('Photo failed to load.');
+                }}
                 className="max-h-full max-w-full object-contain select-none"
               />
             </div>

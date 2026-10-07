@@ -33,6 +33,7 @@ import { WorkshopGroup, WorkshopMediaItem } from '../types';
 import { useCart } from '../context/CartContext';
 import { deleteWorkshopMediaItem, batchDeleteWorkshopMediaItems } from '../data/workshops';
 import { refetchWorkshopMediaFromStorage } from '../utils/workshopDiagnostics';
+import { getWorkshopEmbeddedFallback } from '../data/workshopEmbeddedFallbacks';
 
 interface WorkshopThreeGroupStoryFeedProps {
   groups: WorkshopGroup[];
@@ -296,7 +297,7 @@ const CohortStorytellingPlayer: React.FC<{
             <video
               ref={videoRef}
               src={currentUrl || currentItem.url}
-              poster={currentItem.thumbnailUrl || undefined}
+              poster={getWorkshopEmbeddedFallback(currentItem.thumbnailUrl || currentItem.url) || currentItem.thumbnailUrl || undefined}
               playsInline
               loop
               autoPlay
@@ -361,6 +362,12 @@ const CohortStorytellingPlayer: React.FC<{
               src={currentUrl || currentItem.thumbnailUrl || currentItem.url}
               alt={currentItem.title}
               onError={async () => {
+                const fallback = getWorkshopEmbeddedFallback(currentUrl || currentItem.url || currentItem.thumbnailUrl);
+                if (fallback && currentUrl !== fallback) {
+                  setCurrentUrl(fallback);
+                  setMediaError(null);
+                  return;
+                }
                 try {
                   const recovered = await refetchWorkshopMediaFromStorage(currentItem);
                   if (recovered && recovered !== currentUrl) {

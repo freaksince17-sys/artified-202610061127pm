@@ -1,6 +1,7 @@
 import { WorkshopMediaItem } from '../types';
 import { storage } from '../firebase';
 import { ref, getDownloadURL, getMetadata } from 'firebase/storage';
+import { getWorkshopEmbeddedFallback } from '../data/workshopEmbeddedFallbacks';
 
 export interface DiagnosticResult {
   itemId: string;
@@ -134,7 +135,14 @@ import { getStoredMediaBlobUrl } from './workshopMediaStore';
 export async function refetchWorkshopMediaFromStorage(item: WorkshopMediaItem): Promise<string> {
   console.info(`🔄 Re-fetching media for "${item.title}" (${item.id})...`);
   
-  // 1. Check IndexedDB persistent local blob store (survives restarts)
+  // 1. Check embedded fallback first for instant zero-network recovery (photos and posters)
+  const embedded = getWorkshopEmbeddedFallback(item.url) || getWorkshopEmbeddedFallback(item.thumbnailUrl);
+  if (embedded && item.type === 'image') {
+    console.info('✅ Recovered high-fidelity embedded image data:', item.title);
+    return embedded;
+  }
+
+  // 2. Check IndexedDB persistent local blob store (survives restarts)
   try {
     const idbUrl = await getStoredMediaBlobUrl(item.id);
     if (idbUrl) {
@@ -143,10 +151,16 @@ export async function refetchWorkshopMediaFromStorage(item: WorkshopMediaItem): 
     }
   } catch {}
 
-  // 2. Firebase Storage URL refresh
-  if (item.url && item.url.includes('firebasestorage.googleapis.com')) {
+  // 3. Normalize legacy .mov URLs to universally compatible web .mp4 or .jpeg
+  let cleanUrl = item.url || '';
+  if (cleanUrl.endsWith('.mov')) {
+    cleanUrl = cleanUrl.includes('snap') ? cleanUrl.replace(/\.mov$/i, '.jpeg') : cleanUrl.replace(/\.mov$/i, '.mp4');
+  }
+
+  // 4. Firebase Storage URL refresh
+  if (cleanUrl && cleanUrl.includes('firebasestorage.googleapis.com')) {
     try {
-      const storageRef = ref(storage, item.url);
+      const storageRef = ref(storage, cleanUrl);
       const freshUrl = await getDownloadURL(storageRef);
       console.info('✅ Re-fetched fresh Firebase Storage URL:', freshUrl);
       return freshUrl;
@@ -155,19 +169,23 @@ export async function refetchWorkshopMediaFromStorage(item: WorkshopMediaItem): 
     }
   }
 
-  // 3. If local /workshops/ URL, check if server has file or add cache buster
-  if (item.url && item.url.startsWith('/workshops/')) {
-    const separator = item.url.includes('?') ? '&' : '?';
-    const reloadedUrl = `${item.url.split('?')[0]}${separator}v=${Date.now()}`;
+  // 5. If local /workshops/ URL, check if server has file or add cache buster
+  if (cleanUrl && cleanUrl.startsWith('/workshops/')) {
+    const separator = cleanUrl.includes('?') ? '&' : '?';
+    const reloadedUrl = `${cleanUrl.split('?')[0]}${separator}v=${Date.now()}`;
     return reloadedUrl;
   }
 
-  // 4. If thumbnail exists and is valid, use it as fallback
+  // 6. If thumbnail exists and is valid, use it as fallback
   if (item.thumbnailUrl && !item.thumbnailUrl.startsWith('blob:')) {
     return item.thumbnailUrl;
   }
 
-  const separator = (item.url || '').includes('?') ? '&' : '?';
-  const reloadedUrl = `${(item.url || '').split('?')[0]}${separator}reload=${Date.now()}`;
+  if (embedded) {
+    return embedded;
+  }
+
+  const separator = (cleanUrl || '').includes('?') ? '&' : '?';
+  const reloadedUrl = `${(cleanUrl || '').split('?')[0]}${separator}reload=${Date.now()}`;
   return reloadedUrl;
 }

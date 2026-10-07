@@ -5,6 +5,8 @@ import SAVED_PRODUCTS from '../data/products.json';
 import SAVED_TIKTOK_REELS from '../data/tiktok_reels.json';
 import SAVED_INSTAGRAM_ITEMS from '../data/instagram_journal.json';
 import SAVED_CRAFT_STORY from '../data/craft_story.json';
+import SAVED_WORKSHOP_GROUPS from '../data/workshop_groups.json';
+import SAVED_WORKSHOP_MEDIA from '../data/workshop_media.json';
 import { sanitizeInstagramItemsList } from '../utils/instagramSanitizer';
 import { generateSitemapXml } from '../utils/sitemapGenerator';
 
@@ -52,6 +54,16 @@ export const WebsiteExportModal: React.FC<WebsiteExportModalProps> = ({ isOpen, 
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(currentCraftStory),
         }),
+        fetch('/api/workshop-groups', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(SAVED_WORKSHOP_GROUPS),
+        }),
+        fetch('/api/workshop-media', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(SAVED_WORKSHOP_MEDIA),
+        }),
         fetch('/api/seller-password', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -87,11 +99,13 @@ export const WebsiteExportModal: React.FC<WebsiteExportModalProps> = ({ isOpen, 
     // First auto-sync to disk
     await handleSyncToServerDisk();
 
-    // Then download all 4 files
+    // Then download all JSON files
     handleDownloadIndividualFile('products.json', currentProducts);
-    setTimeout(() => handleDownloadIndividualFile('tiktok_reels.json', currentReels), 250);
-    setTimeout(() => handleDownloadIndividualFile('instagram_journal.json', currentInstagram), 500);
-    setTimeout(() => handleDownloadIndividualFile('craft_story.json', currentCraftStory), 750);
+    setTimeout(() => handleDownloadIndividualFile('tiktok_reels.json', currentReels), 200);
+    setTimeout(() => handleDownloadIndividualFile('instagram_journal.json', currentInstagram), 400);
+    setTimeout(() => handleDownloadIndividualFile('craft_story.json', currentCraftStory), 600);
+    setTimeout(() => handleDownloadIndividualFile('workshop_groups.json', SAVED_WORKSHOP_GROUPS), 800);
+    setTimeout(() => handleDownloadIndividualFile('workshop_media.json', SAVED_WORKSHOP_MEDIA), 1000);
 
     setOneClickSuccess(true);
     setTimeout(() => setOneClickSuccess(false), 3000);
@@ -277,6 +291,143 @@ export const WebsiteExportModal: React.FC<WebsiteExportModalProps> = ({ isOpen, 
               </div>
               <Download className="w-3.5 h-3.5 text-[#736C65]" />
             </button>
+
+            <button
+              type="button"
+              onClick={() => handleDownloadIndividualFile('workshop_groups.json', SAVED_WORKSHOP_GROUPS)}
+              className="p-2.5 bg-[#FAF8F5] hover:bg-[#E8DFD8]/40 border border-[#E8DFD8] rounded-xl text-left flex items-center justify-between transition-colors cursor-pointer"
+            >
+              <div className="flex items-center gap-2">
+                <FileJson className="w-4 h-4 text-[#C5A880]" />
+                <span className="text-xs font-medium text-[#1C1B1A]">workshop_groups.json</span>
+              </div>
+              <Download className="w-3.5 h-3.5 text-[#736C65]" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleDownloadIndividualFile('workshop_media.json', SAVED_WORKSHOP_MEDIA)}
+              className="p-2.5 bg-[#FAF8F5] hover:bg-[#E8DFD8]/40 border border-[#E8DFD8] rounded-xl text-left flex items-center justify-between transition-colors cursor-pointer"
+            >
+              <div className="flex items-center gap-2">
+                <FileJson className="w-4 h-4 text-[#C5A880]" />
+                <span className="text-xs font-medium text-[#1C1B1A]">workshop_media.json</span>
+              </div>
+              <Download className="w-3.5 h-3.5 text-[#736C65]" />
+            </button>
+          </div>
+        </div>
+
+        {/* Real MP4 Video & Photo Files for public/workshops/ */}
+        <div className="space-y-3 bg-white p-4 rounded-2xl border border-[#E8DFD8]">
+          <div className="flex items-center justify-between">
+            <h4 className="text-xs font-bold text-[#1C1B1A] uppercase tracking-wider flex items-center gap-1.5">
+              <Video className="w-3.5 h-3.5 text-[#C5A880]" />
+              <span>Real Workshop Video & Photo Files (`public/workshops/`)</span>
+            </h4>
+            <span className="text-[10px] text-amber-800 font-semibold bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+              Essential for artified.com.np
+            </span>
+          </div>
+          <p className="text-[11px] text-[#736C65] leading-relaxed">
+            Download each workshop video and photo below and place them into your repository's <code>public/workshops/</code> folder before deploying to Vercel so all videos play smoothly and photos load in HD quality on <code>artified.com.np</code>!
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <a
+              href="/workshops/macrame_pot.mp4"
+              download="macrame_pot.mp4"
+              className="p-2.5 bg-[#FAF8F5] hover:bg-[#E8DFD8]/50 border border-[#E8DFD8] rounded-xl text-left flex items-center justify-between transition-colors"
+            >
+              <div className="truncate">
+                <span className="text-xs font-semibold text-[#1C1B1A] block truncate">macrame_pot.mp4</span>
+                <span className="text-[10px] text-[#736C65]">Planter Weaving Video (3.5 MB)</span>
+              </div>
+              <Download className="w-3.5 h-3.5 text-[#C5A880] shrink-0 ml-2" />
+            </a>
+
+            <a
+              href="/workshops/macrame_me_teaching.mp4"
+              download="macrame_me_teaching.mp4"
+              className="p-2.5 bg-[#FAF8F5] hover:bg-[#E8DFD8]/50 border border-[#E8DFD8] rounded-xl text-left flex items-center justify-between transition-colors"
+            >
+              <div className="truncate">
+                <span className="text-xs font-semibold text-[#1C1B1A] block truncate">macrame_me_teaching.mp4</span>
+                <span className="text-[10px] text-[#736C65]">Sahina Mentoring Video (458 KB)</span>
+              </div>
+              <Download className="w-3.5 h-3.5 text-[#C5A880] shrink-0 ml-2" />
+            </a>
+
+            <a
+              href="/workshops/macrame_cloud.mp4"
+              download="macrame_cloud.mp4"
+              className="p-2.5 bg-[#FAF8F5] hover:bg-[#E8DFD8]/50 border border-[#E8DFD8] rounded-xl text-left flex items-center justify-between transition-colors"
+            >
+              <div className="truncate">
+                <span className="text-xs font-semibold text-[#1C1B1A] block truncate">macrame_cloud.mp4</span>
+                <span className="text-[10px] text-[#736C65]">Wall Tapestry Video (2.0 MB)</span>
+              </div>
+              <Download className="w-3.5 h-3.5 text-[#C5A880] shrink-0 ml-2" />
+            </a>
+
+            <a
+              href="/workshops/macrame_desk.jpeg"
+              download="macrame_desk.jpeg"
+              className="p-2.5 bg-[#FAF8F5] hover:bg-[#E8DFD8]/50 border border-[#E8DFD8] rounded-xl text-left flex items-center justify-between transition-colors"
+            >
+              <div className="truncate">
+                <span className="text-xs font-semibold text-[#1C1B1A] block truncate">macrame_desk.jpeg</span>
+                <span className="text-[10px] text-[#736C65]">Studio Workspace Photo (196 KB)</span>
+              </div>
+              <Download className="w-3.5 h-3.5 text-[#C5A880] shrink-0 ml-2" />
+            </a>
+
+            <a
+              href="/workshops/macrame_group.jpeg"
+              download="macrame_group.jpeg"
+              className="p-2.5 bg-[#FAF8F5] hover:bg-[#E8DFD8]/50 border border-[#E8DFD8] rounded-xl text-left flex items-center justify-between transition-colors"
+            >
+              <div className="truncate">
+                <span className="text-xs font-semibold text-[#1C1B1A] block truncate">macrame_group.jpeg</span>
+                <span className="text-[10px] text-[#736C65]">Cohort Knotting Photo (149 KB)</span>
+              </div>
+              <Download className="w-3.5 h-3.5 text-[#C5A880] shrink-0 ml-2" />
+            </a>
+
+            <a
+              href="/workshops/macrame_student.jpeg"
+              download="macrame_student.jpeg"
+              className="p-2.5 bg-[#FAF8F5] hover:bg-[#E8DFD8]/50 border border-[#E8DFD8] rounded-xl text-left flex items-center justify-between transition-colors"
+            >
+              <div className="truncate">
+                <span className="text-xs font-semibold text-[#1C1B1A] block truncate">macrame_student.jpeg</span>
+                <span className="text-[10px] text-[#736C65]">Student Hands-On Photo (212 KB)</span>
+              </div>
+              <Download className="w-3.5 h-3.5 text-[#C5A880] shrink-0 ml-2" />
+            </a>
+
+            <a
+              href="/workshops/macrame_snap.jpeg"
+              download="macrame_snap.jpeg"
+              className="p-2.5 bg-[#FAF8F5] hover:bg-[#E8DFD8]/50 border border-[#E8DFD8] rounded-xl text-left flex items-center justify-between transition-colors"
+            >
+              <div className="truncate">
+                <span className="text-xs font-semibold text-[#1C1B1A] block truncate">macrame_snap.jpeg</span>
+                <span className="text-[10px] text-[#736C65]">Finished Planter Detail Photo (252 KB)</span>
+              </div>
+              <Download className="w-3.5 h-3.5 text-[#C5A880] shrink-0 ml-2" />
+            </a>
+
+            <a
+              href="/workshops/macrame_pot_thumb.jpg"
+              download="macrame_pot_thumb.jpg"
+              className="p-2.5 bg-[#FAF8F5] hover:bg-[#E8DFD8]/50 border border-[#E8DFD8] rounded-xl text-left flex items-center justify-between transition-colors"
+            >
+              <div className="truncate">
+                <span className="text-xs font-semibold text-[#1C1B1A] block truncate">macrame_pot_thumb.jpg</span>
+                <span className="text-[10px] text-[#736C65]">Video Cover Thumbnail (176 KB)</span>
+              </div>
+              <Download className="w-3.5 h-3.5 text-[#C5A880] shrink-0 ml-2" />
+            </a>
           </div>
         </div>
 
