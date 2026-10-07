@@ -68,7 +68,12 @@ export const WorkshopLightboxModal: React.FC<WorkshopLightboxModalProps> = ({
     setMediaError(null);
     setIsReloading(false);
     if (currentItem) {
-      setCurrentUrl(currentItem.url);
+      if (currentItem.type === 'image') {
+        const embedded = getWorkshopEmbeddedFallback(currentItem.url) || getWorkshopEmbeddedFallback(currentItem.thumbnailUrl);
+        setCurrentUrl(embedded || currentItem.url);
+      } else {
+        setCurrentUrl(currentItem.url);
+      }
     }
     if (videoRef.current && currentItem?.type === 'video') {
       videoRef.current.currentTime = 0;
@@ -266,7 +271,7 @@ export const WorkshopLightboxModal: React.FC<WorkshopLightboxModalProps> = ({
               <video
                 ref={videoRef}
                 src={currentUrl || currentItem.url}
-                poster={currentItem.thumbnailUrl || undefined}
+                poster={getWorkshopEmbeddedFallback(currentItem.thumbnailUrl || currentItem.url) || currentItem.thumbnailUrl || undefined}
                 playsInline
                 loop
                 autoPlay

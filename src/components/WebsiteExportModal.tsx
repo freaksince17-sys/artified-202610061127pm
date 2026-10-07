@@ -111,6 +111,33 @@ export const WebsiteExportModal: React.FC<WebsiteExportModalProps> = ({ isOpen, 
     setTimeout(() => setOneClickSuccess(false), 3000);
   };
 
+  const [workshopDownloadSuccess, setWorkshopDownloadSuccess] = useState(false);
+
+  const handleDownloadAllWorkshopFiles = () => {
+    const files = [
+      { url: '/workshops/macrame_pot.mp4', name: 'macrame_pot.mp4' },
+      { url: '/workshops/macrame_me_teaching.mp4', name: 'macrame_me_teaching.mp4' },
+      { url: '/workshops/macrame_cloud.mp4', name: 'macrame_cloud.mp4' },
+      { url: '/workshops/macrame_desk.jpeg', name: 'macrame_desk.jpeg' },
+      { url: '/workshops/macrame_group.jpeg', name: 'macrame_group.jpeg' },
+      { url: '/workshops/macrame_student.jpeg', name: 'macrame_student.jpeg' },
+      { url: '/workshops/macrame_snap.jpeg', name: 'macrame_snap.jpeg' },
+      { url: '/workshops/macrame_pot_thumb.jpg', name: 'macrame_pot_thumb.jpg' },
+    ];
+    files.forEach((file, index) => {
+      setTimeout(() => {
+        const a = document.createElement('a');
+        a.href = file.url;
+        a.download = file.name;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }, index * 300);
+    });
+    setWorkshopDownloadSuccess(true);
+    setTimeout(() => setWorkshopDownloadSuccess(false), 4000);
+  };
+
   const [copiedSitemap, setCopiedSitemap] = useState(false);
 
   const handleDownloadSitemap = () => {
@@ -332,6 +359,22 @@ export const WebsiteExportModal: React.FC<WebsiteExportModalProps> = ({ isOpen, 
           <p className="text-[11px] text-[#736C65] leading-relaxed">
             Download each workshop video and photo below and place them into your repository's <code>public/workshops/</code> folder before deploying to Vercel so all videos play smoothly and photos load in HD quality on <code>artified.com.np</code>!
           </p>
+
+          <button
+            type="button"
+            onClick={handleDownloadAllWorkshopFiles}
+            className="w-full py-2.5 px-4 rounded-xl bg-[#C5A880] hover:bg-[#b8986c] text-[#1C1B1A] text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm"
+          >
+            <Download className="w-4 h-4 text-[#1C1B1A]" />
+            <span>⚡ Download All 8 Workshop Files (1-Click)</span>
+          </button>
+
+          {workshopDownloadSuccess && (
+            <div className="p-2 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-[11px] text-center flex items-center justify-center gap-1.5 animate-fade-in">
+              <Check className="w-3.5 h-3.5 text-emerald-600" />
+              <span>All 8 files downloaded! Place them in <code>public/workshops/</code> in your GitHub repo.</span>
+            </div>
+          )}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <a
               href="/workshops/macrame_pot.mp4"

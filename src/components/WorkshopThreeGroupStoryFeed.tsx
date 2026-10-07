@@ -94,7 +94,12 @@ const CohortStorytellingPlayer: React.FC<{
     setDeleteConfirm(false);
     setIsReloading(false);
     if (currentItem) {
-      setCurrentUrl(currentItem.url);
+      if (currentItem.type === 'image') {
+        const embedded = getWorkshopEmbeddedFallback(currentItem.url) || getWorkshopEmbeddedFallback(currentItem.thumbnailUrl);
+        setCurrentUrl(embedded || currentItem.url);
+      } else {
+        setCurrentUrl(currentItem.url);
+      }
 
       // If currentItem.url is a transient blob: URL that might have expired across sessions, attempt auto-revival
       if (currentItem.url && currentItem.url.startsWith('blob:')) {
@@ -525,7 +530,7 @@ const CohortStorytellingPlayer: React.FC<{
             const isThumbActive = idx === activeIndex;
             const isThumbVideo = item.type === 'video';
             const isThumbSelected = selectedIds.includes(item.id);
-            const thumbSrc = item.thumbnailUrl || item.url || '/workshops/pipe sunflower training.jpeg';
+            const thumbSrc = getWorkshopEmbeddedFallback(item.thumbnailUrl || item.url) || item.thumbnailUrl || item.url || '/workshops/pipe sunflower training.jpeg';
 
             return (
               <button
@@ -901,7 +906,7 @@ export const WorkshopThreeGroupStoryFeed: React.FC<WorkshopThreeGroupStoryFeedPr
                           }}
                         >
                           <img
-                            src={item.thumbnailUrl || item.url || '/workshops/pipe sunflower training.jpeg'}
+                            src={getWorkshopEmbeddedFallback(item.thumbnailUrl || item.url) || item.thumbnailUrl || item.url || '/workshops/pipe sunflower training.jpeg'}
                             alt={item.title}
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                           />
