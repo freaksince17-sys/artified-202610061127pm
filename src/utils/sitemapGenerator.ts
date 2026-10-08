@@ -86,6 +86,7 @@ export function generateSitemapXml(
     { hash: '#meet-artisan', priority: 0.7 },
     { hash: '#customer-reviews', priority: 0.7 },
     { hash: '#instagram-journal', priority: 0.7 },
+    { hash: '#workshops', priority: 0.8 },
   ];
   for (const s of sections) {
     lines.push('  <url>');

@@ -21,6 +21,8 @@ export const WebsiteExportModal: React.FC<WebsiteExportModalProps> = ({ isOpen, 
   const [oneClickSuccess, setOneClickSuccess] = useState(false);
   const [syncSuccess, setSyncSuccess] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [workshopDownloadSuccess, setWorkshopDownloadSuccess] = useState(false);
+  const [copiedSitemap, setCopiedSitemap] = useState(false);
 
   if (!isOpen) return null;
 
@@ -111,8 +113,6 @@ export const WebsiteExportModal: React.FC<WebsiteExportModalProps> = ({ isOpen, 
     setTimeout(() => setOneClickSuccess(false), 3000);
   };
 
-  const [workshopDownloadSuccess, setWorkshopDownloadSuccess] = useState(false);
-
   const handleDownloadAllWorkshopFiles = () => {
     const files = [
       { url: '/workshops/macrame_pot.mp4', name: 'macrame_pot.mp4' },
@@ -137,8 +137,6 @@ export const WebsiteExportModal: React.FC<WebsiteExportModalProps> = ({ isOpen, 
     setWorkshopDownloadSuccess(true);
     setTimeout(() => setWorkshopDownloadSuccess(false), 4000);
   };
-
-  const [copiedSitemap, setCopiedSitemap] = useState(false);
 
   const handleDownloadSitemap = () => {
     const xml = generateSitemapXml(currentProducts, 'https://www.artified.com.np');
