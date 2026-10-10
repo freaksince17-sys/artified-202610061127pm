@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   X, 
   Upload, 
@@ -29,9 +29,11 @@ import {
   WORKSHOP_FOLDER_PHOTOS,
   ALL_WORKSHOP_FOLDER_ASSETS,
   WorkshopFolderAsset,
-  isMediaRelatedToGroup
+  isMediaRelatedToGroup,
+  fetchWorkshopFilesFromServer
 } from '../data/workshops';
 import { autoGenerateMediaCaption } from '../utils/workshopAIGenerator';
+import { isVideoMedia, getStandardMimeType } from '../services/firebaseWorkshopStorageService';
 import { 
   FastUploadFile, 
   UploadProgressInfo, 
@@ -102,6 +104,7 @@ export const SellerWorkshopMediaModal: React.FC<SellerWorkshopMediaModalProps> =
   // Multi-file & workshop folder selection queue
   const [queuedItems, setQueuedItems] = useState<QueuedItem[]>([]);
   const [selectedFolderAssetIds, setSelectedFolderAssetIds] = useState<string[]>([]);
+  const [selectedFolderFilter, setSelectedFolderFilter] = useState<'auto' | 'macrame' | 'sunflower' | 'pearl' | 'all'>('auto');
 
   // Status & live progress
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -109,13 +112,45 @@ export const SellerWorkshopMediaModal: React.FC<SellerWorkshopMediaModalProps> =
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  // Fetch groups dynamically
+  const [liveServerAssets, setLiveServerAssets] = useState<WorkshopFolderAsset[]>([]);
+
+  // Fetch groups and physical server files dynamically when modal opens
   useEffect(() => {
-    fetchWorkshopGroups().then((groups) => {
-      if (groups && groups.length > 0) {
-        setAvailableGroups(groups);
-      }
-    });
+    if (isOpen) {
+      fetchWorkshopGroups().then((groups) => {
+        if (groups && groups.length > 0) {
+          setAvailableGroups(groups);
+        }
+      });
+      fetchWorkshopFilesFromServer().then((files) => {
+        if (files && files.length > 0) {
+          const mapped: WorkshopFolderAsset[] = files.map((sf) => {
+            const cat = (sf.category || '').toLowerCase();
+            const normCat: 'macrame' | 'sunflower' | 'pearl' = 
+              cat.includes('sunflower') || cat.includes('pipe')
+                ? 'sunflower'
+                : cat.includes('pearl')
+                ? 'pearl'
+                : 'macrame';
+            const cleanTitle = sf.filename.split('/').pop()?.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ') || sf.filename;
+            return {
+              id: `server_${sf.filename.replace(/[^a-zA-Z0-9_.-]/g, '_')}`,
+              name: sf.filename,
+              type: sf.type,
+              url: sf.url,
+              thumbnailUrl: sf.type === 'video' ? sf.url.replace(/\.[^/.]+$/, '_thumb.jpg') : sf.url,
+              category: normCat,
+              title: cleanTitle,
+              description: `Physical file from ${sf.category} folder in Kathmandu workspace.`,
+              suggestedCraftTechnique: normCat === 'macrame' ? 'Macrame Knotting' : normCat === 'pearl' ? 'Pearl Weaving' : 'Pipe Cleaner Sculpting'
+            };
+          });
+          setLiveServerAssets(mapped);
+        } else {
+          setLiveServerAssets([]);
+        }
+      });
+    }
   }, [isOpen]);
 
   // Sync with editingItem or defaultGroupId
@@ -167,26 +202,44 @@ export const SellerWorkshopMediaModal: React.FC<SellerWorkshopMediaModalProps> =
   const currentSelectedGroup = availableGroups.find((g) => (g.groupKey || g.id) === selectedGroupId) || availableGroups[0];
   const isMultiMode = queuedItems.length > 0;
 
-  const activeCategory: 'macrame' | 'sunflower' | 'pearl' | 'all' = 
-    selectedGroupId === 'macrame' || selectedGroupId === 'ws-group-macrame'
+  const autoCategory: 'macrame' | 'sunflower' | 'pearl' | 'all' = 
+    selectedGroupId.toLowerCase().includes('macrame')
       ? 'macrame'
-      : selectedGroupId === 'wastepipe-sunflower' || selectedGroupId === 'ws-group-sunflower'
+      : selectedGroupId.toLowerCase().includes('sunflower')
       ? 'sunflower'
-      : selectedGroupId === 'pearl-bag' || selectedGroupId === 'ws-group-pearl-bag'
+      : selectedGroupId.toLowerCase().includes('pearl')
       ? 'pearl'
       : 'all';
 
-  const scopedVideos = activeCategory === 'all' 
-    ? WORKSHOP_FOLDER_VIDEOS 
-    : WORKSHOP_FOLDER_VIDEOS.filter((v) => v.category === activeCategory);
+  const activeCategory: 'macrame' | 'sunflower' | 'pearl' | 'all' = 
+    selectedFolderFilter === 'auto' ? autoCategory : selectedFolderFilter;
 
-  const scopedPhotos = activeCategory === 'all'
-    ? WORKSHOP_FOLDER_PHOTOS
-    : WORKSHOP_FOLDER_PHOTOS.filter((p) => p.category === activeCategory);
+  const combinedAssets = useMemo(() => {
+    const list = [...liveServerAssets, ...ALL_WORKSHOP_FOLDER_ASSETS];
+    const seen = new Set<string>();
+    return list.filter((a) => {
+      const key = (a.url || a.id).toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [liveServerAssets]);
 
-  const scopedAssets = activeCategory === 'all'
-    ? ALL_WORKSHOP_FOLDER_ASSETS
-    : ALL_WORKSHOP_FOLDER_ASSETS.filter((a) => a.category === activeCategory);
+  const scopedVideos = useMemo(() => {
+    const list = combinedAssets.filter((a) => a.type === 'video');
+    return activeCategory === 'all' ? list : list.filter((v) => v.category === activeCategory);
+  }, [combinedAssets, activeCategory]);
+
+  const scopedPhotos = useMemo(() => {
+    const list = combinedAssets.filter((a) => a.type === 'image');
+    return activeCategory === 'all' ? list : list.filter((p) => p.category === activeCategory);
+  }, [combinedAssets, activeCategory]);
+
+  const scopedAssets = useMemo(() => {
+    return activeCategory === 'all'
+      ? combinedAssets
+      : combinedAssets.filter((a) => a.category === activeCategory);
+  }, [combinedAssets, activeCategory]);
 
   // Toggle selection of a single workshop folder asset
   const handleToggleFolderAsset = (asset: WorkshopFolderAsset) => {
@@ -461,19 +514,37 @@ export const SellerWorkshopMediaModal: React.FC<SellerWorkshopMediaModalProps> =
           });
 
           let finalUrl = item.url || item.previewUrl;
-          let finalThumb = item.thumbnailUrl || item.previewUrl || '/workshops/pipe sunflower training.jpeg';
+          let finalThumb = item.thumbnailUrl || item.previewUrl || '';
           let itemDuration = item.duration;
+
+          // Automatically route folder assets to their genuine cohort if selected from predefined folders
+          let targetGroup = selectedGroupId;
+          if (item.isFolderAsset) {
+            if (item.category === 'sunflower' || finalUrl.includes('sunflower') || finalUrl.includes('pipe')) {
+              targetGroup = 'pipecleaner-sunflower';
+            } else if (item.category === 'macrame' || finalUrl.includes('macrame')) {
+              targetGroup = 'macrame';
+            } else if (item.category === 'pearl' || finalUrl.includes('pearl')) {
+              targetGroup = 'pearls';
+            }
+          }
+
+          const targetGroupKey = (targetGroup || selectedGroupId).toLowerCase();
+          const destFolder = 
+            targetGroupKey.includes('sunflower') || targetGroupKey.includes('pipe') ? 'Pipecleaner Sunflower' :
+            targetGroupKey.includes('pearl') ? 'Pearls' : 'Macrame';
 
           // If it's a local uploaded file, run compression & storage upload
           if (!item.isFolderAsset && item.file) {
             let uploadBlob: Blob = item.file;
-            let contentType = item.file.type || (item.type === 'video' ? 'video/mp4' : 'image/jpeg');
+            const isVideo = isVideoMedia(item.file, item.file.name);
+            let contentType = getStandardMimeType(item.file, item.file.name);
 
-            if (item.type === 'image') {
+            if (!isVideo) {
               const compressed = await compressImageToBlob(item.file, 1600, 1200, 0.82);
               uploadBlob = compressed.blob;
               contentType = 'image/jpeg';
-            } else if (item.type === 'video') {
+            } else {
               if (!itemDuration || !finalThumb) {
                 const meta = await extractVideoMetadata(item.file);
                 itemDuration = meta.duration;
@@ -485,23 +556,20 @@ export const SellerWorkshopMediaModal: React.FC<SellerWorkshopMediaModalProps> =
               uploadBlob,
               item.file.name,
               contentType,
-              finalThumb
+              finalThumb,
+              undefined,
+              destFolder,
+              targetGroup
             );
 
-            if (item.type !== 'video') {
+            if (!isVideo) {
               finalThumb = finalUrl;
-            }
-          }
-
-          // Automatically route folder assets to their genuine cohort if selected from predefined folders
-          let targetGroup = selectedGroupId;
-          if (item.isFolderAsset) {
-            if (item.category === 'sunflower' || finalUrl.includes('sunflower') || finalUrl.includes('pipe')) {
-              targetGroup = 'wastepipe-sunflower';
-            } else if (item.category === 'macrame' || finalUrl.includes('macrame')) {
-              targetGroup = 'macrame';
-            } else if (item.category === 'pearl' || finalUrl.includes('pearl')) {
-              targetGroup = 'pearl-bag';
+            } else if (!finalThumb || /\.(mp4|mov|webm|m4v)$/i.test(finalThumb)) {
+              if (finalUrl.endsWith('.mp4')) {
+                finalThumb = finalUrl.replace(/\.mp4$/i, '_thumb.jpg');
+              } else {
+                finalThumb = finalUrl;
+              }
             }
           }
 
@@ -511,14 +579,16 @@ export const SellerWorkshopMediaModal: React.FC<SellerWorkshopMediaModalProps> =
           // Store local blob in IndexedDB for fast offline revival
           if (!item.isFolderAsset && item.file) {
             try {
-              await storeMediaBlobLocally(newItemId, item.file, item.file.type || (item.type === 'video' ? 'video/mp4' : 'image/jpeg'));
+              await storeMediaBlobLocally(newItemId, item.file, getStandardMimeType(item.file, item.file.name));
             } catch {}
           }
+
+          const isVidItem = isVideoMedia(item.file || finalUrl, item.file?.name);
 
           const newItem: WorkshopMediaItem = {
             id: newItemId,
             groupId: targetGroup,
-            type: item.type,
+            type: isVidItem ? 'video' : 'image',
             title: item.title.trim() || 'Workshop Craft Moment',
             workshopTitle: matchedGroup?.title || 'Workshop Masterclass',
             batchName: matchedGroup?.badge || 'Masterclass Cohort',
@@ -598,8 +668,13 @@ export const SellerWorkshopMediaModal: React.FC<SellerWorkshopMediaModalProps> =
 
     try {
       let finalMediaUrl = customUrl.trim() || previewUrl;
-      let thumbUrl = customUrl.trim() || previewUrl || '/workshops/pipe sunflower training.jpeg';
+      let thumbUrl = customUrl.trim() || previewUrl || '';
       let videoDuration = duration;
+
+      const targetGroupKey = selectedGroupId.toLowerCase();
+      const destFolder = 
+        targetGroupKey.includes('sunflower') || targetGroupKey.includes('pipe') ? 'Pipecleaner Sunflower' :
+        targetGroupKey.includes('pearl') ? 'Pearls' : 'Macrame';
 
       if (singleFile) {
         let uploadBlob: Blob = singleFile;
@@ -619,10 +694,17 @@ export const SellerWorkshopMediaModal: React.FC<SellerWorkshopMediaModalProps> =
           uploadBlob,
           singleFile.name,
           contentType,
-          thumbUrl || previewUrl
+          thumbUrl || previewUrl,
+          undefined,
+          destFolder,
+          selectedGroupId
         );
 
         if (mediaType !== 'video') {
+          thumbUrl = finalMediaUrl;
+        } else if (!thumbUrl && finalMediaUrl.endsWith('.mp4')) {
+          thumbUrl = finalMediaUrl.replace(/\.mp4$/i, '_thumb.jpg');
+        } else if (!thumbUrl) {
           thumbUrl = finalMediaUrl;
         }
       }
@@ -865,6 +947,66 @@ export const SellerWorkshopMediaModal: React.FC<SellerWorkshopMediaModalProps> =
                   )}
                 </div>
               )}
+            </div>
+
+            {/* Folder selection tabs */}
+            <div className="flex flex-wrap items-center gap-1.5 mb-2.5 pb-2 border-b border-[#E8DFD8] dark:border-[#262422]">
+              <span className="text-[10px] uppercase font-bold text-[#736C65] dark:text-[#A8A29D] mr-1">Folder:</span>
+              <button
+                type="button"
+                onClick={() => setSelectedFolderFilter('auto')}
+                className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                  selectedFolderFilter === 'auto'
+                    ? 'bg-[#1C1B1A] text-white dark:bg-white dark:text-[#1C1B1A] shadow-xs'
+                    : 'bg-white/80 dark:bg-[#1E1C1A] text-[#736C65] hover:text-[#1C1B1A] border border-[#E8DFD8] dark:border-[#333]'
+                }`}
+              >
+                🎯 Auto Match
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedFolderFilter('macrame')}
+                className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                  selectedFolderFilter === 'macrame'
+                    ? 'bg-[#C5A880] text-[#1C1B1A] shadow-xs'
+                    : 'bg-white/80 dark:bg-[#1E1C1A] text-[#736C65] hover:text-[#1C1B1A] border border-[#E8DFD8] dark:border-[#333]'
+                }`}
+              >
+                📁 Macrame ({combinedAssets.filter((a) => a.category === 'macrame').length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedFolderFilter('sunflower')}
+                className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                  selectedFolderFilter === 'sunflower'
+                    ? 'bg-[#C5A880] text-[#1C1B1A] shadow-xs'
+                    : 'bg-white/80 dark:bg-[#1E1C1A] text-[#736C65] hover:text-[#1C1B1A] border border-[#E8DFD8] dark:border-[#333]'
+                }`}
+              >
+                📁 Pipecleaner Sunflower ({combinedAssets.filter((a) => a.category === 'sunflower').length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedFolderFilter('pearl')}
+                className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                  selectedFolderFilter === 'pearl'
+                    ? 'bg-[#C5A880] text-[#1C1B1A] shadow-xs'
+                    : 'bg-white/80 dark:bg-[#1E1C1A] text-[#736C65] hover:text-[#1C1B1A] border border-[#E8DFD8] dark:border-[#333]'
+                }`}
+              >
+                📁 Pearls ({combinedAssets.filter((a) => a.category === 'pearl').length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedFolderFilter('all')}
+                className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                  selectedFolderFilter === 'all'
+                    ? 'bg-[#C5A880] text-[#1C1B1A] shadow-xs'
+                    : 'bg-white/80 dark:bg-[#1E1C1A] text-[#736C65] hover:text-[#1C1B1A] border border-[#E8DFD8] dark:border-[#333]'
+                }`}
+              >
+                📂 All Folders ({combinedAssets.length})
+              </button>
             </div>
 
             {/* Asset Multi-Select Grid or Empty Cohort Notice */}

@@ -29,7 +29,9 @@ import {
   fetchWorkshopGroups,
   deleteWorkshopGroup,
   isMediaRelatedToGroup,
-  deduplicateMediaItems
+  deduplicateMediaItems,
+  getCanonicalMediaKey,
+  sanitizeWorkshopMediaItem
 } from '../data/workshops';
 import { WorkshopThreeGroupStoryFeed } from './WorkshopThreeGroupStoryFeed';
 import { WorkshopLightboxModal } from './WorkshopLightboxModal';
@@ -42,15 +44,7 @@ import { collection, onSnapshot } from 'firebase/firestore';
 
 export const WorkshopGallery: React.FC = () => {
   const { isSellerMode } = useCart();
-  const [mediaItems, setMediaItems] = useState<WorkshopMediaItem[]>(() => {
-    const deletedIds = getDeletedWorkshopMediaIds();
-    const local = getCustomWorkshopMediaFromStorage().filter((m) => !deletedIds.includes(m.id) && isMediaRelatedToGroup(m, m.groupId));
-    const defaults = DEFAULT_WORKSHOP_MEDIA.filter((m) => !deletedIds.includes(m.id) && isMediaRelatedToGroup(m, m.groupId));
-    const map = new Map<string, WorkshopMediaItem>();
-    defaults.forEach((d) => map.set(d.id, d));
-    local.forEach((l) => map.set(l.id, l));
-    return Array.from(map.values());
-  });
+  const [mediaItems, setMediaItems] = useState<WorkshopMediaItem[]>([]);
 
   const [groupMetas, setGroupMetas] = useState<Omit<WorkshopGroup, 'items'>[]>(() => {
     const deletedIds = getDeletedWorkshopGroupIds();
@@ -79,7 +73,7 @@ export const WorkshopGallery: React.FC = () => {
   // Initial load
   useEffect(() => {
     fetchWorkshopMedia().then((items) => {
-      if (items && items.length > 0) setMediaItems(items);
+      if (items) setMediaItems(deduplicateMediaItems(items).map(sanitizeWorkshopMediaItem));
     });
     fetchWorkshopGroups().then((groups) => {
       if (groups && groups.length > 0) setGroupMetas(groups);
@@ -98,11 +92,13 @@ export const WorkshopGallery: React.FC = () => {
         const mergedMap = new Map<string, WorkshopMediaItem>();
 
         DEFAULT_WORKSHOP_MEDIA.filter((item) => !deletedIds.includes(item.id) && isMediaRelatedToGroup(item, item.groupId)).forEach((item) => {
-          mergedMap.set(item.id, item);
+          const key = getCanonicalMediaKey(item) || item.id;
+          mergedMap.set(key, item);
         });
 
         local.forEach((item) => {
-          mergedMap.set(item.id, item);
+          const key = getCanonicalMediaKey(item) || item.id;
+          mergedMap.set(key, item);
         });
 
         if (!snapshot.empty) {
@@ -110,12 +106,15 @@ export const WorkshopGallery: React.FC = () => {
             const itemId = docSnap.id;
             const d = docSnap.data() as WorkshopMediaItem;
             if (!deletedIds.includes(itemId) && isMediaRelatedToGroup({ ...d, id: itemId, type: d.type }, d.groupId) && (d.url || d.thumbnailUrl)) {
-              mergedMap.set(itemId, { ...d, id: itemId });
+              const full = { ...d, id: itemId };
+              const key = getCanonicalMediaKey(full) || itemId;
+              mergedMap.set(key, full);
             }
           });
         }
 
-        setMediaItems(Array.from(mergedMap.values()));
+        const cleanList = deduplicateMediaItems(Array.from(mergedMap.values())).map(sanitizeWorkshopMediaItem);
+        setMediaItems(cleanList);
       },
       (error) => {
         console.warn('Notice: workshop_gallery snapshot fallback:', error);
@@ -428,11 +427,11 @@ export const WorkshopGallery: React.FC = () => {
         </div>
       </div>
 
-      {/* Main 3-Group Workshop Storytelling Feed */}
+      {/* Three Workshop Classes in Storyline Look */}
       <WorkshopThreeGroupStoryFeed
         groups={workshopGroups}
         onOpenLightbox={handleOpenLightbox}
-        onOpenUploadModal={handleOpenMasterclassEditor}
+        onOpenUploadModal={(gKey) => handleOpenMasterclassEditor(gKey)}
         onEditItem={handleEditItem}
         onDeleteItem={handleDeleteItem}
         onReplaceItem={handleReplaceItem}

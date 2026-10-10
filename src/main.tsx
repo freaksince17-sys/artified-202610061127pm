@@ -4,11 +4,31 @@ import App from './App.tsx';
 import './index.css';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch((err) => {
-      console.warn('Service worker registration failed:', err);
-    });
+// Purge old service workers and caches that held old workshop media
+if (typeof window !== 'undefined') {
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistrations().then((registrations) => {
+      for (const reg of registrations) {
+        reg.unregister();
+      }
+    }).catch(() => {});
+  }
+  if ('caches' in window) {
+    caches.keys().then((names) => {
+      for (const name of names) {
+        if (name.includes('artified-firebase-storage-assets') || name.includes('artified-workshop') || name.includes('workshops')) {
+          caches.delete(name);
+        }
+      }
+    }).catch(() => {});
+  }
+  // Versioned cache buster tag for active session storage re-validation
+  window.addEventListener('storage', (e) => {
+    if (e.key === 'artified_custom_workshop_media_v9' && 'caches' in window) {
+      caches.keys().then((names) => {
+        names.forEach(n => caches.delete(n));
+      }).catch(() => {});
+    }
   });
 }
 

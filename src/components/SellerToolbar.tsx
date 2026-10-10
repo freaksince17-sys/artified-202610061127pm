@@ -81,6 +81,22 @@ export const SellerToolbar: React.FC = () => {
     }
   };
 
+  const handleClearMediaCache = async () => {
+    try {
+      if ('caches' in window) {
+        await caches.delete('artified-firebase-storage-assets');
+        await caches.delete('artified-video-assets');
+        await caches.delete('artified-local-images');
+      }
+      localStorage.removeItem('artified_custom_workshop_media_v30');
+      localStorage.removeItem('artified_deleted_workshop_ids_v12');
+      console.info('🧹 Explicitly cleared artified-firebase-storage-assets, artified-video-assets, and artified-local-images caches.');
+      window.location.reload();
+    } catch (err) {
+      console.error('Error clearing media cache:', err);
+    }
+  };
+
   if (!isSellerMode) return null;
 
   return (
@@ -224,6 +240,16 @@ export const SellerToolbar: React.FC = () => {
             >
               <Package className="w-3.5 h-3.5 text-amber-300" />
               <span>Export Complete Website & Products</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleClearMediaCache}
+              className="w-full py-1.5 px-2.5 bg-red-500/20 hover:bg-red-500/30 text-red-200 text-[11px] font-semibold rounded-lg flex items-center justify-center gap-1.5 transition-colors border border-red-500/40"
+              title="Explicitly clear artified-firebase-storage-assets, artified-video-assets, and artified-local-images caches"
+            >
+              <RefreshCw className="w-3.5 h-3.5 text-red-300 animate-spin" style={{ animationDuration: '6s' }} />
+              <span>Clear Media Cache</span>
             </button>
 
             {/* Refer a Friend Visibility Toggle for Seller */}

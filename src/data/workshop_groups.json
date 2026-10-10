@@ -1,23 +1,68 @@
 [
   {
-    "id": "group_1791385325839",
-    "groupKey": "macrame-wall-art-planters-workshop",
+    "id": "ws-macrame",
+    "groupKey": "macrame",
     "title": "Macrame Wall Art & Planters Workshop",
-    "tagline": "Cotton Cord Tensioning • Planters & Wall Art",
-    "badge": "Workshop • Macrame & Fiber Art",
-    "description": "Intensive hands-on training focusing on raw cotton cord knotting, symmetrical tension, wooden hoop attachments, and botanical hanger architecture under Sahina Shrestha’s guided mentorship in Kathmandu.",
+    "badge": "Workshop • Fiber & Knotting Art",
+    "tagline": "Cotton Cord Tensioning • Planters & Wall Hangings",
+    "date": "Every Saturday • 11:00 AM - 2:00 PM",
+    "batchDate": "Sat, Oct 24, 2026",
+    "location": "Kathmandu Studio, Nepal",
     "instructor": "Sahina Shrestha",
-    "location": "Kathmandu, Nepal",
-    "date": "Starting Next Saturday • 11:00 AM",
     "attendeesCount": 15,
+    "description": "Master the art of raw cotton cord knotting, symmetrical tension, wooden hoop mounting, and botanical planter framing in our Kathmandu atelier under Sahina Shrestha's guided mentorship.",
+    "whatsappMessage": "Namaste Sahina! I would like to join the Macrame Wall Art & Planters Workshop in Kathmandu.",
     "keyTechniques": [
-      "Square Knotting",
-      "Spiral Macrame Weave",
-      "Botanical Ring Mounting",
-      "Tension Equalization"
+      "Square Knots & Spiral Weaves",
+      "Lark's Head Ring Mounting",
+      "Botanical Planter Load Balancing"
     ],
-    "whatsappMessage": "Namaste Sahina! I would like to join the upcoming Macrame Wall Art & Planters Workshop in Kathmandu.",
-    "createdAt": "2026-10-07T15:19:34.765Z",
-    "updatedAt": "2026-10-07T15:45:34.398Z"
+    "folder": "Macrame",
+    "createdAt": "2026-10-09T10:07:32.160Z",
+    "updatedAt": "2026-10-10T10:00:00.000Z"
+  },
+  {
+    "id": "ws-sunflower",
+    "groupKey": "sunflower",
+    "title": "Waste Pipe to Sunflower Eco-Art Workshop",
+    "badge": "Workshop • Botanical Eco-Art & Upcycling",
+    "tagline": "Upcycled Conduit Pipes • Petal Sculpting & Ring Bases",
+    "date": "Bi-Weekly Sundays • 1:00 PM - 4:00 PM",
+    "batchDate": "Sun, Nov 01, 2026",
+    "location": "Kathmandu Studio, Nepal",
+    "instructor": "Sahina Shrestha",
+    "attendeesCount": 12,
+    "description": "Transform discarded industrial conduit pipes into breathtaking botanical sunflower sculptures using precision heat-molding, petal fabric creasing, and eco-patina layering.",
+    "whatsappMessage": "Namaste Sahina! I would like to join the Waste Pipe to Sunflower Eco-Art Workshop in Kathmandu.",
+    "keyTechniques": [
+      "Conduit Pipe Sectioning & Heating",
+      "Fabric Petal Creasing & Multi-Layer Symmetry",
+      "Central Seed Core Texturing"
+    ],
+    "folder": "Pipecleaner Sunflower",
+    "createdAt": "2026-10-09T10:07:32.160Z",
+    "updatedAt": "2026-10-10T10:00:00.000Z"
+  },
+  {
+    "id": "ws-pearl-bag",
+    "groupKey": "pearl-bag",
+    "title": "Bridal Pearl Bag & Bead Weaving Workshop",
+    "badge": "Workshop • Couture Bridal Accessories",
+    "tagline": "3D Pearl Lattice Weaving • Structured Clutch Framing",
+    "date": "Alternate Fridays • 2:00 PM - 5:30 PM",
+    "batchDate": "Fri, Nov 06, 2026",
+    "location": "Kathmandu Studio, Nepal",
+    "instructor": "Sahina Shrestha",
+    "attendeesCount": 10,
+    "description": "Learn intricate 3D pearl lattice beading, structured bridal clutch framing, ergonomic artisan handle assembly, and satin interior finishing in our hands-on couture masterclass.",
+    "whatsappMessage": "Namaste Sahina! I would like to join the Bridal Pearl Bag & Bead Weaving Workshop in Kathmandu.",
+    "keyTechniques": [
+      "4-Bead Cross-Weave Grid",
+      "Reinforced Monofilament Internal Locking",
+      "Bridal Handle Arch Geometry & Lining"
+    ],
+    "folder": "Pearls",
+    "createdAt": "2026-10-09T10:07:32.160Z",
+    "updatedAt": "2026-10-10T10:00:00.000Z"
   }
 ]

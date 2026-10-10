@@ -14,6 +14,7 @@ import {
 import { WorkshopMediaItem } from '../types';
 import { uploadSingleFileFast, compressImageToBlob, extractVideoMetadata } from '../utils/fastMediaUploader';
 import { saveWorkshopMediaItem, ALL_WORKSHOP_FOLDER_ASSETS } from '../data/workshops';
+import { isVideoMedia, getStandardMimeType } from '../services/firebaseWorkshopStorageService';
 
 interface ReplaceMediaModalProps {
   isOpen: boolean;
@@ -81,18 +82,24 @@ export const ReplaceMediaModal: React.FC<ReplaceMediaModalProps> = ({
       let finalUrl = targetItem.url;
       let finalThumbnail = targetItem.thumbnailUrl || targetItem.url;
       let duration = targetItem.duration;
-      let isVideo = targetItem.type === 'video';
+      let isVideo = isVideoMedia(targetItem.url, targetItem.title);
+
+      const targetGroupKey = (targetItem.groupId || 'macrame').toLowerCase();
+      const destFolder = targetGroupKey.includes('sunflower') || targetGroupKey.includes('pipe') ? 'Pipecleaner Sunflower' : targetGroupKey.includes('pearl') ? 'Pearls' : 'Macrame';
 
       if (file) {
-        isVideo = file.type.startsWith('video/') || !!file.name.match(/\.(mp4|mov|webm)$/i);
+        isVideo = isVideoMedia(file, file.name);
         if (isVideo) {
           const meta = await extractVideoMetadata(file);
           if (meta.duration) duration = meta.duration;
           const uploadedVidUrl = await uploadSingleFileFast(
             file,
             file.name,
-            file.type || 'video/mp4',
-            previewUrl
+            getStandardMimeType(file, file.name),
+            previewUrl,
+            undefined,
+            destFolder,
+            targetGroupKey
           );
           finalUrl = uploadedVidUrl;
           if (meta.thumbnailBlob) {
@@ -100,7 +107,10 @@ export const ReplaceMediaModal: React.FC<ReplaceMediaModalProps> = ({
               meta.thumbnailBlob,
               `thumb_${file.name}.jpg`,
               'image/jpeg',
-              meta.thumbnailUrl
+              meta.thumbnailUrl,
+              undefined,
+              destFolder,
+              targetGroupKey
             );
           } else {
             finalThumbnail = meta.thumbnailUrl;
@@ -111,7 +121,10 @@ export const ReplaceMediaModal: React.FC<ReplaceMediaModalProps> = ({
             compressed.blob,
             file.name,
             'image/jpeg',
-            compressed.dataUrl
+            compressed.dataUrl,
+            undefined,
+            destFolder,
+            targetGroupKey
           );
           finalUrl = uploadedImgUrl;
           finalThumbnail = uploadedImgUrl;
@@ -200,11 +213,11 @@ export const ReplaceMediaModal: React.FC<ReplaceMediaModalProps> = ({
             >
               {previewUrl ? (
                 <div className="flex flex-col items-center">
-                  <div className="relative w-full h-36 rounded-xl overflow-hidden bg-black/5 flex items-center justify-center mb-2">
+                  <div className="relative w-full aspect-square rounded-xl overflow-hidden bg-black flex items-center justify-center mb-2">
                     {file?.type.startsWith('video/') || targetItem.type === 'video' ? (
-                      <video src={previewUrl} className="w-full h-full object-contain" muted controls={false} />
+                      <video src={previewUrl} className="absolute inset-0 w-full h-full object-cover" muted controls={false} />
                     ) : (
-                      <img src={previewUrl} alt="Preview" className="w-full h-full object-contain" />
+                      <img src={previewUrl} alt="Preview" className="absolute inset-0 w-full h-full object-cover" />
                     )}
                   </div>
                   <span className="text-xs font-medium text-[#C5A880] flex items-center gap-1">

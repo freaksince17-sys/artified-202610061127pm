@@ -5,6 +5,11 @@ import { WorkshopMediaItem } from '../types';
 import { saveWorkshopMediaItem } from '../data/workshops';
 import { autoGenerateMediaCaption } from './workshopAIGenerator';
 import { storeMediaBlobLocally } from './workshopMediaStore';
+import { 
+  uploadFileToFirebaseStorage, 
+  isVideoMedia, 
+  getStandardMimeType 
+} from '../services/firebaseWorkshopStorageService';
 
 export interface FastUploadFile {
   id: string;
@@ -81,8 +86,9 @@ export async function compressVideoFile(
   file: File,
   onProgress?: (msg: string) => void
 ): Promise<File | Blob> {
-  // If file is already a compact web video (< 4MB), stream directly for instant upload speed
-  if (file.size <= 4 * 1024 * 1024 && (file.type.includes('mp4') || file.type.includes('webm'))) {
+  // If file is an MP4 web video or compact video (< 50MB), stream directly to maintain native audio and H.264 compatibility
+  const isMp4 = file.type.includes('mp4') || /\.(mp4|m4v)$/i.test(file.name);
+  if (isMp4 || (file.size <= 50 * 1024 * 1024 && file.type.includes('video/'))) {
     return file;
   }
 
@@ -313,17 +319,24 @@ export async function extractVideoMetadata(file: File): Promise<{
 }> {
   return new Promise((resolve) => {
     const video = document.createElement('video');
-    video.preload = 'metadata';
+    video.preload = 'auto';
     video.muted = true;
     video.playsInline = true;
+    video.crossOrigin = 'anonymous';
 
     const objectUrl = URL.createObjectURL(file);
     video.src = objectUrl;
+    video.load();
 
     let hasResolved = false;
     const cleanup = () => {
       if (!hasResolved) {
         hasResolved = true;
+        try {
+          video.pause();
+          video.removeAttribute('src');
+          video.load();
+        } catch {}
         URL.revokeObjectURL(objectUrl);
       }
     };
@@ -333,19 +346,22 @@ export async function extractVideoMetadata(file: File): Promise<{
       resolve({
         duration: '0:30',
         thumbnailBlob: null,
-        thumbnailUrl: '/workshops/pipe sunflower training.jpeg'
+        thumbnailUrl: ''
       });
-    }, 3000);
+    }, 4000);
 
-    video.onloadeddata = () => {
+    video.onloadedmetadata = () => {
       try {
-        video.currentTime = Math.min(1.0, (video.duration || 1) / 2);
+        const seekTarget = Math.min(0.5, (video.duration || 1) / 4);
+        video.currentTime = seekTarget > 0 ? seekTarget : 0.1;
       } catch {
-        // Seek fallback
+        // If seek fails, capture immediately
+        handleCapture();
       }
     };
 
-    video.onseeked = () => {
+    const handleCapture = () => {
+      if (hasResolved) return;
       clearTimeout(fallbackTimeout);
       try {
         const totalSec = Math.round(video.duration || 30);
@@ -357,9 +373,9 @@ export async function extractVideoMetadata(file: File): Promise<{
         canvas.width = Math.min(video.videoWidth || 640, 720);
         canvas.height = Math.min(video.videoHeight || 360, 720);
         const ctx = canvas.getContext('2d');
-        if (ctx) {
+        if (ctx && canvas.width > 0 && canvas.height > 0) {
           ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-          const thumbUrl = canvas.toDataURL('image/jpeg', 0.8);
+          const thumbUrl = canvas.toDataURL('image/jpeg', 0.85);
           canvas.toBlob(
             (thumbBlob) => {
               cleanup();
@@ -370,21 +386,23 @@ export async function extractVideoMetadata(file: File): Promise<{
               });
             },
             'image/jpeg',
-            0.8
+            0.85
           );
           return;
         }
       } catch (e) {
-        console.warn('Video thumbnail extraction notice:', e);
+        console.warn('Video thumbnail capture notice:', e);
       }
 
       cleanup();
       resolve({
         duration: '0:30',
         thumbnailBlob: null,
-        thumbnailUrl: '/workshops/pipe sunflower training.jpeg'
+        thumbnailUrl: ''
       });
     };
+
+    video.onseeked = handleCapture;
 
     video.onerror = () => {
       clearTimeout(fallbackTimeout);
@@ -392,7 +410,7 @@ export async function extractVideoMetadata(file: File): Promise<{
       resolve({
         duration: '0:30',
         thumbnailBlob: null,
-        thumbnailUrl: '/workshops/pipe sunflower training.jpeg'
+        thumbnailUrl: ''
       });
     };
   });
@@ -419,94 +437,111 @@ export async function uploadSingleFileFast(
   filename: string,
   contentType: string,
   fallbackDataUrl?: string,
-  onProgress?: (pct: number) => void
+  onProgress?: (pct: number) => void,
+  folder?: string,
+  groupId?: string
 ): Promise<string> {
   const cleanName = filename.replace(/[^a-zA-Z0-9_.-]/g, '_');
-  const isVideo = contentType.startsWith('video') || cleanName.match(/\.(mp4|mov|webm)$/i) !== null;
-  
-  if (onProgress) onProgress(5);
+  const isVideo = isVideoMedia(fileOrBlob, cleanName);
+  const normalizedContentType = contentType || getStandardMimeType(fileOrBlob, cleanName);
 
-  // STEP 1: Direct Cloud Firebase Storage Upload (Preferred for multi-device sync)
-  const path = `workshop_gallery/${Date.now()}_${cleanName}`;
-  const storageRef = ref(storage, path);
-
-  try {
-    const uploadTask = uploadBytesResumable(storageRef, fileOrBlob, { contentType });
-    const downloadUrl = await new Promise<string>((resolve, reject) => {
-      // 45s timeout for video, 20s for image
-      const timeoutMs = isVideo ? 45000 : 20000;
-      const timeout = setTimeout(() => {
-        reject(new Error(`Firebase storage upload timeout (${timeoutMs}ms)`));
-      }, timeoutMs);
-
-      uploadTask.on(
-        'state_changed',
-        (snapshot) => {
-          if (snapshot.totalBytes > 0 && onProgress) {
-            const pct = Math.min(95, Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 90) + 5);
-            onProgress(pct);
-          }
-        },
-        (err) => {
-          clearTimeout(timeout);
-          reject(err);
-        },
-        async () => {
-          clearTimeout(timeout);
-          try {
-            const url = await getDownloadURL(uploadTask.snapshot.ref);
-            resolve(url);
-          } catch (e) {
-            reject(e);
-          }
-        }
-      );
-    });
-
-    if (downloadUrl) {
-      if (onProgress) onProgress(100);
-      return downloadUrl;
+  let resolvedFolder = folder || '';
+  if (!resolvedFolder) {
+    const normGroup = (groupId || '').toLowerCase();
+    const normName = (cleanName || '').toLowerCase();
+    if (normGroup.includes('sunflower') || normGroup.includes('pipe') || normName.includes('sunflower') || normName.includes('pipe')) {
+      resolvedFolder = 'Pipecleaner Sunflower';
+    } else if (normGroup.includes('pearl') || normName.includes('pearl')) {
+      resolvedFolder = 'Pearls';
+    } else {
+      resolvedFolder = 'Macrame';
     }
-  } catch (storageErr) {
-    console.warn('Firebase Storage direct upload notice, falling back:', storageErr);
   }
+  
+  if (onProgress) onProgress(10);
 
-  // STEP 2: Non-blocking Server Disk backup if running fullstack dev server
+  // STEP 1: DIRECT STREAMING SERVER DISK SAVE (public/workshops/<folder>/)
+  let diskUrl: string | null = null;
   try {
-    let base64Payload = fallbackDataUrl && fallbackDataUrl.startsWith('data:') ? fallbackDataUrl : '';
-    if (!base64Payload && typeof fileOrBlob !== 'string' && fileOrBlob.size < 15 * 1024 * 1024) {
-      base64Payload = await blobToBase64(fileOrBlob);
-    }
-
-    if (base64Payload) {
-      if (onProgress) onProgress(75);
-      const serverRes = await fetch('/api/workshop-upload', {
+    if (fileOrBlob instanceof Blob) {
+      const rawRes = await fetch(`/api/workshop-upload-binary?folder=${encodeURIComponent(resolvedFolder)}&filename=${encodeURIComponent(cleanName)}&groupId=${encodeURIComponent(groupId || '')}&type=${isVideo ? 'video' : 'image'}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fileBase64: base64Payload,
-          filename: cleanName,
-          type: isVideo ? 'video' : 'image'
-        })
+        headers: {
+          'Content-Type': normalizedContentType,
+          'x-filename': cleanName,
+          'x-folder': resolvedFolder,
+          'x-group-id': groupId || '',
+          'x-type': isVideo ? 'video' : 'image'
+        },
+        body: fileOrBlob
       });
-
-      if (serverRes.ok) {
-        const sData = await serverRes.json();
-        if (sData && sData.success && sData.url) {
-          if (onProgress) onProgress(100);
-          return sData.url;
+      if (rawRes.ok) {
+        const rData = await rawRes.json();
+        if (rData && rData.success && rData.url) {
+          diskUrl = rData.url;
         }
       }
     }
-  } catch (serverErr) {
-    console.warn('Notice: Server disk fallback notice:', serverErr);
+  } catch (rawErr) {
+    console.warn('Notice: Binary disk save fallback:', rawErr);
   }
 
-  // STEP 3: Fallback to persistent Base64 Data URL (Never expiring blob: URL)
-  if (onProgress) onProgress(100);
-  if (fallbackDataUrl && fallbackDataUrl.startsWith('data:')) {
-    return fallbackDataUrl;
+  // STEP 2: DUAL-SYNC BASE64 BACKUP (if binary upload wasn't used)
+  if (!diskUrl) {
+    try {
+      let base64Payload = '';
+      if (fileOrBlob instanceof Blob && fileOrBlob.size < 60 * 1024 * 1024) {
+        base64Payload = await blobToBase64(fileOrBlob);
+      }
+
+      if (base64Payload) {
+        const isThumb = cleanName.includes('_thumb') || cleanName.endsWith('_thumb.jpg') || cleanName.endsWith('_thumb.jpeg');
+        const serverRes = await fetch('/api/workshop-upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fileBase64: base64Payload,
+            thumbnailBase64: fallbackDataUrl && fallbackDataUrl.startsWith('data:') ? fallbackDataUrl : undefined,
+            filename: cleanName,
+            type: isVideo ? 'video' : 'image',
+            folder: resolvedFolder,
+            groupId: groupId || '',
+            isThumbnail: isThumb
+          })
+        });
+
+        if (serverRes.ok) {
+          const sData = await serverRes.json();
+          if (sData && sData.success && sData.url) {
+            diskUrl = sData.url;
+          }
+        }
+      }
+    } catch (serverErr) {
+      console.warn('Notice: Server disk upload notice:', serverErr);
+    }
   }
+
+  // STEP 3: FIREBASE STORAGE CLOUD UPLOAD (if configured)
+  let cloudUrl: string | null = null;
+  try {
+    if (onProgress) onProgress(60);
+    cloudUrl = await uploadFileToFirebaseStorage(
+      fileOrBlob, 
+      cleanName, 
+      normalizedContentType, 
+      (pct) => {
+        if (onProgress) onProgress(Math.min(95, Math.round(pct * 0.7) + 20));
+      }
+    );
+  } catch {}
+
+  if (onProgress) onProgress(100);
+
+  // Return disk URL as priority so file is always visible in code folder
+  if (diskUrl) return diskUrl;
+  if (cloudUrl) return cloudUrl;
+  if (fallbackDataUrl && fallbackDataUrl.startsWith('data:')) return fallbackDataUrl;
 
   if (typeof fileOrBlob !== 'string') {
     try {
@@ -515,7 +550,8 @@ export async function uploadSingleFileFast(
     } catch {}
   }
 
-  return fallbackDataUrl || `/workshops/${cleanName}`;
+  const destSub = folder ? `${encodeURIComponent(folder)}/` : '';
+  return `/workshops/${destSub}${cleanName}`;
 }
 
 /**
@@ -600,6 +636,9 @@ export async function fastBatchUploadWorkshopMedia(
         fileProgress[item.id] = 40;
         updateOverall(item.file.name, 'uploading');
 
+        const groupKey = (commonData.groupId || 'macrame').toLowerCase();
+        const destFolder = groupKey.includes('sunflower') || groupKey.includes('pipe') ? 'Pipecleaner Sunflower' : groupKey.includes('pearl') ? 'Pearls' : 'Macrame';
+
         // Upload to Storage with real-time percentage
         const mediaUrl = await uploadSingleFileFast(
           uploadBlob,
@@ -609,7 +648,9 @@ export async function fastBatchUploadWorkshopMedia(
           (pct) => {
             fileProgress[item.id] = 40 + Math.round(pct * 0.5);
             updateOverall(item.file.name, 'uploading');
-          }
+          },
+          destFolder,
+          commonData.groupId
         );
 
         fileProgress[item.id] = 95;
@@ -625,7 +666,7 @@ export async function fastBatchUploadWorkshopMedia(
           date: commonData.date,
           location: commonData.location,
           url: mediaUrl,
-          thumbnailUrl: thumbUrl || mediaUrl || '/workshops/pipe sunflower training.jpeg',
+          thumbnailUrl: thumbUrl || mediaUrl,
           caption: item.caption || autoGenerateMediaCaption(item.file.name, commonData.workshopTitle).caption,
           craftTechnique: item.technique || autoGenerateMediaCaption(item.file.name, commonData.workshopTitle).craftTechnique,
           attendeesCount: commonData.attendeesCount,

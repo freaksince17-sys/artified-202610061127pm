@@ -13,7 +13,6 @@ import {
 import { useCart, AppNavTab } from '../context/CartContext';
 import { ProductGrid } from './ProductGrid';
 import { MeetArtisanSection } from './MeetArtisanSection';
-import { LookbookSection } from './LookbookSection';
 import { WorkshopGallery } from './WorkshopGallery';
 import { TikTokShowcase } from './TikTokShowcase';
 import { InstagramShowcase } from './InstagramShowcase';
@@ -37,7 +36,6 @@ export const TABS_SEQUENCE: TabMeta[] = [
   { id: 'home', label: 'Shop', icon: Home },
   { id: 'artisan', label: 'Meet the Founder & Creator', icon: Sparkles },
   { id: 'workshops', label: 'Workshops', icon: Award },
-  { id: 'lookbook', label: 'Lookbook', icon: Camera },
   { id: 'tiktok', label: 'Follow on TikTok', icon: TikTokIcon },
   { id: 'journal', label: 'Follow on Instagram', icon: Instagram },
   { id: 'craft', label: 'Our Story & Journal', icon: Feather },
@@ -127,7 +125,6 @@ export const MainSwipeDeck: React.FC = () => {
         {activeNavTab === 'home' && <ProductGrid />}
         {activeNavTab === 'artisan' && <MeetArtisanSection />}
         {activeNavTab === 'workshops' && <WorkshopGallery />}
-        {activeNavTab === 'lookbook' && <LookbookSection />}
         {activeNavTab === 'tiktok' && <TikTokShowcase />}
         {activeNavTab === 'journal' && <InstagramShowcase />}
         {(activeNavTab === 'craft' || activeNavTab === 'craft-journal') && <CraftStoryAndJournal />}

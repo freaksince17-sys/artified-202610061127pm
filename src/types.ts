@@ -285,6 +285,7 @@ export interface WorkshopMediaItem {
   url: string;
   thumbnailUrl: string;
   caption: string;
+  description?: string;
   craftTechnique: string;
   attendeesCount?: number;
   instructor: string;
@@ -305,6 +306,8 @@ export interface WorkshopGroup {
   title: string;
   badge: string;
   date: string;
+  batchDate?: string;
+  nextBatchDate?: string;
   location: string;
   instructor: string;
   attendeesCount: number;

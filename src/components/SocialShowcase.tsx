@@ -118,7 +118,7 @@ export const SocialShowcase: React.FC = () => {
   return (
     <section 
       id="social-showcase" 
-      aria-label="Social Media & Lookbook Showcase"
+      aria-label="Social Media Showcase"
       className="py-14 sm:py-20 bg-[#FAF8F5] border-t border-[#E8DFD8] relative overflow-hidden select-none"
     >
       {/* Ambient background glows */}

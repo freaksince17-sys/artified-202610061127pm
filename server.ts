@@ -8,14 +8,17 @@ import { DEFAULT_ARTISAN_PROFILE } from './src/data/artisanProfile.ts';
 import { generateSitemapXml } from './src/utils/sitemapGenerator.ts';
 import { GoogleGenAI } from '@google/genai';
 import { autoGenerateWorkshopGroup, autoGenerateMediaCaption } from './src/utils/workshopAIGenerator.ts';
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+const archiverPkg = require('archiver');
 
 async function startServer() {
   const app = express();
   const port = 3000;
 
   // JSON body parser with generous limit for product uploads, videos, and base64 images
-  app.use(express.json({ limit: '60mb' }));
-  app.use(express.urlencoded({ extended: true, limit: '60mb' }));
+  app.use(express.json({ limit: '350mb' }));
+  app.use(express.urlencoded({ extended: true, limit: '350mb' }));
 
   // Ensure necessary data directories exist
   const dataDir = path.resolve(process.cwd(), 'src/data');
@@ -571,9 +574,23 @@ async function startServer() {
   };
 
   const workshopsDir = path.resolve(process.cwd(), 'public/workshops');
-  if (!fs.existsSync(workshopsDir)) {
-    fs.mkdirSync(workshopsDir, { recursive: true });
-  }
+  const ensureWorkshopFoldersExist = () => {
+    if (!fs.existsSync(workshopsDir)) {
+      fs.mkdirSync(workshopsDir, { recursive: true });
+    }
+    const defaultFolders = ['Macrame', 'Pearls', 'Pipecleaner Sunflower'];
+    defaultFolders.forEach((folder) => {
+      const fPath = path.join(workshopsDir, folder);
+      if (!fs.existsSync(fPath)) {
+        fs.mkdirSync(fPath, { recursive: true });
+      }
+      const keepFile = path.join(fPath, '.gitkeep');
+      if (!fs.existsSync(keepFile)) {
+        fs.writeFileSync(keepFile, '# Keep directory tracked in code file explorer\n', 'utf-8');
+      }
+    });
+  };
+  ensureWorkshopFoldersExist();
   const instagramVideosDir = path.resolve(process.cwd(), 'public/instagram_videos');
   if (!fs.existsSync(instagramVideosDir)) {
     fs.mkdirSync(instagramVideosDir, { recursive: true });
@@ -583,31 +600,345 @@ async function startServer() {
   app.use('/instagram_videos', serveMediaWithRange(instagramVideosDir));
   app.use(express.static(path.resolve(process.cwd(), 'public')));
 
-  // GET /api/workshop-files - List all physical files stored in public/workshops/
+  // GET /api/workshop-files - List all physical files stored in public/workshops/ (including class subfolders)
   app.get('/api/workshop-files', (_req, res) => {
     try {
+      ensureWorkshopFoldersExist();
       if (!fs.existsSync(workshopsDir)) {
         return res.json({ success: true, files: [] });
       }
-      const files = fs.readdirSync(workshopsDir).map((f) => {
-        const fullPath = path.join(workshopsDir, f);
-        const stats = fs.statSync(fullPath);
-        const isVid = /\.(mp4|mov|webm|m4v)$/i.test(f);
-        const isThumb = f.includes('_thumb.');
-        return {
-          filename: f,
-          url: `/workshops/${encodeURIComponent(f)}`,
-          size: stats.size,
-          type: isVid ? 'video' : 'image',
-          isThumbnail: isThumb,
-          createdAt: stats.birthtime,
-          modifiedAt: stats.mtime
-        };
-      }).filter((f) => !f.isThumbnail);
+
+      function scanWorkshopDir(dir: string, relPrefix = ''): any[] {
+        if (!fs.existsSync(dir)) return [];
+        let items: any[] = [];
+        try {
+          const entries = fs.readdirSync(dir, { withFileTypes: true });
+          for (const entry of entries) {
+            if (entry.name.startsWith('.') || entry.name.endsWith('.md')) continue;
+            const fullPath = path.join(dir, entry.name);
+            const relPath = relPrefix ? `${relPrefix}/${entry.name}` : entry.name;
+            if (entry.isDirectory()) {
+              items = items.concat(scanWorkshopDir(fullPath, relPath));
+            } else if (entry.isFile()) {
+              const stats = fs.statSync(fullPath);
+              const isVid = /\.(mp4|mov|webm|m4v)$/i.test(entry.name);
+              const isThumb = entry.name.includes('_thumb.') || entry.name.endsWith('_thumb.jpg') || entry.name.endsWith('_thumb.jpeg');
+              if (!isThumb) {
+                items.push({
+                  filename: relPath,
+                  url: `/workshops/${relPath.split('/').map(encodeURIComponent).join('/')}`,
+                  size: stats.size,
+                  type: isVid ? 'video' : 'image',
+                  category: relPrefix || 'general',
+                  isThumbnail: isThumb,
+                  createdAt: stats.birthtime,
+                  modifiedAt: stats.mtime
+                });
+              }
+            }
+          }
+        } catch {}
+        return items;
+      }
+
+      const files = scanWorkshopDir(workshopsDir);
       return res.json({ success: true, files });
     } catch (err: any) {
       console.error('Error listing workshop files:', err);
       return res.status(500).json({ error: err.message || 'Failed to list workshop files' });
+    }
+  });
+
+  // DELETE /api/workshop-file - Delete a file from public/workshops/
+  app.delete('/api/workshop-file', async (req, res) => {
+    try {
+      const filePath = (req.query.path as string) || (req.body?.path as string) || '';
+      if (!filePath) {
+        return res.status(400).json({ error: 'Missing file path' });
+      }
+
+      const cleanPath = filePath.replace(/^\/+/, '');
+      const fullPath = path.resolve(workshopsDir, cleanPath);
+
+      if (!fullPath.startsWith(workshopsDir)) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      if (fs.existsSync(fullPath)) {
+        fs.unlinkSync(fullPath);
+      }
+
+      const ext = path.extname(fullPath);
+      const base = fullPath.slice(0, -ext.length);
+      const thumbPath = `${base}_thumb.jpg`;
+      if (fs.existsSync(thumbPath)) {
+        try { fs.unlinkSync(thumbPath); } catch {}
+      }
+
+      const distFullPath = path.resolve(process.cwd(), 'dist/workshops', cleanPath);
+      if (fs.existsSync(distFullPath)) {
+        try { fs.unlinkSync(distFullPath); } catch {}
+      }
+      const distThumbPath = `${distFullPath.slice(0, -ext.length)}_thumb.jpg`;
+      if (fs.existsSync(distThumbPath)) {
+        try { fs.unlinkSync(distThumbPath); } catch {}
+      }
+
+      if (fs.existsSync(workshopMediaJsonPath)) {
+        try {
+          const items = JSON.parse(fs.readFileSync(workshopMediaJsonPath, 'utf-8'));
+          if (Array.isArray(items)) {
+            const filtered = items.filter((i: any) => !i.url?.includes(cleanPath));
+            fs.writeFileSync(workshopMediaJsonPath, JSON.stringify(filtered, null, 2), 'utf-8');
+          }
+        } catch {}
+      }
+
+      return res.json({ success: true, message: 'File deleted successfully' });
+    } catch (err: any) {
+      console.error('Error deleting workshop file:', err);
+      return res.status(500).json({ error: err.message || 'Failed to delete file' });
+    }
+  });
+
+  // POST /api/workshop-media/delete - Delete media item and physical file
+  app.post('/api/workshop-media/delete', async (req, res) => {
+    try {
+      const { id, deleteFile, url } = req.body || {};
+      if (url) {
+        try {
+          const urlObj = new URL(url, 'http://localhost');
+          const pathname = urlObj.pathname;
+          if (pathname.includes('/workshops/')) {
+            const relPath = decodeURIComponent(pathname.split('/workshops/')[1]);
+            const fullPath = path.resolve(workshopsDir, relPath);
+            if (fullPath.startsWith(workshopsDir) && fs.existsSync(fullPath)) {
+              fs.unlinkSync(fullPath);
+            }
+          }
+        } catch {}
+      }
+      if (fs.existsSync(workshopMediaJsonPath)) {
+        try {
+          const items = JSON.parse(fs.readFileSync(workshopMediaJsonPath, 'utf-8'));
+          if (Array.isArray(items)) {
+            const filtered = items.filter((i: any) => i.id !== id);
+            fs.writeFileSync(workshopMediaJsonPath, JSON.stringify(filtered, null, 2), 'utf-8');
+          }
+        } catch {}
+      }
+      return res.json({ success: true });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
+  // GET /api/workshop-folders - List all subdirectories inside public/workshops/
+  app.get('/api/workshop-folders', (_req, res) => {
+    try {
+      ensureWorkshopFoldersExist();
+      if (!fs.existsSync(workshopsDir)) {
+        return res.json({ success: true, folders: [] });
+      }
+      const entries = fs.readdirSync(workshopsDir, { withFileTypes: true });
+      const folders = entries
+        .filter((e) => e.isDirectory() && !e.name.startsWith('.'))
+        .map((e) => e.name);
+      return res.json({ success: true, folders });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
+  // POST /api/workshop-create-folder - Create a new folder in public/workshops/
+  app.post('/api/workshop-create-folder', (req, res) => {
+    try {
+      const { folderName } = req.body;
+      if (!folderName || typeof folderName !== 'string') {
+        return res.status(400).json({ error: 'Folder name required' });
+      }
+      const cleanFolderName = folderName.replace(/[^a-zA-Z0-9 _-]/g, '').trim();
+      if (!cleanFolderName) {
+        return res.status(400).json({ error: 'Invalid folder name' });
+      }
+      const targetDir = path.join(workshopsDir, cleanFolderName);
+      if (!fs.existsSync(targetDir)) {
+        fs.mkdirSync(targetDir, { recursive: true });
+      }
+      return res.json({ success: true, folderName: cleanFolderName });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
+  // GET /api/workshops-zip - Download all workshop files directly bundled as public/workshops ZIP archive
+  app.get('/api/workshops-zip', (_req, res) => {
+    try {
+      if (!fs.existsSync(workshopsDir)) {
+        return res.status(404).json({ error: 'workshops directory does not exist' });
+      }
+
+      const files = fs.readdirSync(workshopsDir);
+      if (files.length === 0) {
+        return res.status(404).json({ error: 'No files in public/workshops directory' });
+      }
+
+      res.attachment('artified-public-workshops.zip');
+      res.setHeader('Content-Type', 'application/zip');
+
+      const archive = new archiverPkg.ZipArchive();
+
+      archive.on('error', (err: any) => {
+        console.error('Archive error:', err);
+        if (!res.headersSent) {
+          res.status(500).send({ error: err.message });
+        }
+      });
+
+      archive.pipe(res);
+
+      // Add entire public/workshops directory under "public/workshops/" inside the zip
+      archive.directory(workshopsDir, 'public/workshops');
+
+      archive.finalize();
+    } catch (err: any) {
+      console.error('Error creating workshops zip:', err);
+      return res.status(500).json({ error: err.message || 'Failed to create workshops zip' });
+    }
+  });
+
+  // POST /api/workshop-upload-binary - Directly stream raw binary video/photo into public/workshops/<subDir>/
+  app.post('/api/workshop-upload-binary', express.raw({ type: '*/*', limit: '500mb' }), async (req, res) => {
+    try {
+      ensureWorkshopFoldersExist();
+      const rawBuffer = Buffer.isBuffer(req.body) ? req.body : Buffer.from(req.body);
+      if (!rawBuffer || rawBuffer.length === 0) {
+        return res.status(400).json({ error: 'Empty binary payload' });
+      }
+
+      const reqFolder = (req.headers['x-folder'] as string) || (req.query.folder as string) || '';
+      const groupId = (req.headers['x-group-id'] as string) || (req.query.groupId as string) || '';
+      const rawFilename = (req.headers['x-filename'] as string) || (req.query.filename as string) || `workshop_${Date.now()}`;
+      const type = (req.headers['x-type'] as string) || (req.query.type as string) || 'image';
+      const title = (req.headers['x-title'] as string) || (req.query.title as string) || '';
+      const caption = (req.headers['x-caption'] as string) || (req.query.caption as string) || '';
+      const craftTechnique = (req.headers['x-craft-technique'] as string) || (req.query.craftTechnique as string) || '';
+
+      const isVid = type === 'video' || /\.(mp4|mov|webm|m4v|mkv|3gp|avi)$/i.test(rawFilename);
+      let ext = rawFilename.includes('.') ? rawFilename.split('.').pop()?.toLowerCase() || (isVid ? 'mp4' : 'jpg') : (isVid ? 'mp4' : 'jpg');
+      if (ext === 'jpeg') ext = 'jpg';
+      const origBase = rawFilename.replace(/\.[^/.]+$/, '');
+      const cleanBaseName = origBase.replace(/[^a-zA-Z0-9_-]/g, '_').toLowerCase();
+      let savedFilename = `${cleanBaseName}.${ext}`;
+
+      let subDir = 'Macrame';
+      const normGroup = (groupId || '').toLowerCase();
+      const normFolder = (reqFolder || '').toLowerCase();
+      if (normFolder.includes('sunflower') || normFolder.includes('pipe') || normGroup.includes('sunflower') || normGroup.includes('pipe')) {
+        subDir = 'Pipecleaner Sunflower';
+      } else if (normFolder.includes('pearl') || normGroup.includes('pearl')) {
+        subDir = 'Pearls';
+      } else if (normFolder.includes('macrame') || normGroup.includes('macrame')) {
+        subDir = 'Macrame';
+      } else if (reqFolder) {
+        subDir = reqFolder;
+      } else {
+        subDir = 'Macrame';
+      }
+
+      const saveDir = path.join(workshopsDir, subDir);
+      if (!fs.existsSync(saveDir)) {
+        fs.mkdirSync(saveDir, { recursive: true });
+      }
+
+      const targetPath = path.join(saveDir, savedFilename);
+      fs.writeFileSync(targetPath, rawBuffer);
+      console.log(`[Binary Workshop Upload] Saved file directly to: public/workshops/${subDir}/${savedFilename} (${rawBuffer.length} bytes)`);
+
+      // If user uploaded HEIC / HEIF (common on iPhone), convert to JPEG using ffmpeg so all web browsers can view it
+      if (ext === 'heic' || ext === 'heif') {
+        try {
+          const { execSync } = await import('child_process');
+          const jpgTarget = path.join(saveDir, `${cleanBaseName}.jpg`);
+          execSync(`ffmpeg -y -i "${targetPath}" -q:v 2 "${jpgTarget}"`, { stdio: 'ignore' });
+          if (fs.existsSync(jpgTarget)) {
+            savedFilename = `${cleanBaseName}.jpg`;
+            ext = 'jpg';
+          }
+        } catch {}
+      }
+
+      // Mirror to dist if dist exists
+      const distSaveDir = path.resolve(process.cwd(), 'dist/workshops', subDir);
+      if (fs.existsSync(path.resolve(process.cwd(), 'dist'))) {
+        try {
+          if (!fs.existsSync(distSaveDir)) fs.mkdirSync(distSaveDir, { recursive: true });
+          fs.writeFileSync(path.join(distSaveDir, savedFilename), rawBuffer);
+        } catch {}
+      }
+
+      const publicUrl = `/workshops/${encodeURIComponent(subDir)}/${encodeURIComponent(savedFilename)}`;
+      let thumbUrl = publicUrl;
+
+      if (isVid) {
+        const thumbFilename = `${cleanBaseName}_thumb.jpg`;
+        const thumbPath = path.join(saveDir, thumbFilename);
+        try {
+          const { execSync } = await import('child_process');
+          execSync(`ffmpeg -y -ss 00:00:00.500 -i "${targetPath}" -vframes 1 -q:v 2 "${thumbPath}"`, { stdio: 'ignore' });
+          if (fs.existsSync(thumbPath)) {
+            thumbUrl = `/workshops/${encodeURIComponent(subDir)}/${encodeURIComponent(thumbFilename)}`;
+            if (fs.existsSync(distSaveDir)) {
+              try { fs.copyFileSync(thumbPath, path.join(distSaveDir, thumbFilename)); } catch {}
+            }
+          }
+        } catch {}
+      }
+
+      // Record in workshop_media.json
+      let allItems: any[] = [];
+      if (fs.existsSync(workshopMediaJsonPath)) {
+        try {
+          allItems = JSON.parse(fs.readFileSync(workshopMediaJsonPath, 'utf-8'));
+          if (!Array.isArray(allItems)) allItems = [];
+        } catch {
+          allItems = [];
+        }
+      }
+
+      const cleanTitle = title || origBase.replace(/[_-]/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
+      const newItem = {
+        id: `ws_media_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        groupId: subDir === 'Pipecleaner Sunflower' ? 'pipecleaner-sunflower' : (subDir === 'Pearls' ? 'pearls' : 'macrame'),
+        type: isVid ? 'video' : 'image',
+        title: cleanTitle,
+        workshopTitle: subDir === 'Pipecleaner Sunflower' ? 'Pipecleaner Sunflower Crafting Workshop' : (subDir === 'Pearls' ? 'Handcrafted Baroque Pearl Bag Workshop' : 'Macrame Wall Art & Planters Workshop'),
+        url: publicUrl,
+        thumbnailUrl: thumbUrl,
+        caption: caption || `${cleanTitle} session recorded at Kathmandu Workshop, Nepal.`,
+        craftTechnique: craftTechnique || 'Handcrafting Technique',
+        location: 'Kathmandu, Nepal',
+        date: new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+        instructor: 'Sahina Shrestha',
+        tags: ['Artisan Workshop', 'Kathmandu Studio'],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      allItems = [newItem, ...allItems.filter((i) => i.url !== publicUrl && i.id !== newItem.id)];
+      fs.writeFileSync(workshopMediaJsonPath, JSON.stringify(allItems, null, 2), 'utf-8');
+
+      return res.json({
+        success: true,
+        item: newItem,
+        url: publicUrl,
+        thumbnailUrl: thumbUrl,
+        filename: savedFilename,
+        folder: subDir
+      });
+    } catch (err: any) {
+      console.error('Error in /api/workshop-upload-binary:', err);
+      return res.status(500).json({ error: err.message || 'Failed to upload binary file' });
     }
   });
 
@@ -619,9 +950,7 @@ async function startServer() {
         return res.status(400).json({ error: 'Missing fileBase64 payload' });
       }
 
-      if (!fs.existsSync(workshopsDir)) {
-        fs.mkdirSync(workshopsDir, { recursive: true });
-      }
+      ensureWorkshopFoldersExist();
 
       // Determine extension and decode base64
       let ext = 'jpg';
@@ -651,25 +980,60 @@ async function startServer() {
       const origName = filename ? filename.replace(/\.[^/.]+$/, '') : `workshop_${Date.now()}`;
       const cleanBaseName = origName.replace(/[^a-zA-Z0-9_-]/g, '_').toLowerCase();
       const savedFilename = `${cleanBaseName}.${ext}`;
-      const targetPath = path.join(workshopsDir, savedFilename);
+
+      // Route into class subfolders if specified or matched by group
+      let subDir = 'Macrame';
+      const reqFolder = req.body.folder || '';
+      const normGroup = (groupId || '').toLowerCase();
+      const normFolder = (reqFolder || '').toLowerCase();
+      if (normFolder.includes('sunflower') || normFolder.includes('pipe') || normGroup.includes('sunflower') || normGroup.includes('pipe')) {
+        subDir = 'Pipecleaner Sunflower';
+      } else if (normFolder.includes('pearl') || normGroup.includes('pearl')) {
+        subDir = 'Pearls';
+      } else if (normFolder.includes('macrame') || normGroup.includes('macrame')) {
+        subDir = 'Macrame';
+      } else if (reqFolder) {
+        subDir = reqFolder;
+      } else {
+        subDir = 'Macrame';
+      }
+
+      const saveDir = path.join(workshopsDir, subDir);
+      if (!fs.existsSync(saveDir)) {
+        fs.mkdirSync(saveDir, { recursive: true });
+      }
+
+      const targetPath = path.join(saveDir, savedFilename);
 
       fs.writeFileSync(targetPath, buffer);
-      console.log(`[Workshop Upload] Saved file directly to: public/workshops/${savedFilename} (${buffer.length} bytes)`);
+      console.log(`[Workshop Upload] Saved file directly to: public/workshops/${subDir}/${savedFilename} (${buffer.length} bytes)`);
 
-      const publicUrl = `/workshops/${savedFilename}`;
+      // Mirror to dist if dist exists
+      const distSaveDir = path.resolve(process.cwd(), 'dist/workshops', subDir);
+      if (fs.existsSync(path.resolve(process.cwd(), 'dist'))) {
+        try {
+          if (!fs.existsSync(distSaveDir)) fs.mkdirSync(distSaveDir, { recursive: true });
+          fs.writeFileSync(path.join(distSaveDir, savedFilename), buffer);
+        } catch {}
+      }
+
+      const publicUrl = `/workshops/${encodeURIComponent(subDir)}/${encodeURIComponent(savedFilename)}`;
       let thumbUrl = publicUrl;
 
       // Handle thumbnail if video
       const isVideo = type === 'video' || ['mp4', 'mov', 'webm'].includes(ext);
       if (isVideo) {
         const thumbFilename = `${cleanBaseName}_thumb.jpg`;
-        const thumbPath = path.join(workshopsDir, thumbFilename);
+        const thumbPath = path.join(saveDir, thumbFilename);
 
         if (thumbnailBase64 && typeof thumbnailBase64 === 'string') {
           try {
             const rawThumb = thumbnailBase64.replace(/^data:[^;]+;base64,/, '');
             fs.writeFileSync(thumbPath, Buffer.from(rawThumb, 'base64'));
-            thumbUrl = `/workshops/${thumbFilename}`;
+            thumbUrl = `/workshops/${encodeURIComponent(subDir)}/${encodeURIComponent(thumbFilename)}`;
+            if (fs.existsSync(distSaveDir)) {
+              try { fs.copyFileSync(thumbPath, path.join(distSaveDir, thumbFilename)); } catch {}
+            }
           } catch (tErr) {
             console.warn('Could not save client thumbnail:', tErr);
           }
@@ -679,7 +1043,10 @@ async function startServer() {
             const { execSync } = await import('child_process');
             execSync(`ffmpeg -y -ss 00:00:00.500 -i "${targetPath}" -vframes 1 -q:v 2 "${thumbPath}"`, { stdio: 'ignore' });
             if (fs.existsSync(thumbPath)) {
-              thumbUrl = `/workshops/${thumbFilename}`;
+              thumbUrl = `/workshops/${encodeURIComponent(subDir)}/${encodeURIComponent(thumbFilename)}`;
+              if (fs.existsSync(distSaveDir)) {
+                try { fs.copyFileSync(thumbPath, path.join(distSaveDir, thumbFilename)); } catch {}
+              }
             }
           } catch {
             // ffmpeg not present or video format requires canvas frame; default thumbUrl is preserved
@@ -687,15 +1054,51 @@ async function startServer() {
         }
       }
 
+      // If this upload is a thumbnail image for a video, simply return the saved file URL and do not create a media item
+      const isThumbFile = req.body.isThumbnail === true || cleanBaseName.endsWith('_thumb') || cleanBaseName.includes('_thumb');
+      if (isThumbFile) {
+        return res.json({
+          success: true,
+          url: publicUrl,
+          thumbnailUrl: publicUrl,
+          filename: savedFilename,
+          folder: subDir,
+          isThumbnail: true
+        });
+      }
+
+      // Check if an item with identical url already exists in workshop_media.json before creating new entry
+      let allItems: any[] = [];
+      if (fs.existsSync(workshopMediaJsonPath)) {
+        try {
+          allItems = JSON.parse(fs.readFileSync(workshopMediaJsonPath, 'utf-8'));
+          if (!Array.isArray(allItems)) allItems = [];
+        } catch {
+          allItems = [];
+        }
+      }
+
+      const existingItem = allItems.find((i) => i.url === publicUrl || (i.url && i.url.endsWith(`/${savedFilename}`)));
+      if (existingItem) {
+        return res.json({
+          success: true,
+          item: existingItem,
+          url: existingItem.url,
+          thumbnailUrl: existingItem.thumbnailUrl || thumbUrl,
+          filename: savedFilename,
+          folder: subDir
+        });
+      }
+
       // Generate workshop media item
       const itemId = `ws_media_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
       const cleanTitle = title || origName.replace(/[_-]/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
       const newItem = {
         id: itemId,
-        groupId: groupId || 'macrame',
+        groupId: subDir === 'Pipecleaner Sunflower' ? 'pipecleaner-sunflower' : (subDir === 'Pearls' ? 'pearls' : 'macrame'),
         type: isVideo ? 'video' : 'image',
         title: cleanTitle,
-        workshopTitle: groupId === 'macrame' ? 'Macrame Handcrafting Workshop' : (groupId === 'wastepipe-sunflower' ? 'Waste Pipe to Sunflower Making Workshop' : (groupId === 'pearl-bag' ? 'Pearl Bag Making Workshop' : 'Artisan Workshop')),
+        workshopTitle: subDir === 'Pipecleaner Sunflower' ? 'Pipecleaner Sunflower Crafting Workshop' : (subDir === 'Pearls' ? 'Handcrafted Baroque Pearl Bag Workshop' : 'Macrame Wall Art & Planters Workshop'),
         url: publicUrl,
         thumbnailUrl: thumbUrl,
         caption: caption || `${cleanTitle} session recorded at Kathmandu Workshop, Nepal.`,
@@ -708,16 +1111,6 @@ async function startServer() {
         updatedAt: new Date().toISOString()
       };
 
-      // Persist to workshop_media.json
-      let allItems: any[] = [];
-      if (fs.existsSync(workshopMediaJsonPath)) {
-        try {
-          allItems = JSON.parse(fs.readFileSync(workshopMediaJsonPath, 'utf-8'));
-          if (!Array.isArray(allItems)) allItems = [];
-        } catch {
-          allItems = [];
-        }
-      }
       allItems = [newItem, ...allItems.filter((i) => i.id !== newItem.id)];
       fs.writeFileSync(workshopMediaJsonPath, JSON.stringify(allItems, null, 2), 'utf-8');
 
@@ -726,7 +1119,8 @@ async function startServer() {
         item: newItem,
         url: publicUrl,
         thumbnailUrl: thumbUrl,
-        filename: savedFilename
+        filename: savedFilename,
+        folder: subDir
       });
     } catch (err: any) {
       console.error('Error in /api/workshop-upload:', err);
@@ -790,18 +1184,38 @@ async function startServer() {
       // Optionally delete physical file if requested
       if (deleteFile) {
         const targetFilename = filename || (itemToDelete && itemToDelete.url ? path.basename(itemToDelete.url) : (url ? path.basename(url) : (typeof id === 'string' && id.includes('.') ? id : null)));
-        if (targetFilename) {
-          const filePath = path.join(workshopsDir, targetFilename);
-          if (fs.existsSync(filePath)) {
-            try {
-              fs.unlinkSync(filePath);
-              console.log(`Deleted physical workshop file: ${filePath}`);
-            } catch (uErr) {
-              console.warn('Notice: unlink failed', uErr);
+        if (targetFilename && !targetFilename.startsWith('.gitkeep')) {
+          const defaultFolders = ['Macrame', 'Pearls', 'Pipecleaner Sunflower'];
+          const searchPaths: string[] = [
+            path.join(workshopsDir, targetFilename),
+            ...defaultFolders.map((f) => path.join(workshopsDir, f, targetFilename))
+          ];
+          if (itemToDelete && itemToDelete.url) {
+            const urlSubPath = itemToDelete.url.replace(/^\/workshops\//, '');
+            searchPaths.unshift(path.join(workshopsDir, decodeURIComponent(urlSubPath)));
+          }
+
+          for (const p of searchPaths) {
+            if (fs.existsSync(p) && !p.endsWith('.gitkeep')) {
+              try {
+                if (fs.statSync(p).isFile()) {
+                  fs.unlinkSync(p);
+                  console.log(`Deleted physical workshop file: ${p}`);
+                  const thumbP = p.replace(/\.[^/.]+$/, '_thumb.jpg');
+                  if (fs.existsSync(thumbP) && !thumbP.endsWith('.gitkeep')) {
+                    fs.unlinkSync(thumbP);
+                  }
+                }
+              } catch (uErr) {
+                console.warn('Notice: unlink failed', uErr);
+              }
             }
           }
         }
       }
+
+      // Always guarantee the 3 folders and their .gitkeep remain present
+      ensureWorkshopFoldersExist();
 
       return res.json({ success: true, id });
     } catch (err: any) {
@@ -1790,21 +2204,52 @@ Do NOT use the words "masterclass", "cohort", or "atelier". Return ONLY valid JS
   });
 
   // Dedicated route to stream video and image files directly from public/workshops/ with Range support
-  app.get('/workshops/:filename', (req, res) => {
-    const filename = path.basename(req.params.filename);
-    const filePath = path.resolve(process.cwd(), 'public', 'workshops', filename);
-    const lower = filename.toLowerCase();
+  // Seamlessly handles root files AND class-compartmentalized subfolders (e.g. public/workshops/macrame/)
+  app.get('/workshops/*', (req, res) => {
+    const rawSubPath = decodeURIComponent((req.params as any)[0] || '');
+    const workshopsRoot = path.resolve(process.cwd(), 'public', 'workshops');
+    let filePath = path.resolve(workshopsRoot, rawSubPath);
+
+    // Prevent directory traversal
+    if (!filePath.startsWith(workshopsRoot)) {
+      return res.status(403).send('Forbidden');
+    }
+
+    // 1. Direct file check
+    if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+      // 2. Fallback: Search inside class subfolders (e.g., macrame/, sunflower/, pearl/)
+      const baseFilename = path.basename(rawSubPath);
+      let foundInSubfolder: string | null = null;
+      try {
+        const entries = fs.readdirSync(workshopsRoot, { withFileTypes: true });
+        for (const entry of entries) {
+          if (entry.isDirectory()) {
+            const candidate = path.join(workshopsRoot, entry.name, baseFilename);
+            if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
+              foundInSubfolder = candidate;
+              break;
+            }
+          }
+        }
+      } catch {}
+      if (foundInSubfolder) {
+        filePath = foundInSubfolder;
+      }
+    }
+
+    if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+      return res.status(404).json({ error: 'Workshop file not found' });
+    }
+
+    const lower = filePath.toLowerCase();
     if (lower.endsWith('.mp4') || lower.endsWith('.mov') || lower.endsWith('.webm') || lower.endsWith('.m4v')) {
       return streamVideoFile(req, res, filePath);
     }
-    if (fs.existsSync(filePath)) {
-      return res.sendFile(filePath, (err) => {
-        if (err && !res.headersSent) {
-          res.status(404).end();
-        }
-      });
-    }
-    return res.status(404).end();
+    return res.sendFile(filePath, (err) => {
+      if (err && !res.headersSent) {
+        res.status(404).end();
+      }
+    });
   });
 
   // GET /api/instagram-video/:shortcode - Stream exact Instagram video with caching

@@ -6,7 +6,7 @@
   <!-- 1. Primary Storefront Homepage -->
   <url>
     <loc>https://www.artified.com.np/</loc>
-    <lastmod>2026-10-07</lastmod>
+    <lastmod>2026-10-09</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
@@ -14,43 +14,43 @@
   <!-- 2. Curated Product Collections / Categories -->
   <url>
     <loc>https://www.artified.com.np/?category=all</loc>
-    <lastmod>2026-10-07</lastmod>
+    <lastmod>2026-10-09</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
     <loc>https://www.artified.com.np/?category=pearl-bags</loc>
-    <lastmod>2026-10-07</lastmod>
+    <lastmod>2026-10-09</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
     <loc>https://www.artified.com.np/?category=pearl-necklaces</loc>
-    <lastmod>2026-10-07</lastmod>
+    <lastmod>2026-10-09</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
     <loc>https://www.artified.com.np/?category=macrame</loc>
-    <lastmod>2026-10-07</lastmod>
+    <lastmod>2026-10-09</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
     <loc>https://www.artified.com.np/?category=accessories</loc>
-    <lastmod>2026-10-07</lastmod>
+    <lastmod>2026-10-09</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://www.artified.com.np/?category=new-arrivals</loc>
-    <lastmod>2026-10-07</lastmod>
+    <lastmod>2026-10-09</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://www.artified.com.np/?category=best-sellers</loc>
-    <lastmod>2026-10-07</lastmod>
+    <lastmod>2026-10-09</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.8</priority>
   </url>
@@ -58,25 +58,25 @@
   <!-- 3. Key Brand Story & Customer Care Sections -->
   <url>
     <loc>https://www.artified.com.np/#meet-artisan</loc>
-    <lastmod>2026-10-07</lastmod>
+    <lastmod>2026-10-09</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://www.artified.com.np/#customer-reviews</loc>
-    <lastmod>2026-10-07</lastmod>
+    <lastmod>2026-10-09</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://www.artified.com.np/#instagram-journal</loc>
-    <lastmod>2026-10-07</lastmod>
+    <lastmod>2026-10-09</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://www.artified.com.np/#workshops</loc>
-    <lastmod>2026-10-07</lastmod>
+    <lastmod>2026-10-09</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
@@ -84,7 +84,7 @@
   <!-- 4. Individual Handcrafted Products (With Google Image Metadata) -->
   <url>
     <loc>https://www.artified.com.np/?product=apsara-layered-pearl-collar</loc>
-    <lastmod>2026-10-07</lastmod>
+    <lastmod>2026-10-09</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -95,7 +95,7 @@
   </url>
   <url>
     <loc>https://www.artified.com.np/?product=chandra-baroque-pearl-choker</loc>
-    <lastmod>2026-10-07</lastmod>
+    <lastmod>2026-10-09</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -106,7 +106,7 @@
   </url>
   <url>
     <loc>https://www.artified.com.np/?product=lalitpur-bloom-pearl-tote</loc>
-    <lastmod>2026-10-07</lastmod>
+    <lastmod>2026-10-09</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -117,7 +117,7 @@
   </url>
   <url>
     <loc>https://www.artified.com.np/?product=maya-aurelia-pearl-bag</loc>
-    <lastmod>2026-10-07</lastmod>
+    <lastmod>2026-10-09</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -128,7 +128,7 @@
   </url>
   <url>
     <loc>https://www.artified.com.np/?product=tara-micro-pearl-clutch</loc>
-    <lastmod>2026-10-07</lastmod>
+    <lastmod>2026-10-09</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -144,7 +144,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/?product=art-1790333862243-jt5hs</loc>
-    <lastmod>2026-10-07</lastmod>
+    <lastmod>2026-10-09</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -155,7 +155,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/?product=art-1790325037121-9xbrf</loc>
-    <lastmod>2026-10-07</lastmod>
+    <lastmod>2026-10-09</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -166,7 +166,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/?product=art-1790324281944-pmbwp</loc>
-    <lastmod>2026-10-07</lastmod>
+    <lastmod>2026-10-09</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -177,7 +177,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/?product=art-1790324546687-yv635</loc>
-    <lastmod>2026-10-07</lastmod>
+    <lastmod>2026-10-09</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -188,7 +188,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/?product=art-1790322203088-a18e2</loc>
-    <lastmod>2026-10-07</lastmod>
+    <lastmod>2026-10-09</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -199,7 +199,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/?product=art-1790334477287-j6dmv</loc>
-    <lastmod>2026-10-07</lastmod>
+    <lastmod>2026-10-09</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -210,7 +210,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/?product=art-1790333088486-tfyux</loc>
-    <lastmod>2026-10-07</lastmod>
+    <lastmod>2026-10-09</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -221,7 +221,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/?product=art-1790323549756-24tl6</loc>
-    <lastmod>2026-10-07</lastmod>
+    <lastmod>2026-10-09</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -232,7 +232,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/?product=art-1790339383059-2rnmf</loc>
-    <lastmod>2026-10-07</lastmod>
+    <lastmod>2026-10-09</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -243,7 +243,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/?product=art-1790325879806-igc0d</loc>
-    <lastmod>2026-10-07</lastmod>
+    <lastmod>2026-10-09</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -254,7 +254,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/?product=art-1790338448845-1fpyt</loc>
-    <lastmod>2026-10-07</lastmod>
+    <lastmod>2026-10-09</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -265,7 +265,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/?product=art-1790323202380-nw0zi</loc>
-    <lastmod>2026-10-07</lastmod>
+    <lastmod>2026-10-09</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -276,7 +276,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/?product=art-1790340560909-u8pd5</loc>
-    <lastmod>2026-10-07</lastmod>
+    <lastmod>2026-10-09</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -287,7 +287,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/?product=art-1790321559072-ym8ui</loc>
-    <lastmod>2026-10-07</lastmod>
+    <lastmod>2026-10-09</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -298,7 +298,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/?product=art-1790337745190-egjbv</loc>
-    <lastmod>2026-10-07</lastmod>
+    <lastmod>2026-10-09</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -309,7 +309,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/?product=art-1790336051475-r3dos</loc>
-    <lastmod>2026-10-07</lastmod>
+    <lastmod>2026-10-09</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -320,7 +320,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/?product=art-1790334939460-sj7ss</loc>
-    <lastmod>2026-10-07</lastmod>
+    <lastmod>2026-10-09</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -331,7 +331,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/?product=art-1790326308284-gd3uy</loc>
-    <lastmod>2026-10-07</lastmod>
+    <lastmod>2026-10-09</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -342,7 +342,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/?product=art-1790327324377-hhpsn</loc>
-    <lastmod>2026-10-07</lastmod>
+    <lastmod>2026-10-09</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -353,7 +353,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/?product=art-1790338888219-gysij</loc>
-    <lastmod>2026-10-07</lastmod>
+    <lastmod>2026-10-09</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -364,7 +364,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/?product=art-1790338084245-atu6j</loc>
-    <lastmod>2026-10-07</lastmod>
+    <lastmod>2026-10-09</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -375,7 +375,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/?product=art-1790333487706-sx4lk</loc>
-    <lastmod>2026-10-07</lastmod>
+    <lastmod>2026-10-09</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -386,7 +386,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/?product=art-1790323807676-ytboo</loc>
-    <lastmod>2026-10-07</lastmod>
+    <lastmod>2026-10-09</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -397,7 +397,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/?product=art-1790340220660-1ix2y</loc>
-    <lastmod>2026-10-07</lastmod>
+    <lastmod>2026-10-09</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -408,7 +408,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/?product=art-1790321852789-zvpym</loc>
-    <lastmod>2026-10-07</lastmod>
+    <lastmod>2026-10-09</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -419,7 +419,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/?product=art-1790339748217-gx4df</loc>
-    <lastmod>2026-10-07</lastmod>
+    <lastmod>2026-10-09</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -430,7 +430,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/?product=art-1790334149869-7te6x</loc>
-    <lastmod>2026-10-07</lastmod>
+    <lastmod>2026-10-09</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -441,7 +441,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/?product=art-1790336632322-nkqr5</loc>
-    <lastmod>2026-10-07</lastmod>
+    <lastmod>2026-10-09</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>

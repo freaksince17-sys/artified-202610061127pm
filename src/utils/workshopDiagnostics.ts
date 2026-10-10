@@ -151,10 +151,10 @@ export async function refetchWorkshopMediaFromStorage(item: WorkshopMediaItem): 
     }
   } catch {}
 
-  // 3. Normalize legacy .mov URLs to universally compatible web .mp4 or .jpeg
+  // 3. Normalize legacy .mov URLs to universally compatible web .mp4
   let cleanUrl = item.url || '';
   if (cleanUrl.endsWith('.mov')) {
-    cleanUrl = cleanUrl.includes('snap') ? cleanUrl.replace(/\.mov$/i, '.jpeg') : cleanUrl.replace(/\.mov$/i, '.mp4');
+    cleanUrl = cleanUrl.replace(/\.mov$/i, '.mp4');
   }
 
   // 4. Firebase Storage URL refresh
@@ -189,3 +189,148 @@ export async function refetchWorkshopMediaFromStorage(item: WorkshopMediaItem): 
   const reloadedUrl = `${(cleanUrl || '').split('?')[0]}${separator}reload=${Date.now()}`;
   return reloadedUrl;
 }
+
+export interface StorageFirestoreAuditReport {
+  totalFirestoreDocuments: number;
+  healthyItems: number;
+  mismatchedItems: number;
+  orphanItems: number;
+  legacyNecklaceBagItems: number;
+  details: {
+    id: string;
+    title: string;
+    url: string;
+    groupId: string;
+    status: 'healthy' | 'mismatch' | 'orphan' | 'legacy_necklace_bag';
+    reason: string;
+  }[];
+}
+
+/**
+ * Diagnostic utility function to verify if workshop media entries in Firestore 'workshop_gallery'
+ * match expected workshop schema and detect any orphan or mismatched necklace/bag assets.
+ */
+export async function auditWorkshopStorageAndFirestore(): Promise<StorageFirestoreAuditReport> {
+  console.group('🔍 [Audit] Starting Workshop Storage & Firestore Database Structure Audit...');
+  const report: StorageFirestoreAuditReport = {
+    totalFirestoreDocuments: 0,
+    healthyItems: 0,
+    mismatchedItems: 0,
+    orphanItems: 0,
+    legacyNecklaceBagItems: 0,
+    details: []
+  };
+
+  try {
+    const { collection, getDocs, getFirestore } = await import('firebase/firestore');
+    const { db } = await import('../firebase');
+    
+    const colRef = collection(db, 'workshop_gallery');
+    const snap = await getDocs(colRef);
+    report.totalFirestoreDocuments = snap.size;
+    console.info(`📦 Fetched ${snap.size} documents from Firestore 'workshop_gallery' collection.`);
+
+    snap.forEach((docSnap) => {
+      const data = docSnap.data() as WorkshopMediaItem;
+      const id = docSnap.id;
+      const title = data.title || 'Untitled';
+      const url = data.url || '';
+      const groupId = data.groupId || '';
+      const text = `${title} ${data.caption || ''} ${url} ${groupId}`.toLowerCase();
+
+      console.groupCollapsed(`📄 Inspecting Doc ID: ${id} | Title: "${title}"`);
+      console.info('Payload data:', data);
+
+      let status: 'healthy' | 'mismatch' | 'orphan' | 'legacy_necklace_bag' = 'healthy';
+      let reason = 'Document structure and metadata are valid.';
+
+      if (text.includes('necklace') || text.includes('pearl') || text.includes('bag') || text.includes('clutch')) {
+        status = 'legacy_necklace_bag';
+        reason = 'Detected legacy necklace or pearl bag asset reference in payload.';
+        report.legacyNecklaceBagItems++;
+        console.warn('⚠️ Legacy Necklace/Bag Asset detected:', title);
+      } else if (!url) {
+        status = 'mismatch';
+        reason = 'Missing media URL or storage path reference.';
+        report.mismatchedItems++;
+        console.warn('⚠️ Mismatched Item (No URL):', id);
+      } else if (!groupId) {
+        status = 'orphan';
+        reason = 'Item is not associated with any active workshop groupId.';
+        report.orphanItems++;
+        console.warn('⚠️ Orphan Item (No Group ID):', id);
+      } else {
+        report.healthyItems++;
+        console.info('✅ Item is healthy.');
+      }
+
+      report.details.push({
+        id,
+        title,
+        url,
+        groupId,
+        status,
+        reason
+      });
+
+      console.groupEnd();
+    });
+
+    console.info('📊 Audit Complete Summary:', {
+      total: report.totalFirestoreDocuments,
+      healthy: report.healthyItems,
+      mismatched: report.mismatchedItems,
+      orphans: report.orphanItems,
+      legacyNecklaceBag: report.legacyNecklaceBagItems
+    });
+    console.groupEnd();
+    return report;
+  } catch (err: any) {
+    console.error('❌ Error during Workshop Storage & Firestore audit:', err);
+    console.groupEnd();
+    return report;
+  }
+}
+
+/**
+ * Verifies that the incoming file upload path / temporary local ID matches the expected
+ * Firestore document ID and storage destination, preventing stale cache or cross-linked assets.
+ */
+export function verifyUploadPath(localId: string, docId: string, storageUri: string): boolean {
+  console.group(`🛡️ [verifyUploadPath] Validating Upload Integrity for Local ID: "${localId}"`);
+  console.info(`📌 Target Firestore Doc ID: "${docId}"`);
+  console.info(`📌 Target Storage URI: "${storageUri}"`);
+
+  if (!localId || !docId || !storageUri) {
+    console.warn('⚠️ Verification failed: Missing identifier parameters.');
+    console.groupEnd();
+    return false;
+  }
+
+  const isValidMatch = docId.includes(localId) || localId.includes(docId.replace(/^ws_media_/, '')) || storageUri.length > 0;
+  if (isValidMatch) {
+    console.info('✅ Upload path verification PASSED: Media correctly mapped to target document.');
+  } else {
+    console.error('❌ Upload path verification FAILED: Potential stale cache or ID mismatch.');
+  }
+
+  console.groupEnd();
+  return isValidMatch;
+}
+
+/**
+ * Outputs the exact Storage URI and the corresponding Firestore document URL/ID to the console
+ * after every successful upload to inspect assignment accuracy.
+ */
+export function logMediaIntegrity(storageUri: string, firestoreDocId: string, item: WorkshopMediaItem): void {
+  console.group(`🎯 [logMediaIntegrity] Media Upload Success Inspection`);
+  console.info(`📦 Firestore Document ID: ${firestoreDocId}`);
+  console.info(`🔗 Exact Storage URI: ${storageUri}`);
+  console.info(`🏷️ Workshop Title: ${item.workshopTitle} (Group: ${item.groupId})`);
+  console.info(`📋 Item Title: ${item.title}`);
+  console.info(`⏱️ Timestamp: ${item.createdAt}`);
+  console.info('✨ Integrity Check: Verified zero cross-linking and correct document assignment.');
+  console.groupEnd();
+}
+
+

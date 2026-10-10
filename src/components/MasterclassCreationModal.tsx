@@ -44,6 +44,7 @@ import {
   autoGenerateWorkshopGroup, 
   autoGenerateMediaCaption 
 } from '../utils/workshopAIGenerator';
+import { isVideoMedia, getStandardMimeType } from '../services/firebaseWorkshopStorageService';
 
 interface UploadingMediaItem {
   id: string;
@@ -77,6 +78,7 @@ export const MasterclassCreationModal: React.FC<MasterclassCreationModalProps> =
   const [title, setTitle] = useState('Macrame Wall Art & Planters Workshop');
   const [badge, setBadge] = useState('Workshop • Macrame & Fiber Art');
   const [tagline, setTagline] = useState('Cotton Cord Tensioning • Planters & Wall Art');
+  const [batchDate, setBatchDate] = useState('Sat, Oct 24, 2026');
   const [date, setDate] = useState('Starting Next Saturday • 11:00 AM');
   const [location, setLocation] = useState('Kathmandu, Nepal');
   const [instructor, setInstructor] = useState('Sahina Shrestha');
@@ -255,7 +257,7 @@ export const MasterclassCreationModal: React.FC<MasterclassCreationModalProps> =
     const newItems: UploadingMediaItem[] = [];
 
     for (const f of newFiles) {
-      const isVid = f.type.startsWith('video/') || /\.(mp4|mov|webm)$/i.test(f.name);
+      const isVid = isVideoMedia(f, f.name);
       const tempId = `temp_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
       const preview = URL.createObjectURL(f);
 
@@ -287,6 +289,9 @@ export const MasterclassCreationModal: React.FC<MasterclassCreationModalProps> =
 
   // Fast upload queue processor with client-side compression
   const processUploadQueue = async (itemsToUpload: UploadingMediaItem[]) => {
+    const targetGroupKey = (title || 'Macrame').toLowerCase();
+    const destFolder = targetGroupKey.includes('sunflower') || targetGroupKey.includes('pipe') ? 'Pipecleaner Sunflower' : targetGroupKey.includes('pearl') ? 'Pearls' : 'Macrame';
+
     for (const item of itemsToUpload) {
       setMediaQueue((prev) =>
         prev.map((m) => (m.id === item.id ? { ...m, status: 'compressing', progress: 20 } : m))
@@ -323,7 +328,11 @@ export const MasterclassCreationModal: React.FC<MasterclassCreationModalProps> =
               thumbnailDownloadUrl = await uploadSingleFileFast(
                 meta.thumbnailBlob,
                 `${item.file.name}_thumb.jpg`,
-                'image/jpeg'
+                'image/jpeg',
+                undefined,
+                undefined,
+                destFolder,
+                targetGroupKey
               );
             }
           } catch (vidThumbErr) {
@@ -368,13 +377,15 @@ export const MasterclassCreationModal: React.FC<MasterclassCreationModalProps> =
         const cloudUrl = await uploadSingleFileFast(
           filePayload,
           item.file.name,
-          item.file.type || (item.type === 'video' ? 'video/mp4' : 'image/jpeg'),
-          undefined,
+          getStandardMimeType(item.file, item.file.name),
+          thumbBase64,
           (pct) => {
             setMediaQueue((prev) =>
               prev.map((m) => (m.id === item.id ? { ...m, progress: 45 + Math.round(pct * 0.55) } : m))
             );
-          }
+          },
+          destFolder,
+          targetGroupKey
         );
 
         setMediaQueue((prev) =>
@@ -453,18 +464,24 @@ export const MasterclassCreationModal: React.FC<MasterclassCreationModalProps> =
         const mediaId = `ws_media_${Date.now()}_${i}_${Math.random().toString(36).substring(2, 6)}`;
         
         let finalUrl = m.remoteUrl || m.localPreviewUrl;
-        if (finalUrl.startsWith('data:video/')) {
-          finalUrl = `/workshops/${m.file.name}`;
+        if (finalUrl && finalUrl.startsWith('data:video/')) {
+          finalUrl = `/workshops/${m.file.name.replace(/[^a-zA-Z0-9_.-]/g, '_')}`;
         }
         let finalThumb = m.thumbnailUrl || finalUrl;
-        if (finalThumb.startsWith('data:video/')) {
-          finalThumb = '/artisan_avatar.jpg';
+
+        const isVideoFile = isVideoMedia(m.file || finalUrl, m.file?.name);
+        if (isVideoFile && (!finalThumb || finalThumb === finalUrl || /\.(mp4|mov|webm|m4v)$/i.test(finalThumb))) {
+          if (finalUrl && finalUrl.endsWith('.mp4')) {
+            finalThumb = finalUrl.replace(/\.mp4$/i, '_thumb.jpg');
+          } else {
+            finalThumb = finalUrl;
+          }
         }
 
         const mediaItem: WorkshopMediaItem = {
           id: mediaId,
           groupId: groupKey,
-          type: m.type,
+          type: isVideoFile ? 'video' : 'image',
           title: m.title || `Workshop Highlight ${i + 1}`,
           workshopTitle: title,
           url: finalUrl,
@@ -490,6 +507,7 @@ export const MasterclassCreationModal: React.FC<MasterclassCreationModalProps> =
         groupKey: groupKey,
         title: title.trim(),
         badge: badge.trim(),
+        batchDate: batchDate.trim(),
         date: date.trim(),
         location: location.trim(),
         instructor: instructor.trim(),
@@ -946,6 +964,19 @@ export const MasterclassCreationModal: React.FC<MasterclassCreationModalProps> =
                       value={badge}
                       onChange={(e) => setBadge(e.target.value)}
                       placeholder="e.g. Workshop • Macrame & Fiber Art"
+                      className="w-full px-3 py-2 rounded-xl bg-[#FAF8F5] dark:bg-[#201E1C] border border-[#E8DFD8] dark:border-white/10 text-xs text-[#1C1B1A] dark:text-white focus:outline-none focus:border-[#C5A880]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-[#5E5955] dark:text-[#C4BCB5] mb-1">
+                      Upcoming Batch Start Date
+                    </label>
+                    <input
+                      type="text"
+                      value={batchDate}
+                      onChange={(e) => setBatchDate(e.target.value)}
+                      placeholder="e.g. Sat, Oct 24, 2026"
                       className="w-full px-3 py-2 rounded-xl bg-[#FAF8F5] dark:bg-[#201E1C] border border-[#E8DFD8] dark:border-white/10 text-xs text-[#1C1B1A] dark:text-white focus:outline-none focus:border-[#C5A880]"
                     />
                   </div>

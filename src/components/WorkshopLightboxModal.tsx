@@ -72,13 +72,21 @@ export const WorkshopLightboxModal: React.FC<WorkshopLightboxModalProps> = ({
         const embedded = getWorkshopEmbeddedFallback(currentItem.url) || getWorkshopEmbeddedFallback(currentItem.thumbnailUrl);
         setCurrentUrl(embedded || currentItem.url);
       } else {
+        // Video: use item's url directly
         setCurrentUrl(currentItem.url);
       }
     }
     if (videoRef.current && currentItem?.type === 'video') {
       videoRef.current.currentTime = 0;
-      videoRef.current.play().catch(() => setIsPlaying(false));
-      setIsPlaying(true);
+      const playPromise = videoRef.current.play();
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => setIsPlaying(true))
+          .catch((err) => {
+            console.warn('Notice: Autoplay requires click:', err);
+            setIsPlaying(false);
+          });
+      }
     }
   }, [activeIndex, currentItem?.id, currentItem?.url]);
 
@@ -122,8 +130,15 @@ export const WorkshopLightboxModal: React.FC<WorkshopLightboxModalProps> = ({
   const togglePlay = () => {
     if (!videoRef.current) return;
     if (videoRef.current.paused) {
-      videoRef.current.play();
-      setIsPlaying(true);
+      const p = videoRef.current.play();
+      if (p !== undefined) {
+        p.then(() => setIsPlaying(true)).catch((e) => {
+          console.warn('Playback error:', e);
+          setIsPlaying(false);
+        });
+      } else {
+        setIsPlaying(true);
+      }
     } else {
       videoRef.current.pause();
       setIsPlaying(false);

@@ -13,7 +13,7 @@ export default defineConfig(() => {
         registerType: 'autoUpdate',
         injectRegister: 'inline',
         devOptions: {
-          enabled: true, // Enables service worker in development / AI Studio preview
+          enabled: false, // Disabled service worker in dev preview to prevent caching old workshop media
           type: 'module',
         },
         manifest: {
@@ -76,9 +76,14 @@ export default defineConfig(() => {
               },
             },
             {
-              // Cache local API routes (products, instagram-feed, waitlist count) with StaleWhileRevalidate for immediate offline loads
+              // Workshop API routes MUST be NetworkOnly to guarantee fresh media inventory
+              urlPattern: /\/api\/workshop.*/,
+              handler: 'NetworkOnly',
+            },
+            {
+              // Cache other local API routes with NetworkFirst
               urlPattern: /\/api\/.*/,
-              handler: 'StaleWhileRevalidate',
+              handler: 'NetworkFirst',
               options: {
                 cacheName: 'artified-api-routes',
                 expiration: {

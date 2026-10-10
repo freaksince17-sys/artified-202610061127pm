@@ -46,7 +46,7 @@ import {
 import { ArtisanProfileData, getArtisanProfile, saveArtisanProfile, fetchArtisanProfileFromServer } from '../data/artisanProfile';
 import { sanitizeInstagramItemsList } from '../utils/instagramSanitizer';
 
-export type AppNavTab = 'home' | 'artisan' | 'lookbook' | 'workshops' | 'tiktok' | 'journal' | 'craft' | 'craft-journal' | 'track' | 'orders';
+export type AppNavTab = 'home' | 'artisan' | 'workshops' | 'tiktok' | 'journal' | 'craft' | 'craft-journal' | 'track' | 'orders';
 
 interface CartContextType {
   cart: CartItem[];
@@ -941,11 +941,11 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (typeof window !== 'undefined') {
         const params = new URLSearchParams(window.location.search);
         const tab = params.get('tab') || params.get('section');
-        if (tab && ['home', 'artisan', 'lookbook', 'workshops', 'tiktok', 'journal', 'craft', 'track', 'orders'].includes(tab)) {
+        if (tab && ['home', 'artisan', 'workshops', 'tiktok', 'journal', 'craft', 'track', 'orders'].includes(tab)) {
           return tab as AppNavTab;
         }
         const hash = window.location.hash.replace('#', '').toLowerCase();
-        if (hash && ['home', 'artisan', 'lookbook', 'workshops', 'tiktok', 'journal', 'craft', 'track', 'orders'].includes(hash)) {
+        if (hash && ['home', 'artisan', 'workshops', 'tiktok', 'journal', 'craft', 'track', 'orders'].includes(hash)) {
           return hash as AppNavTab;
         }
       }

@@ -8,6 +8,7 @@ import {
 } from 'firebase/firestore';
 import { safeSetDoc, safeDeleteDoc } from '../utils/safeFirestore';
 import { ref, uploadBytes, uploadString, getDownloadURL } from 'firebase/storage';
+import { uploadFileToFirebaseStorage, batchDeleteFirebaseStorageFiles } from '../services/firebaseWorkshopStorageService';
 import firebaseConfig from '../../firebase-applet-config.json';
 import SAVED_WORKSHOP_GROUPS from './workshop_groups.json';
 import SAVED_WORKSHOP_MEDIA from './workshop_media.json';
@@ -29,11 +30,11 @@ export interface WorkshopFolderAsset {
   suggestedCraftTechnique: string;
 }
 
+export const ALL_WORKSHOP_FOLDER_ASSETS: WorkshopFolderAsset[] = [];
+
 export const WORKSHOP_FOLDER_VIDEOS: WorkshopFolderAsset[] = [];
 
 export const WORKSHOP_FOLDER_PHOTOS: WorkshopFolderAsset[] = [];
-
-export const ALL_WORKSHOP_FOLDER_ASSETS: WorkshopFolderAsset[] = [];
 
 export const DEFAULT_WORKSHOP_MEDIA: WorkshopMediaItem[] = SAVED_WORKSHOP_MEDIA as WorkshopMediaItem[];
 
@@ -54,43 +55,88 @@ export function isMediaRelatedToGroup(
   if (!item) return false;
   const url = (item.url || '').toLowerCase();
   const id = (item.id || '').toLowerCase();
-  const group = targetGroupKey || item.groupId || '';
+  const target = (targetGroupKey || '').toLowerCase().replace(/^ws-group-/, '').replace(/^ws-/, '');
+  const itemGroup = (item.groupId || '').toLowerCase().replace(/^ws-group-/, '').replace(/^ws-/, '');
 
-  // 1. Filter out known demo mock artifacts
+  // 1. Filter out known banned patterns
   for (const pattern of BANNED_UNRELATED_MEDIA_PATTERNS) {
     if (url.includes(pattern) || id.includes(pattern)) {
       return false;
     }
   }
 
-  if (!group) return true;
+  // If no target group requested, item is valid
+  if (!target) return true;
 
-  // 2. Direct group association & flexible normalization
-  const normItem = (item.groupId || '').toLowerCase().replace(/^ws-group-/, '');
-  const normTarget = group.toLowerCase().replace(/^ws-group-/, '');
+  // Direct group assignment
+  if (itemGroup && (itemGroup === target || target.includes(itemGroup) || itemGroup.includes(target))) {
+    return true;
+  }
 
-  if (normItem === normTarget) return true;
-  if (item.groupId === group || normItem === group || item.groupId === normTarget) return true;
+  // If item has an explicit assigned groupId, that assignment is authoritative
+  if (itemGroup) {
+    const normGroup = itemGroup.replace(/s$/, '').replace(/-bag$/, '');
+    const normTarget = target.replace(/s$/, '').replace(/-bag$/, '');
+    return normGroup === normTarget || normGroup.includes(normTarget) || normTarget.includes(normGroup);
+  }
 
-  // Match category stems
-  if (normItem.includes('macrame') && normTarget.includes('macrame')) return true;
-  if (normItem.includes('sunflower') && normTarget.includes('sunflower')) return true;
-  if (normItem.includes('pearl') && normTarget.includes('pearl')) return true;
+  // Subfolder / URL matching for items without explicit groupId
+  if (url.includes(`/${target}/`) || url.includes(`/${target}_`) || url.includes(`_${target}_`)) {
+    return true;
+  }
 
-  return !item.groupId;
+  // Stem matching fallback only for unassigned items
+  if (target.includes('macrame') && url.includes('macrame')) return true;
+  if (target.includes('sunflower') && (url.includes('sunflower') || url.includes('pipe'))) return true;
+  if (target.includes('pearl') && url.includes('pearl')) return true;
+
+  return false;
 }
 
 export function isLegacyFakeMacrameVideo(item: { id?: string; url?: string; type?: 'image' | 'video' }): boolean {
   return !isMediaRelatedToGroup(item, 'macrame');
 }
 
-const CUSTOM_GROUPS_STORAGE_KEY = 'artified_custom_workshop_groups_v12';
-const CUSTOM_MEDIA_STORAGE_KEY = 'artified_custom_workshop_media_v12';
+const CUSTOM_GROUPS_STORAGE_KEY = 'artified_custom_workshop_groups_v30';
+const CUSTOM_MEDIA_STORAGE_KEY = 'artified_custom_workshop_media_v30';
 
 // Purge any contaminated legacy cache keys on initial import
 if (typeof window !== 'undefined') {
   try {
     [
+      'artified_custom_workshop_media_v29',
+      'artified_custom_workshop_groups_v29',
+      'artified_custom_workshop_media_v28',
+      'artified_custom_workshop_groups_v28',
+      'artified_custom_workshop_media_v27',
+      'artified_custom_workshop_groups_v27',
+      'artified_custom_workshop_media_v26',
+      'artified_custom_workshop_groups_v26',
+      'artified_custom_workshop_media_v25',
+      'artified_custom_workshop_groups_v25',
+      'artified_custom_workshop_media_v24',
+      'artified_custom_workshop_groups_v24',
+      'artified_custom_workshop_media_v23',
+      'artified_custom_workshop_groups_v23',
+      'artified_custom_workshop_media_v22',
+      'artified_custom_workshop_groups_v22',
+      'artified_custom_workshop_media_v21',
+      'artified_custom_workshop_groups_v21',
+      'artified_custom_workshop_media_v20',
+      'artified_custom_workshop_groups_v20',
+      'artified_custom_workshop_media_v19',
+      'artified_custom_workshop_groups_v19',
+      'artified_custom_workshop_media_v18',
+      'artified_custom_workshop_groups_v18',
+      'artified_custom_workshop_media_v17',
+      'artified_custom_workshop_groups_v17',
+      'artified_custom_workshop_media_v16',
+      'artified_custom_workshop_groups_v16',
+      'artified_custom_workshop_media_v15',
+      'artified_custom_workshop_groups_v15',
+      'artified_custom_workshop_media_v14',
+      'artified_custom_workshop_media_v13',
+      'artified_custom_workshop_media_v12',
       'artified_custom_workshop_media_v11',
       'artified_custom_workshop_media_v10',
       'artified_custom_workshop_media_v9',
@@ -103,6 +149,8 @@ if (typeof window !== 'undefined') {
       'artified_custom_workshop_media_v2',
       'artified_custom_workshop_media_v1',
       'artified_custom_workshop_media',
+      'artified_custom_workshop_groups_v13',
+      'artified_custom_workshop_groups_v12',
       'artified_custom_workshop_groups_v11',
       'artified_custom_workshop_groups_v10',
       'artified_custom_workshop_groups_v9',
@@ -115,14 +163,37 @@ if (typeof window !== 'undefined') {
       'artified_custom_workshop_groups_v2',
       'artified_custom_workshop_groups_v1',
       'artified_custom_workshop_groups',
+      'artified_deleted_workshop_ids_v12',
       'artified_deleted_workshop_ids_v11',
       'artified_deleted_workshop_ids_v10',
       'artified_deleted_workshop_ids_v9',
+      'artified_deleted_workshop_group_ids_v12',
       'artified_deleted_workshop_group_ids_v11',
       'artified_deleted_workshop_group_ids_v10',
       'artified_deleted_workshop_group_ids_v9'
     ].forEach((k) => {
       localStorage.removeItem(k);
+    });
+
+    // Deep purge of any key containing old pre-seeded Macrame media items
+    const keys = Object.keys(localStorage);
+    keys.forEach((k) => {
+      if (k.startsWith('artified_custom_workshop_media') || k.startsWith('artified_workshop')) {
+        const val = localStorage.getItem(k);
+        if (
+          val &&
+          (val.includes('macrame_cloud') ||
+            val.includes('macrame_desk') ||
+            val.includes('macrame_snap') ||
+            val.includes('macrame_student') ||
+            val.includes('macrame_group') ||
+            val.includes('macrame_pot') ||
+            val.includes('macrame_me_teaching') ||
+            val.includes('ws_media_1791566'))
+        ) {
+          localStorage.removeItem(k);
+        }
+      }
     });
   } catch {}
 }
@@ -148,7 +219,12 @@ export function getCustomWorkshopMediaFromStorage(): WorkshopMediaItem[] {
   try {
     const raw = localStorage.getItem(CUSTOM_MEDIA_STORAGE_KEY);
     const parsed: WorkshopMediaItem[] = raw ? JSON.parse(raw) : [];
-    return parsed.filter((item) => isMediaRelatedToGroup(item, item.groupId));
+    const deletedIds = getDeletedWorkshopMediaIds();
+    return parsed.filter((item) => {
+      if (!item || !item.id) return false;
+      if (deletedIds.includes(item.id)) return false;
+      return true;
+    });
   } catch {
     return [];
   }
@@ -156,7 +232,12 @@ export function getCustomWorkshopMediaFromStorage(): WorkshopMediaItem[] {
 
 export function saveCustomWorkshopMediaToStorage(items: WorkshopMediaItem[]): void {
   try {
-    const cleanItems = items.filter((item) => isMediaRelatedToGroup(item, item.groupId));
+    const deletedIds = getDeletedWorkshopMediaIds();
+    const cleanItems = items.filter((item) => {
+      if (!item || !item.id) return false;
+      if (deletedIds.includes(item.id)) return false;
+      return true;
+    });
     localStorage.setItem(CUSTOM_MEDIA_STORAGE_KEY, JSON.stringify(cleanItems));
   } catch (e) {
     console.warn(e);
@@ -379,29 +460,90 @@ export async function deleteWorkshopGroup(groupId: string, groupKey?: string): P
   }
 }
 
+export function getCanonicalMediaKey(item: WorkshopMediaItem): string {
+  if (!item) return '';
+  const rawUrl = (item.url || item.thumbnailUrl || '').trim().toLowerCase();
+  
+  if (rawUrl) {
+    // Extract base filename without query string or encoding
+    const decoded = decodeURIComponent(rawUrl.split('?')[0]);
+    let baseName = decoded.split('/').pop() || decoded;
+    
+    // Strip generated random prefixes if they contain a known asset name
+    baseName = baseName.replace(/^[a-z0-9_]+_(macrame_[a-z0-9_]+)/i, '$1');
+
+    // Normalize separators and extensions
+    const cleanBase = baseName.replace(/[^a-z0-9_.-]/g, '_').toLowerCase();
+    if (cleanBase && !cleanBase.includes('placeholder') && !cleanBase.includes('avatar')) {
+      return cleanBase;
+    }
+  }
+
+  if (item.title && item.title.trim().length > 3) {
+    return item.title.toLowerCase().replace(/[^a-z0-9]/g, '_');
+  }
+
+  return item.id || '';
+}
+
 export function deduplicateMediaItems(items: WorkshopMediaItem[]): WorkshopMediaItem[] {
   const seenIds = new Set<string>();
-  const seenUrls = new Set<string>();
+  const seenKeys = new Set<string>();
   const result: WorkshopMediaItem[] = [];
 
   for (const item of items) {
     if (!item || !item.id) continue;
-    const normUrl = (item.url || item.thumbnailUrl || '').trim().toLowerCase();
-    
-    // De-duplicate by ID
     if (seenIds.has(item.id)) continue;
-    // De-duplicate by URL if not a placeholder
-    if (normUrl && !normUrl.includes('artisan_avatar') && !normUrl.includes('placeholder') && seenUrls.has(normUrl)) {
+
+    const key = getCanonicalMediaKey(item);
+    if (key && !key.includes('placeholder') && !key.includes('avatar') && seenKeys.has(key)) {
       continue;
     }
 
     seenIds.add(item.id);
-    if (normUrl && !normUrl.includes('artisan_avatar') && !normUrl.includes('placeholder')) {
-      seenUrls.add(normUrl);
-    }
+    if (key) seenKeys.add(key);
     result.push(item);
   }
   return result;
+}
+
+export function sanitizeWorkshopMediaItem(item: WorkshopMediaItem): WorkshopMediaItem {
+  if (!item) return item;
+  const copy = { ...item };
+
+  const url = (copy.url || '').toLowerCase();
+  const thumb = (copy.thumbnailUrl || '').toLowerCase();
+
+  // Accurately determine media type based on format and metadata
+  const isVideoExt = 
+    copy.type === 'video' ||
+    /\.(mp4|mov|webm|m4v)$/i.test(url) || 
+    url.startsWith('data:video/') ||
+    url.includes('video%2fmp4') ||
+    url.includes('.mp4?');
+
+  if (isVideoExt) {
+    copy.type = 'video';
+    // If thumbnail has legacy _mp4_thumb.jpeg, normalize to _thumb.jpg
+    if (copy.thumbnailUrl && copy.thumbnailUrl.includes('_mp4_thumb.jpeg')) {
+      copy.thumbnailUrl = copy.thumbnailUrl.replace(/_mp4_thumb\.jpeg$/i, '_thumb.jpg');
+    }
+    // If thumbnail is missing, points to the video itself, or has a video extension, generate clean thumbnail
+    if (!copy.thumbnailUrl || copy.thumbnailUrl === copy.url || /\.(mp4|mov|webm|m4v)$/i.test(copy.thumbnailUrl)) {
+      if (copy.url && copy.url.endsWith('.mp4')) {
+        copy.thumbnailUrl = copy.url.replace(/\.mp4$/i, '_thumb.jpg');
+      } else {
+        copy.thumbnailUrl = copy.url || '';
+      }
+    }
+  } else {
+    copy.type = 'image';
+    if (!copy.thumbnailUrl) {
+      copy.thumbnailUrl = copy.url;
+    }
+  }
+
+  return copy;
 }
 
 export function buildWorkshopGroups(
@@ -419,7 +561,13 @@ export function buildWorkshopGroups(
     (g) => !deletedGroupIds.includes(g.id) && !deletedGroupIds.includes(g.groupKey)
   );
 
-  const cleanMediaItems = deduplicateMediaItems(mediaItems);
+  const cleanMediaItems = deduplicateMediaItems(mediaItems)
+    .map(sanitizeWorkshopMediaItem)
+    .filter((m) => {
+      const t = (m.title || '').toLowerCase();
+      const u = (m.url || '').toLowerCase();
+      return !t.includes('test photo') && !u.includes('test_photo') && !u.endsWith('/test.jpg');
+    });
 
   return activeMetas.map((groupMeta) => {
     const groupItems = cleanMediaItems.filter((m) => {
@@ -472,12 +620,14 @@ export async function fetchWorkshopMedia(): Promise<WorkshopMediaItem[]> {
 
   // 1. Defaults
   DEFAULT_WORKSHOP_MEDIA.filter((item) => !deletedIds.includes(item.id) && isMediaRelatedToGroup(item, item.groupId)).forEach((item) => {
-    mergedMap.set(item.id, item);
+    const key = getCanonicalMediaKey(item) || item.id;
+    mergedMap.set(key, item);
   });
 
   // 2. Persistent local storage custom items
   localMedia.forEach((item) => {
-    mergedMap.set(item.id, item);
+    const key = getCanonicalMediaKey(item) || item.id;
+    mergedMap.set(key, item);
   });
 
   // 2b. Server JSON items from disk
@@ -488,7 +638,8 @@ export async function fetchWorkshopMedia(): Promise<WorkshopMediaItem[]> {
       if (sData && sData.success && Array.isArray(sData.items)) {
         sData.items.forEach((item: WorkshopMediaItem) => {
           if (!deletedIds.includes(item.id) && isMediaRelatedToGroup(item, item.groupId)) {
-            mergedMap.set(item.id, item);
+            const key = getCanonicalMediaKey(item) || item.id;
+            mergedMap.set(key, item);
           }
         });
       }
@@ -500,19 +651,43 @@ export async function fetchWorkshopMedia(): Promise<WorkshopMediaItem[]> {
     const colRef = collection(db, 'workshop_gallery');
     const snap = await getDocs(colRef);
     if (!snap.empty) {
+      const batch = writeBatch(db);
+      let purgeCount = 0;
       snap.forEach((docSnap) => {
         const d = docSnap.data() as WorkshopMediaItem;
         const itemId = docSnap.id;
-        if (!deletedIds.includes(itemId) && isMediaRelatedToGroup({ ...d, id: itemId, type: d.type }, d.groupId) && (d.url || d.thumbnailUrl)) {
-          mergedMap.set(itemId, { ...d, id: itemId });
+        
+        if (deletedIds.includes(itemId)) {
+          batch.delete(docSnap.ref);
+          purgeCount++;
+          return;
+        }
+
+        // Only purge corrupted legacy mock files that were explicitly marked obsolete
+        const text = `${itemId} ${d.url || ''}`.toLowerCase();
+        const isLegacyBanned = BANNED_UNRELATED_MEDIA_PATTERNS.some(p => text.includes(p));
+
+        if (isLegacyBanned) {
+          batch.delete(docSnap.ref);
+          purgeCount++;
+        } else if (d.url || d.thumbnailUrl) {
+          const full = { ...d, id: itemId };
+          const key = getCanonicalMediaKey(full) || itemId;
+          mergedMap.set(key, full);
         }
       });
+      if (purgeCount > 0) {
+        batch.commit().catch(() => {});
+        console.info(`🧹 Permanently purged ${purgeCount} deleted/banned items from Firestore workshop_gallery.`);
+      }
     }
   } catch (err) {
     console.warn('Notice: Firestore workshop_gallery fallback to persistent local cache:', err);
   }
 
-  const allItems = Array.from(mergedMap.values());
+  const allItems = Array.from(mergedMap.values())
+    .map(sanitizeWorkshopMediaItem)
+    .filter(item => !deletedIds.includes(item.id));
   saveCustomWorkshopMediaToStorage(allItems);
   return allItems;
 }
@@ -563,6 +738,19 @@ export async function batchDeleteWorkshopMediaItems(ids: string[]): Promise<void
   
   ids.forEach((id) => recordDeletedWorkshopMediaId(id));
 
+  const allItems = [...getCustomWorkshopMediaFromStorage(), ...DEFAULT_WORKSHOP_MEDIA];
+  const targets = allItems.filter((m) => ids.includes(m.id));
+  const storageUrlsToPurge: string[] = [];
+  targets.forEach((t) => {
+    if (t.url) storageUrlsToPurge.push(t.url);
+    if (t.thumbnailUrl) storageUrlsToPurge.push(t.thumbnailUrl);
+  });
+
+  // Explicitly purge cloud storage objects immediately
+  if (storageUrlsToPurge.length > 0) {
+    batchDeleteFirebaseStorageFiles(storageUrlsToPurge).catch((err) => console.warn('Storage batch purge notice:', err));
+  }
+
   const localRemaining = getCustomWorkshopMediaFromStorage().filter((m) => !ids.includes(m.id));
   saveCustomWorkshopMediaToStorage(localRemaining);
 
@@ -584,10 +772,19 @@ export async function batchDeleteWorkshopMediaItems(ids: string[]): Promise<void
 }
 
 /**
- * Delete a workshop media item from Firestore and persistent local cache.
+ * Delete a workshop media item from Firestore, persistent local cache, and Firebase Storage cloud immediately.
  */
 export async function deleteWorkshopMediaItem(id: string): Promise<void> {
   recordDeletedWorkshopMediaId(id);
+  const allItems = [...getCustomWorkshopMediaFromStorage(), ...DEFAULT_WORKSHOP_MEDIA];
+  const target = allItems.find((m) => m.id === id);
+
+  // Explicitly trigger Firebase Storage purge
+  if (target) {
+    const urls = [target.url, target.thumbnailUrl].filter(Boolean) as string[];
+    batchDeleteFirebaseStorageFiles(urls).catch((err) => console.warn('Storage purge notice:', err));
+  }
+
   const localRemaining = getCustomWorkshopMediaFromStorage().filter((m) => m.id !== id);
   saveCustomWorkshopMediaToStorage(localRemaining);
 
@@ -604,6 +801,16 @@ export async function uploadWorkshopFileToStorage(
   contentType: string
 ): Promise<string> {
   const cleanName = filename.replace(/[^a-zA-Z0-9_.-]/g, '_');
+  
+  if (typeof file !== 'string') {
+    try {
+      const url = await uploadFileToFirebaseStorage(file, cleanName, contentType);
+      if (url) return url;
+    } catch (err) {
+      console.warn('Direct Firebase Storage upload notice, falling back:', err);
+    }
+  }
+
   const path = `workshop_gallery/${Date.now()}_${cleanName}`;
   const storageRef = ref(storage, path);
 
@@ -642,8 +849,49 @@ export interface ServerWorkshopFile {
   url: string;
   size: number;
   type: 'image' | 'video';
+  category?: string;
+  folder?: string;
+  thumbnailUrl?: string;
   createdAt?: string;
   modifiedAt?: string;
+}
+
+/**
+ * Fetch all available subdirectories inside public/workshops/
+ */
+export async function fetchWorkshopFoldersFromServer(): Promise<string[]> {
+  try {
+    const res = await fetch('/api/workshop-folders');
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.success && Array.isArray(data.folders)) {
+        return data.folders;
+      }
+    }
+    return ['Macrame', 'Pearls', 'Pipecleaner Sunflower'];
+  } catch {
+    return ['Macrame', 'Pearls', 'Pipecleaner Sunflower'];
+  }
+}
+
+/**
+ * Create a new folder on server inside public/workshops/
+ */
+export async function createWorkshopFolderOnServer(folderName: string): Promise<string | null> {
+  try {
+    const res = await fetch('/api/workshop-create-folder', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ folderName })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.success) return data.folderName;
+    }
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -662,6 +910,25 @@ export async function fetchWorkshopFilesFromServer(): Promise<ServerWorkshopFile
   } catch (err) {
     console.warn('Error fetching workshop files from server:', err);
     return [];
+  }
+}
+
+/**
+ * Delete a physical file from public/workshops/ on server disk
+ */
+export async function deleteWorkshopFileFromServer(filePath: string): Promise<boolean> {
+  try {
+    const res = await fetch(`/api/workshop-file?path=${encodeURIComponent(filePath)}`, {
+      method: 'DELETE'
+    });
+    if (res.ok) {
+      const data = await res.json();
+      return !!data.success;
+    }
+    return false;
+  } catch (err) {
+    console.warn('Error deleting workshop file from server:', err);
+    return false;
   }
 }
 
@@ -701,14 +968,23 @@ export async function uploadWorkshopFileDirectly(payload: {
     }
   }
 
-  // 2. Try server disk save in background if API is available (non-blocking)
+  // 2. Try server disk save directly (priority for clean code folder persistence)
   try {
-    fetch('/api/workshop-upload', {
+    const sRes = await fetch('/api/workshop-upload', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
-    }).catch(() => {});
-  } catch {}
+    });
+    if (sRes.ok) {
+      const sData = await sRes.json();
+      if (sData && sData.success && sData.url) {
+        finalUrl = sData.url;
+        finalThumb = sData.thumbnailUrl || sData.url;
+      }
+    }
+  } catch (err) {
+    console.warn('Server disk save notice:', err);
+  }
 
   const newItem: WorkshopMediaItem = {
     id: mediaId,

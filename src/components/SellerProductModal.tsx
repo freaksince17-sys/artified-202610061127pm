@@ -19,6 +19,7 @@ import { Product } from '../types';
 import { useCart } from '../context/CartContext';
 import { compressImage } from '../utils/imageCompressor';
 import { CAVIAR_PEARL_BAG_IMAGE } from '../utils/productImages';
+import { batchDeleteFirebaseStorageFiles } from '../services/firebaseWorkshopStorageService';
 
 export const SellerProductModal: React.FC = () => {
   const { 
@@ -171,8 +172,23 @@ export const SellerProductModal: React.FC = () => {
     }
   };
 
-  const handleRemoveImage = (index: number) => {
-    setImages((prev) => prev.filter((_, i) => i !== index));
+  const handleRemoveImage = async (index: number) => {
+    const targetUrl = images[index];
+    if (targetUrl) {
+      try {
+        await batchDeleteFirebaseStorageFiles([targetUrl]);
+      } catch (err) {
+        console.warn('Storage batch delete notice:', err);
+      }
+    }
+    const updatedImages = images.filter((_, i) => i !== index);
+    setImages(updatedImages);
+    if (editingProduct) {
+      setEditingProduct({
+        ...editingProduct,
+        images: (editingProduct.images || []).filter((_, i) => i !== index)
+      });
+    }
   };
 
   const handleMoveImage = (index: number, direction: 'left' | 'right') => {
@@ -272,8 +288,11 @@ export const SellerProductModal: React.FC = () => {
     executeSave('close');
   };
 
-  const handleDelete = () => {
-    if (editingProduct && confirm(`Are you sure you want to remove "${editingProduct.title}" from your storefront?`)) {
+  const handleDelete = async () => {
+    if (editingProduct) {
+      if (editingProduct.images && editingProduct.images.length > 0) {
+        await batchDeleteFirebaseStorageFiles(editingProduct.images);
+      }
       deleteProduct(editingProduct.id);
       setIsSellerModalOpen(false);
     }
@@ -845,14 +864,17 @@ export const SellerProductModal: React.FC = () => {
                   <span className="text-xs text-rose-800 font-medium">Permanently delete piece?</span>
                   <button
                     type="button"
-                    onClick={() => {
+                    onClick={async () => {
                       if (editingProduct) {
+                        if (editingProduct.images && editingProduct.images.length > 0) {
+                          await batchDeleteFirebaseStorageFiles(editingProduct.images);
+                        }
                         deleteProduct(editingProduct.id);
                         setIsSellerModalOpen(false);
                         setIsConfirmingDelete(false);
                       }
                     }}
-                    className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-semibold shadow-2xs"
+                    className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-semibold shadow-2xs cursor-pointer"
                   >
                     Yes, Delete
                   </button>

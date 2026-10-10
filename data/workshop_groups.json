@@ -1,1 +1,65 @@
-[]
+[
+  {
+    "id": "group_1791479437124",
+    "groupKey": "macrame",
+    "title": "Macrame Wall Art & Planters Workshop",
+    "badge": "Workshop • Macrame & Fiber Art",
+    "tagline": "Cotton Cord Tensioning • Planters & Wall Art",
+    "date": "Starting Next Saturday • 11:00 AM",
+    "location": "Kathmandu Studio, Nepal",
+    "instructor": "Sahina Shrestha",
+    "attendeesCount": 15,
+    "description": "Intensive hands-on training focusing on raw cotton cord knotting, symmetrical tension, wooden hoop attachments, and botanical hanger architecture under Sahina Shrestha’s guided mentorship in Kathmandu.",
+    "whatsappMessage": "Namaste Sahina! I would like to join the Macrame Wall Art & Planters Workshop in Kathmandu.",
+    "keyTechniques": [
+      "Square Knots & Spiral Weaves",
+      "Lark's Head Mounting",
+      "Botanical Planter Framing"
+    ],
+    "folder": "Macrame",
+    "createdAt": "2026-10-09T10:07:32.160Z",
+    "updatedAt": "2026-10-09T10:07:32.160Z"
+  },
+  {
+    "id": "group_pipecleaner_sunflower",
+    "groupKey": "pipecleaner-sunflower",
+    "title": "Pipecleaner Sunflower Crafting Workshop",
+    "badge": "Workshop • Botanical Wire & Fiber Art",
+    "tagline": "Petal Sculpting • Pipe Cleaner Floral Architecture",
+    "date": "Every Sunday • 2:00 PM",
+    "location": "Kathmandu Studio, Nepal",
+    "instructor": "Sahina Shrestha",
+    "attendeesCount": 12,
+    "description": "Interactive botanical wire crafting and tactile petal formation masterclass. Learn color blending, multi-layer sunflower petal architecture, and everlasting floral arrangements using vibrant pipe cleaners in Kathmandu.",
+    "whatsappMessage": "Namaste Sahina! I would like to join the Pipecleaner Sunflower Crafting Workshop in Kathmandu.",
+    "keyTechniques": [
+      "Wire Stem Shaping & Tensioning",
+      "Layered Petal Gradient Blending",
+      "Everlasting Floral Assembly"
+    ],
+    "folder": "Pipecleaner Sunflower",
+    "createdAt": "2026-10-09T16:00:00.000Z",
+    "updatedAt": "2026-10-09T16:00:00.000Z"
+  },
+  {
+    "id": "group_pearls",
+    "groupKey": "pearls",
+    "title": "Handcrafted Baroque Pearl Bag Workshop",
+    "badge": "Workshop • Pearl Weaving & Structured Bags",
+    "tagline": "Grid Framing • Baroque Pearl Beading Architecture",
+    "date": "Bi-Weekly Cohorts • 1:00 PM",
+    "location": "Kathmandu Studio, Nepal",
+    "instructor": "Sahina Shrestha",
+    "attendeesCount": 10,
+    "description": "Masterclass dedicated to luxury freshwater pearl bag craftsmanship. Learn structural illusion knotting, reinforced grid framing, beaded strap integration, and inner lining tailoring under Sahina Shrestha's mentorship.",
+    "whatsappMessage": "Namaste Sahina! I would like to join the Handcrafted Baroque Pearl Bag Workshop in Kathmandu.",
+    "keyTechniques": [
+      "Baroque Pearl Weaving Grids",
+      "Structural Reinforcement & Framing",
+      "Integrated Pearl Handle Architecture"
+    ],
+    "folder": "Pearls",
+    "createdAt": "2026-10-09T16:00:00.000Z",
+    "updatedAt": "2026-10-09T16:00:00.000Z"
+  }
+]

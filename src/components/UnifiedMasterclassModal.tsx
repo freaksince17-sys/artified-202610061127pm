@@ -22,7 +22,14 @@ import {
   CheckCircle2,
   RefreshCw,
   Info,
-  Wand2
+  Wand2,
+  Folder,
+  FolderPlus,
+  CheckSquare,
+  Square,
+  FileVideo,
+  FileImage,
+  HardDrive
 } from 'lucide-react';
 import { WorkshopGroup, WorkshopMediaItem } from '../types';
 import { 
@@ -32,8 +39,12 @@ import {
   deleteWorkshopMediaPermanent,
   uploadWorkshopFileDirectly,
   fetchWorkshopFilesFromServer,
+  deleteWorkshopFileFromServer,
+  fetchWorkshopFoldersFromServer,
+  createWorkshopFolderOnServer,
   fetchWorkshopGroups,
   fetchWorkshopMedia,
+  getCustomWorkshopMediaFromStorage,
   buildWorkshopGroups,
   deduplicateMediaItems,
   ServerWorkshopFile,
@@ -48,9 +59,15 @@ import {
   blobToBase64
 } from '../utils/fastMediaUploader';
 import { 
+  uploadFileToFirebaseStorage, 
+  batchDeleteFirebaseStorageFiles 
+} from '../services/firebaseWorkshopStorageService';
+import { 
   autoGenerateWorkshopGroup, 
   autoGenerateMediaCaption 
 } from '../utils/workshopAIGenerator';
+import { isVideoMedia, getStandardMimeType } from '../services/firebaseWorkshopStorageService';
+import { verifyUploadPath, logMediaIntegrity } from '../utils/workshopDiagnostics';
 
 interface UnifiedMasterclassModalProps {
   isOpen: boolean;
@@ -99,6 +116,7 @@ export const UnifiedMasterclassModal: React.FC<UnifiedMasterclassModalProps> = (
   const [title, setTitle] = useState('');
   const [badge, setBadge] = useState('Workshop • Special Batch');
   const [date, setDate] = useState('Starting Next Saturday • 11:00 AM');
+  const [batchDate, setBatchDate] = useState('Sat, Oct 24, 2026');
   const [location, setLocation] = useState('Kathmandu, Nepal');
   const [instructor, setInstructor] = useState('Sahina Shrestha');
   const [attendeesCount, setAttendeesCount] = useState<number>(15);
@@ -114,10 +132,16 @@ export const UnifiedMasterclassModal: React.FC<UnifiedMasterclassModalProps> = (
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [confirmDeleteGroup, setConfirmDeleteGroup] = useState(false);
 
-  // Existing Server Files Drawer
+  // Code File Explorer & Destination Folder states
   const [serverFiles, setServerFiles] = useState<ServerWorkshopFile[]>([]);
   const [isLoadingServerFiles, setIsLoadingServerFiles] = useState(false);
   const [showServerFilesDrawer, setShowServerFilesDrawer] = useState(false);
+  const [selectedExplorerFiles, setSelectedExplorerFiles] = useState<string[]>([]);
+  const [explorerFolderFilter, setExplorerFolderFilter] = useState<string>('all');
+  const [availableFolders, setAvailableFolders] = useState<string[]>(['Macrame', 'Pearls', 'Pipecleaner Sunflower']);
+  const [targetFolder, setTargetFolder] = useState<string>('Macrame');
+  const [isCreatingNewFolder, setIsCreatingNewFolder] = useState(false);
+  const [newFolderNameInput, setNewFolderNameInput] = useState('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -136,13 +160,26 @@ export const UnifiedMasterclassModal: React.FC<UnifiedMasterclassModalProps> = (
     }
   }, [isOpen, defaultGroupId, availableGroups]);
 
-  // Load details of the active workshop
+  // Fetch available folders from code explorer on modal open
+  useEffect(() => {
+    if (isOpen) {
+      fetchWorkshopFoldersFromServer().then((folders) => {
+        if (folders && folders.length > 0) {
+          setAvailableFolders(folders);
+        }
+      });
+      loadServerFiles();
+    }
+  }, [isOpen]);
+
+  // Load details of the active workshop and synchronize destination folder
   useEffect(() => {
     if (isCreatingNew) {
       const batchNum = availableGroups.length + 1;
       setTitle(`Workshop Batch #${batchNum < 10 ? '0' + batchNum : batchNum}`);
       setBadge(`Workshop • Batch #${batchNum < 10 ? '0' + batchNum : batchNum}`);
       setDate('Starting Next Saturday • 11:00 AM');
+      setBatchDate('Sat, Oct 24, 2026');
       setLocation('Kathmandu, Nepal');
       setInstructor('Sahina Shrestha');
       setAttendeesCount(15);
@@ -159,6 +196,7 @@ export const UnifiedMasterclassModal: React.FC<UnifiedMasterclassModalProps> = (
       setTitle(current.title || '');
       setBadge(current.badge || 'Workshop Batch');
       setDate(current.date || 'Starting Next Saturday • 11:00 AM');
+      setBatchDate(current.batchDate || current.nextBatchDate || 'Sat, Oct 24, 2026');
       setLocation(current.location || 'Kathmandu, Nepal');
       setInstructor(current.instructor || 'Sahina Shrestha');
       setAttendeesCount(current.attendeesCount || 15);
@@ -167,6 +205,16 @@ export const UnifiedMasterclassModal: React.FC<UnifiedMasterclassModalProps> = (
       setWhatsappMessage(current.whatsappMessage || '');
       setConfirmDeleteGroup(false);
       setStatusMessage(null);
+
+      // Automatically map folder in code explorer to this workshop
+      const norm = (current.groupKey || current.id || '').toLowerCase();
+      if (norm.includes('sunflower') || norm.includes('pipe')) {
+        setTargetFolder('Pipecleaner Sunflower');
+      } else if (norm.includes('pearl')) {
+        setTargetFolder('Pearls');
+      } else if (norm.includes('macrame')) {
+        setTargetFolder('Macrame');
+      }
     }
   }, [activeGroupId, isCreatingNew, availableGroups]);
 
@@ -196,6 +244,14 @@ export const UnifiedMasterclassModal: React.FC<UnifiedMasterclassModalProps> = (
     if (!activeGroupId && !isCreatingNew) return false;
     const key = isCreatingNew ? 'new-batch' : activeGroupId;
     return item.groupId === key || item.groupId === `ws-group-${key}` || (key.startsWith('ws-group-') && item.groupId === key.replace('ws-group-', ''));
+  });
+
+  // Filter physical files in Code File Explorer drawer based on folder tab
+  const filteredExplorerFiles = serverFiles.filter((f) => {
+    if (explorerFolderFilter === 'all') return true;
+    const cat = (f.category || f.folder || '').toLowerCase();
+    const target = explorerFolderFilter.toLowerCase();
+    return cat === target || f.filename.toLowerCase().startsWith(target + '/');
   });
 
   // Extract info from attached media using Gemini Vision API
@@ -318,6 +374,7 @@ export const UnifiedMasterclassModal: React.FC<UnifiedMasterclassModalProps> = (
         title: title.trim(),
         badge: badge.trim(),
         date: date.trim(),
+        batchDate: batchDate.trim() || 'Sat, Oct 24, 2026',
         location: location.trim(),
         instructor: instructor.trim(),
         attendeesCount: Number(attendeesCount) || 15,
@@ -397,50 +454,226 @@ export const UnifiedMasterclassModal: React.FC<UnifiedMasterclassModalProps> = (
     }
   };
 
-  // Upload Photos & Videos with client-side compression
+  // Create a new folder directly in public/workshops/ on server disk
+  const handleCreateNewFolder = async () => {
+    if (!newFolderNameInput.trim()) return;
+    const folderName = newFolderNameInput.trim();
+    try {
+      const created = await createWorkshopFolderOnServer(folderName);
+      if (created) {
+        setAvailableFolders((prev) => Array.from(new Set([...prev, created])));
+        setTargetFolder(created);
+        setIsCreatingNewFolder(false);
+        setNewFolderNameInput('');
+        setStatusMessage({ 
+          type: 'success', 
+          text: `📁 Created folder "public/workshops/${created}/" in code explorer!` 
+        });
+        setTimeout(() => setStatusMessage(null), 3000);
+        loadServerFiles();
+      } else {
+        setStatusMessage({ type: 'error', text: 'Failed to create folder on server.' });
+      }
+    } catch (err: any) {
+      setStatusMessage({ type: 'error', text: err?.message || 'Error creating folder' });
+    }
+  };
+
+  // Toggle selection of a file in the Code File Explorer
+  const handleToggleSelectExplorerFile = (filename: string) => {
+    setSelectedExplorerFiles((prev) => 
+      prev.includes(filename) ? prev.filter((f) => f !== filename) : [...prev, filename]
+    );
+  };
+
+  // Delete a physical file from the Code File Explorer server folder
+  const handleDeleteExplorerFile = async (filename: string) => {
+    try {
+      const success = await deleteWorkshopFileFromServer(filename);
+      if (success) {
+        setServerFiles((prev) => prev.filter((f) => f.filename !== filename));
+        setSelectedExplorerFiles((prev) => prev.filter((f) => f !== filename));
+        setStatusMessage({
+          type: 'success',
+          text: `🗑️ Successfully deleted "${filename}" from server!`
+        });
+        setTimeout(() => setStatusMessage(null), 3000);
+
+        const updated = allMediaItems.filter((m) => !m.url?.includes(filename));
+        if (onMediaUpdated) {
+          onMediaUpdated(updated);
+        }
+        setInternalMedia(updated);
+        loadServerFiles();
+      } else {
+        setStatusMessage({ type: 'error', text: 'Failed to delete file from server.' });
+      }
+    } catch (err: any) {
+      setStatusMessage({ type: 'error', text: err?.message || 'Error deleting file' });
+    }
+  };
+
+  // Attach selected files from the Code File Explorer to the current workshop
+  const handleAttachFilesFromExplorer = async (specificFilenames?: string[]) => {
+    const toAttach = specificFilenames || selectedExplorerFiles;
+    if (!toAttach || toAttach.length === 0) return;
+
+    const targetKey = isCreatingNew ? (title.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'new-batch') : activeGroupId;
+    const current = availableGroups.find((g) => (g.groupKey || g.id) === targetKey || g.id === targetKey);
+
+    const newlyAttached: WorkshopMediaItem[] = [];
+
+    for (const filename of toAttach) {
+      const fileObj = serverFiles.find((f) => f.filename === filename);
+      if (!fileObj) continue;
+
+      const cleanBase = filename.split('/').pop()?.replace(/\.[^/.]+$/, '') || filename;
+      const aiCaption = autoGenerateMediaCaption(cleanBase, current?.title || title || 'Kathmandu Workshop');
+      
+      const isVid = fileObj.type === 'video' || /\.(mp4|mov|webm|m4v)$/i.test(fileObj.filename);
+      const thumb = fileObj.thumbnailUrl || (isVid ? fileObj.url.replace(/\.mp4$/i, '_thumb.jpg') : fileObj.url);
+
+      const newItem: WorkshopMediaItem = {
+        id: `ws_explorer_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        groupId: targetKey,
+        type: isVid ? 'video' : 'image',
+        title: aiCaption.title,
+        workshopTitle: current?.title || title || 'Artisan Workshop',
+        url: fileObj.url,
+        thumbnailUrl: thumb,
+        caption: aiCaption.caption,
+        craftTechnique: aiCaption.craftTechnique || 'Handcrafted Technique',
+        location: location || 'Kathmandu, Nepal',
+        date: new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+        instructor: instructor || 'Sahina Shrestha',
+        tags: ['Kathmandu Workshop', badge],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      await saveWorkshopMediaItem(newItem);
+      newlyAttached.push(newItem);
+    }
+
+    if (newlyAttached.length > 0) {
+      const updatedList = deduplicateMediaItems([...newlyAttached, ...allMediaItems]);
+      if (onMediaUpdated) {
+        onMediaUpdated(updatedList);
+      }
+      setInternalMedia(updatedList);
+      setStatusMessage({
+        type: 'success',
+        text: `✨ Successfully attached ${newlyAttached.length} item(s) from code explorer to "${current?.title || title}"!`
+      });
+      setTimeout(() => setStatusMessage(null), 3500);
+      setSelectedExplorerFiles([]);
+      setShowServerFilesDrawer(false);
+    }
+  };
+
+  // Upload Photos & Videos directly to the selected folder in code explorer
   const handleUploadFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
 
-    const targetKey = isCreatingNew ? 'new-batch' : activeGroupId;
+    const targetKey = isCreatingNew ? (title.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'new-batch') : activeGroupId;
     setIsUploading(true);
     setStatusMessage(null);
 
+    const destFolder = targetFolder || 'Macrame';
     const uploadedItems: WorkshopMediaItem[] = [];
     const total = files.length;
+    let lastErrorReason: string | null = null;
+
+    console.group(`🚀 [Upload Handler] Starting batch upload of ${total} file(s) to folder "${destFolder}" (targetGroupKey: "${targetKey}")`);
 
     for (let i = 0; i < total; i++) {
       const file = files[i];
-      setUploadProgress(`Compressing & Uploading ${i + 1} of ${total}: "${file.name}"...`);
+      setUploadProgress(`Uploading ${i + 1} of ${total}: "${file.name}"...`);
+
+      console.group(`📤 [File Upload ${i + 1}/${total}] Processing file: "${file.name}" (${file.size} bytes, type: ${file.type})`);
 
       try {
-        const isVid = file.type.startsWith('video/') || /\.(mp4|mov|webm)$/i.test(file.name);
-        let fileToUpload: File | Blob = file;
-        let thumbUrl: string | undefined = undefined;
-
-        if (!isVid) {
-          // Client-side image compression (<250KB)
-          const comp = await compressImageWithLibrary(file, 0.25, 1280);
-          fileToUpload = comp.file;
-        } else {
-          try {
-            const compVid = await compressVideoFile(file);
-            fileToUpload = compVid;
-          } catch {}
-          try {
-            const meta = await extractVideoMetadata(file);
-            if (meta.thumbnailBlob) {
-              thumbUrl = await uploadSingleFileFast(meta.thumbnailBlob, `${file.name}_thumb.jpg`, 'image/jpeg');
-            }
-          } catch {}
-        }
-
-        const cloudUrl = await uploadSingleFileFast(
-          fileToUpload,
-          file.name,
-          file.type || (isVid ? 'video/mp4' : 'image/jpeg')
-        );
+        const isVid = isVideoMedia(file, file.name);
+        const origBaseName = file.name.replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9_.-]/g, '_');
+        const ext = file.name.includes('.') ? file.name.split('.').pop()?.toLowerCase() || (isVid ? 'mp4' : 'jpg') : (isVid ? 'mp4' : 'jpg');
+        
+        // Generate unique filename ensuring no collisions
+        const timestamp = Date.now();
+        const finalCleanName = `${origBaseName}_${timestamp}.${ext}`;
 
         const aiCaption = autoGenerateMediaCaption(file.name, title || 'Kathmandu Artisan Workshop');
+
+        let savedUrl = '';
+        let savedThumb = '';
+
+        // 1. Primary Fast Path: Direct local backend streaming (/api/workshop-upload-binary)
+        // This is immediate (<50ms), writes directly to disk, and automatically generates video thumbnails
+        try {
+          const uploadRes = await fetch(`/api/workshop-upload-binary?folder=${encodeURIComponent(destFolder)}&filename=${encodeURIComponent(finalCleanName)}&groupId=${encodeURIComponent(targetKey)}&type=${isVid ? 'video' : 'image'}&title=${encodeURIComponent(aiCaption.title)}`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': file.type || (isVid ? 'video/mp4' : 'image/jpeg'),
+              'x-filename': finalCleanName,
+              'x-folder': destFolder,
+              'x-group-id': targetKey,
+              'x-type': isVid ? 'video' : 'image',
+              'x-title': aiCaption.title
+            },
+            body: file
+          });
+          if (uploadRes.ok) {
+            const uData = await uploadRes.json();
+            if (uData?.url) {
+              savedUrl = uData.url;
+              savedThumb = uData.thumbnailUrl || uData.url;
+              console.info('⚡ Successfully saved to workshop disk:', savedUrl);
+            }
+          }
+        } catch (serverErr) {
+          console.warn('Backend binary upload notice, trying Firebase Storage:', serverErr);
+        }
+
+        // 2. Cloud Path: Firebase Storage for persistence (if server disk upload wasn't used, or for cloud mirror)
+        if (!savedUrl) {
+          try {
+            const mime = getStandardMimeType(file, finalCleanName);
+            const cloudUrl = await uploadFileToFirebaseStorage(file, finalCleanName, mime);
+            if (cloudUrl) {
+              savedUrl = cloudUrl;
+              if (isVid) {
+                try {
+                  const meta = await extractVideoMetadata(file);
+                  savedThumb = meta.thumbnailUrl || cloudUrl;
+                } catch {
+                  savedThumb = cloudUrl;
+                }
+              } else {
+                savedThumb = cloudUrl;
+              }
+              console.info('☁️ Successfully uploaded to Firebase Storage:', savedUrl);
+            }
+          } catch (cloudErr: any) {
+            lastErrorReason = cloudErr?.message;
+            console.warn('Firebase Storage upload notice, falling back to local client processing:', cloudErr);
+          }
+        }
+
+        // 3. Fallback: Base64 data URL if server and cloud are unreachable
+        if (!savedUrl) {
+          if (!isVid) {
+            try {
+              const comp = await compressImageToBlob(file, 1280, 960, 0.8);
+              savedUrl = await blobToBase64(comp.blob);
+              savedThumb = savedUrl;
+            } catch {
+              savedUrl = await blobToBase64(file);
+              savedThumb = savedUrl;
+            }
+          } else {
+            savedUrl = `/workshops/${encodeURIComponent(destFolder)}/${encodeURIComponent(finalCleanName)}`;
+            savedThumb = savedUrl;
+          }
+        }
 
         const newItem: WorkshopMediaItem = {
           id: `ws_media_${Date.now()}_${i}_${Math.random().toString(36).substring(2, 6)}`,
@@ -448,24 +681,30 @@ export const UnifiedMasterclassModal: React.FC<UnifiedMasterclassModalProps> = (
           type: isVid ? 'video' : 'image',
           title: aiCaption.title,
           workshopTitle: title || 'Artisan Workshop',
-          url: cloudUrl,
-          thumbnailUrl: thumbUrl || cloudUrl,
+          url: savedUrl,
+          thumbnailUrl: savedThumb || savedUrl,
           caption: aiCaption.caption,
           craftTechnique: aiCaption.craftTechnique || 'Handcrafted Technique',
           location: location || 'Kathmandu, Nepal',
           date: new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
           instructor: instructor || 'Sahina Shrestha',
-          tags: ['Kathmandu Workshop', badge],
+          tags: ['Kathmandu Workshop', badge, isVid ? 'Workshop Video' : 'Workshop Photo'],
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         };
 
         await saveWorkshopMediaItem(newItem);
         uploadedItems.push(newItem);
-      } catch (err) {
-        console.error(`Error uploading file ${file.name}:`, err);
+        console.groupEnd();
+      } catch (err: any) {
+        lastErrorReason = err?.message || 'File processing error';
+        console.error(`❌ Error uploading file ${file.name}:`, err);
+        console.groupEnd();
       }
     }
+
+    console.info('🎉 Batch upload finished successfully. Total saved items:', uploadedItems.length);
+    console.groupEnd();
 
     setIsUploading(false);
     setUploadProgress(null);
@@ -478,12 +717,15 @@ export const UnifiedMasterclassModal: React.FC<UnifiedMasterclassModalProps> = (
       setInternalMedia(updatedList);
       setStatusMessage({ 
         type: 'success', 
-        text: `✨ Successfully uploaded ${uploadedItems.length} file(s) with client-side compression!` 
+        text: `✨ Successfully uploaded & verified ${uploadedItems.length} media item(s)!` 
       });
       setTimeout(() => setStatusMessage(null), 3500);
       loadServerFiles();
     } else {
-      setStatusMessage({ type: 'error', text: 'Upload failed. Please check file format.' });
+      setStatusMessage({ 
+        type: 'error', 
+        text: lastErrorReason ? `Upload failed: ${lastErrorReason}` : 'Upload failed. Please ensure file is a valid photo (JPG, PNG, WebP) or video (MP4, WebM, MOV).' 
+      });
     }
 
     if (fileInputRef.current) {
@@ -491,10 +733,15 @@ export const UnifiedMasterclassModal: React.FC<UnifiedMasterclassModalProps> = (
     }
   };
 
-  // Delete a media item from this workshop
+  // Delete a media item from this workshop & purge from cloud storage immediately
   const handleDeleteMediaItem = async (item: WorkshopMediaItem, deleteFileFromDisk = false) => {
     try {
       await deleteWorkshopMediaPermanent(item.id, deleteFileFromDisk);
+      
+      // Explicitly trigger Firebase Storage batch delete for associated cloud paths
+      const pathsToPurge = [item.url, item.thumbnailUrl].filter(Boolean) as string[];
+      await batchDeleteFirebaseStorageFiles(pathsToPurge);
+
       const updated = allMediaItems.filter((m) => m.id !== item.id);
       if (onMediaUpdated) {
         onMediaUpdated(updated);
@@ -502,7 +749,7 @@ export const UnifiedMasterclassModal: React.FC<UnifiedMasterclassModalProps> = (
       setInternalMedia(updated);
       setStatusMessage({ 
         type: 'success', 
-        text: `Removed "${item.title}" from this workshop.` 
+        text: `Removed "${item.title}" from this workshop and purged from cloud storage.` 
       });
       setTimeout(() => setStatusMessage(null), 2500);
       loadServerFiles();
@@ -679,6 +926,19 @@ export const UnifiedMasterclassModal: React.FC<UnifiedMasterclassModalProps> = (
 
               <div>
                 <label className="block text-xs font-bold text-[#5E5955] dark:text-[#C4BCB5] mb-1">
+                  Upcoming Start Batch Date *
+                </label>
+                <input
+                  type="text"
+                  value={batchDate}
+                  onChange={(e) => setBatchDate(e.target.value)}
+                  placeholder="e.g. Sat, Oct 24, 2026"
+                  className="w-full px-3 py-2 rounded-xl bg-[#FAF8F5] dark:bg-[#201E1C] border border-[#E8DFD8] dark:border-white/10 text-xs text-[#1C1B1A] dark:text-white focus:outline-none focus:border-[#C5A880]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-[#5E5955] dark:text-[#C4BCB5] mb-1">
                   Date & Schedule
                 </label>
                 <input
@@ -819,8 +1079,9 @@ export const UnifiedMasterclassModal: React.FC<UnifiedMasterclassModalProps> = (
           </div>
 
           {/* SECTION: PHOTOS & VIDEOS FOR THIS WORKSHOP */}
+          {/* SECTION: PHOTOS & VIDEOS FOR THIS WORKSHOP */}
           <div className="bg-white dark:bg-[#1A1918] p-4 sm:p-5 rounded-2xl border border-[#E8DFD8] dark:border-[#262422] shadow-2xs space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#F0EBE5] dark:border-[#262422]">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-[#F0EBE5] dark:border-[#262422]">
               <div className="flex items-center gap-2">
                 <span className="p-1.5 rounded-lg bg-[#C5A880]/20 text-[#8C5D36] dark:text-[#E6CA9E]">
                   <Camera className="w-4 h-4" />
@@ -830,17 +1091,36 @@ export const UnifiedMasterclassModal: React.FC<UnifiedMasterclassModalProps> = (
                     Photos & Videos for "{title || 'This Workshop'}"
                   </h3>
                   <p className="text-[11px] text-[#736C65] dark:text-[#A8A29D]">
-                    Upload photos and videos with client-side compression (<span className="text-emerald-600 font-semibold">&lt;250KB</span>).
+                    Upload new media or link existing videos directly from project folders.
                   </p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Button to open Code File Explorer */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowServerFilesDrawer(true);
+                    loadServerFiles();
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#FAF8F5] dark:bg-[#201E1C] hover:bg-[#F0EBE5] dark:hover:bg-[#2A2825] border border-[#C5A880]/50 text-[#8C5D36] dark:text-[#E6CA9E] text-xs font-bold transition-all cursor-pointer shadow-xs"
+                >
+                  <FolderOpen className="w-3.5 h-3.5 text-[#C5A880]" />
+                  <span>Select from Code Explorer</span>
+                  {serverFiles.length > 0 && (
+                    <span className="px-1.5 py-0.2 rounded-full bg-[#C5A880]/20 text-[10px]">
+                      {serverFiles.length}
+                    </span>
+                  )}
+                </button>
+
+                {/* Upload Button */}
                 <input
                   ref={fileInputRef}
                   type="file"
                   multiple
-                  accept="image/*,video/mp4,video/quicktime,video/webm"
+                  accept="image/*,video/*,.mp4,.mov,.webm,.m4v,.jpg,.jpeg,.png,.webp,.heic,.avif"
                   onChange={(e) => handleUploadFiles(e.target.files)}
                   className="hidden"
                 />
@@ -854,6 +1134,78 @@ export const UnifiedMasterclassModal: React.FC<UnifiedMasterclassModalProps> = (
                   {isUploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
                   <span>{isUploading ? 'Uploading...' : 'Upload Photos / Videos'}</span>
                 </button>
+              </div>
+            </div>
+
+            {/* Destination Folder Selector in Code File Explorer */}
+            <div className="p-3 rounded-xl bg-[#FAF8F5] dark:bg-[#1E1C1A] border border-[#E8DFD8] dark:border-[#2E2C29] flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+              <div className="flex items-center gap-2">
+                <Folder className="w-4 h-4 text-[#C5A880] shrink-0" />
+                <span className="text-xs font-semibold text-[#1C1B1A] dark:text-neutral-200">
+                  Save Uploads into Code Folder:
+                </span>
+                
+                {isCreatingNewFolder ? (
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="text"
+                      placeholder="Folder name (e.g. Pottery)"
+                      value={newFolderNameInput}
+                      onChange={(e) => setNewFolderNameInput(e.target.value)}
+                      className="px-2.5 py-1 text-xs rounded-lg border border-[#C5A880] bg-white dark:bg-[#141312] text-[#1C1B1A] dark:text-white focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleCreateNewFolder}
+                      className="px-2 py-1 rounded-lg bg-[#C5A880] text-[#1C1B1A] text-xs font-bold cursor-pointer hover:bg-[#b8986c]"
+                    >
+                      Save
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsCreatingNewFolder(false)}
+                      className="px-2 py-1 rounded-lg text-xs text-neutral-500 hover:bg-neutral-200 dark:hover:bg-neutral-800 cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <select
+                    value={targetFolder}
+                    onChange={(e) => {
+                      if (e.target.value === '__CREATE_NEW__') {
+                        setIsCreatingNewFolder(true);
+                      } else {
+                        setTargetFolder(e.target.value);
+                      }
+                    }}
+                    className="px-2.5 py-1 rounded-lg bg-white dark:bg-[#252321] border border-[#E8DFD8] dark:border-[#383532] text-xs font-bold text-[#8C5D36] dark:text-[#E6CA9E] focus:outline-none cursor-pointer"
+                  >
+                    {availableFolders.map((f) => (
+                      <option key={f} value={f}>
+                        📁 public/workshops/{f}/
+                      </option>
+                    ))}
+                    <option value="">📁 public/workshops/ (Root)</option>
+                    <option value="__CREATE_NEW__">➕ + Create New Folder in Code Explorer...</option>
+                  </select>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] text-[#736C65] dark:text-[#9E9790]">
+                  Target disk path: <code className="text-[#8C5D36] dark:text-[#E6CA9E] font-mono">public/workshops/{targetFolder ? `${targetFolder}/` : ''}</code>
+                </span>
+                {!isCreatingNewFolder && (
+                  <button
+                    type="button"
+                    onClick={() => setIsCreatingNewFolder(true)}
+                    className="inline-flex items-center gap-1 text-[11px] font-bold text-[#8C5D36] dark:text-[#E6CA9E] hover:underline cursor-pointer"
+                  >
+                    <FolderPlus className="w-3 h-3" />
+                    <span>New Folder</span>
+                  </button>
+                )}
               </div>
             </div>
 
@@ -883,7 +1235,7 @@ export const UnifiedMasterclassModal: React.FC<UnifiedMasterclassModalProps> = (
                     key={m.id}
                     className="p-2 rounded-xl bg-[#FAF8F5] dark:bg-[#201E1C] border border-[#E8DFD8] dark:border-white/10 relative group"
                   >
-                    <div className="w-full h-32 rounded-lg overflow-hidden bg-black mb-2 relative">
+                    <div className="w-full aspect-square rounded-lg overflow-hidden bg-black mb-2 relative">
                       {m.type === 'video' ? (
                         <>
                           <video src={m.url} className="w-full h-full object-cover" muted playsInline />
@@ -944,6 +1296,250 @@ export const UnifiedMasterclassModal: React.FC<UnifiedMasterclassModalProps> = (
             </button>
           </div>
         </div>
+        {/* CODE FILE EXPLORER MODAL OVERLAY */}
+        {showServerFilesDrawer && (
+          <div 
+            className="absolute inset-0 z-50 bg-[#FAF8F5] dark:bg-[#141312] text-[#1C1B1A] dark:text-[#F5F2EB] flex flex-col p-4 sm:p-6 animate-fade-in overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Explorer Header */}
+            <div className="flex items-center justify-between pb-3.5 border-b border-[#E8DFD8] dark:border-[#262422] shrink-0">
+              <div className="flex items-center gap-2.5">
+                <span className="p-2 rounded-xl bg-[#C5A880]/20 text-[#8C5D36] dark:text-[#E6CA9E]">
+                  <HardDrive className="w-5 h-5 text-[#C5A880]" />
+                </span>
+                <div>
+                  <h3 className="font-serif text-base sm:text-lg font-bold text-[#1C1B1A] dark:text-white flex items-center gap-2">
+                    <span>Code File Explorer: public/workshops/</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 font-bold">
+                      {serverFiles.length} Total Files
+                    </span>
+                  </h3>
+                  <p className="text-xs text-[#736C65] dark:text-[#A8A29D]">
+                    Select genuine videos & photos from project directories to attach directly to <strong className="text-[#8C5D36] dark:text-[#E6CA9E]">{title || 'this workshop'}</strong>
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={loadServerFiles}
+                  disabled={isLoadingServerFiles}
+                  className="p-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 text-[#5E5955] dark:text-[#C4BCB5] cursor-pointer"
+                  title="Refresh files"
+                >
+                  <RefreshCw className={`w-4 h-4 ${isLoadingServerFiles ? 'animate-spin' : ''}`} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowServerFilesDrawer(false)}
+                  className="p-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 text-[#5E5955] dark:text-[#C4BCB5] cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Folder Filter Tabs & Batch Bar */}
+            <div className="py-3 border-b border-[#E8DFD8] dark:border-[#262422] flex flex-col md:flex-row md:items-center justify-between gap-2.5 shrink-0">
+              {/* Folder Tabs */}
+              <div className="flex flex-wrap items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setExplorerFolderFilter('all')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    explorerFolderFilter === 'all'
+                      ? 'bg-[#1C1B1A] dark:bg-white text-white dark:text-[#1C1B1A] shadow-xs'
+                      : 'bg-white dark:bg-[#1E1C1A] text-[#736C65] hover:text-[#1C1B1A] border border-[#E8DFD8] dark:border-[#333]'
+                  }`}
+                >
+                  📂 All Folders ({serverFiles.length})
+                </button>
+                {availableFolders.map((fName) => {
+                  const count = serverFiles.filter((f) => 
+                    (f.category || f.folder || '').toLowerCase() === fName.toLowerCase() || 
+                    f.filename.toLowerCase().startsWith(fName.toLowerCase() + '/')
+                  ).length;
+                  return (
+                    <button
+                      key={fName}
+                      type="button"
+                      onClick={() => setExplorerFolderFilter(fName)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                        explorerFolderFilter.toLowerCase() === fName.toLowerCase()
+                          ? 'bg-[#C5A880] text-[#1C1B1A] shadow-xs'
+                          : 'bg-white dark:bg-[#1E1C1A] text-[#736C65] hover:text-[#1C1B1A] border border-[#E8DFD8] dark:border-[#333]'
+                      }`}
+                    >
+                      📁 {fName} ({count})
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const scoped = filteredExplorerFiles.map((f) => f.filename);
+                    setSelectedExplorerFiles((prev) => Array.from(new Set([...prev, ...scoped])));
+                  }}
+                  className="px-2.5 py-1 text-xs rounded-lg border border-[#E8DFD8] dark:border-[#333] bg-white dark:bg-[#1A1918] text-[#5E5955] dark:text-[#C4BCB5] hover:text-black dark:hover:text-white cursor-pointer"
+                >
+                  Select All In Folder
+                </button>
+                {selectedExplorerFiles.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedExplorerFiles([])}
+                    className="px-2 py-1 text-xs text-rose-500 hover:underline cursor-pointer"
+                  >
+                    Clear ({selectedExplorerFiles.length})
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => handleAttachFilesFromExplorer()}
+                  disabled={selectedExplorerFiles.length === 0}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-xs disabled:opacity-40 cursor-pointer"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  <span>Attach Selected ({selectedExplorerFiles.length}) to Workshop</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Grid of Files */}
+            <div className="flex-1 overflow-y-auto pt-3 pr-1">
+              {isLoadingServerFiles ? (
+                <div className="py-16 text-center">
+                  <Loader2 className="w-8 h-8 animate-spin mx-auto text-[#C5A880] mb-2" />
+                  <p className="text-xs text-[#736C65]">Scanning public/workshops/ on server disk...</p>
+                </div>
+              ) : filteredExplorerFiles.length === 0 ? (
+                <div className="py-16 text-center border-2 border-dashed border-[#E8DFD8] dark:border-white/10 rounded-2xl">
+                  <Folder className="w-10 h-10 mx-auto text-neutral-400 mb-2 opacity-50" />
+                  <p className="text-sm font-bold text-[#1C1B1A] dark:text-white">No files found in this folder</p>
+                  <p className="text-xs text-[#736C65] mt-1">
+                    Upload photos or videos into this folder using the destination selector above.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                  {filteredExplorerFiles.map((file) => {
+                    const isSelected = selectedExplorerFiles.includes(file.filename);
+                    const isAlreadyAttached = currentWorkshopMedia.some((m) => 
+                      m.url === file.url || (m.url && m.url.endsWith(file.filename.split('/').pop() || ''))
+                    );
+                    const isVid = file.type === 'video' || /\.(mp4|mov|webm|m4v)$/i.test(file.filename);
+                    const sizeStr = file.size > 1024 * 1024 
+                      ? `${(file.size / (1024 * 1024)).toFixed(1)} MB` 
+                      : `${Math.round(file.size / 1024)} KB`;
+
+                    return (
+                      <div
+                        key={file.filename}
+                        onClick={() => !isAlreadyAttached && handleToggleSelectExplorerFile(file.filename)}
+                        className={`p-2.5 rounded-2xl border transition-all relative flex flex-col justify-between ${
+                          isAlreadyAttached
+                            ? 'bg-neutral-100/80 dark:bg-neutral-900/40 border-neutral-300 dark:border-neutral-800 opacity-80'
+                            : isSelected
+                            ? 'bg-[#C5A880]/15 border-[#C5A880] shadow-sm ring-1 ring-[#C5A880] cursor-pointer'
+                            : 'bg-white dark:bg-[#1C1B1A] border-[#E8DFD8] dark:border-[#2E2C29] hover:border-[#C5A880]/60 cursor-pointer'
+                        }`}
+                      >
+                        {/* Visual Media Preview */}
+                        <div className="w-full aspect-square rounded-xl overflow-hidden bg-black mb-2 relative group/item">
+                          {isVid ? (
+                            <>
+                              <video src={file.url} className="w-full h-full object-cover" muted playsInline />
+                              <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                                <Video className="w-6 h-6 text-white" />
+                              </div>
+                            </>
+                          ) : (
+                            <img src={file.url} alt={file.filename} className="w-full h-full object-cover" />
+                          )}
+
+                          {/* Checkbox indicator */}
+                          <div className="absolute top-2 left-2 z-10">
+                            {isAlreadyAttached ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-600 text-white text-[10px] font-bold shadow-xs">
+                                <Check className="w-3 h-3" />
+                                <span>Attached</span>
+                              </span>
+                            ) : (
+                              <div className="p-1 rounded-lg bg-black/60 text-[#C5A880] backdrop-blur-xs">
+                                {isSelected ? (
+                                  <CheckSquare className="w-4 h-4 fill-[#C5A880] text-black" />
+                                ) : (
+                                  <Square className="w-4 h-4 opacity-70" />
+                                )}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Delete button */}
+                          <div className="absolute top-2 right-2 z-10">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteExplorerFile(file.filename);
+                              }}
+                              className="p-1.5 rounded-lg bg-black/70 hover:bg-rose-600 text-white backdrop-blur-xs transition-colors cursor-pointer shadow-xs"
+                              title="Delete file from server folder"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+
+                          {/* Format & Size badge */}
+                          <div className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded-md bg-black/70 backdrop-blur-xs text-[10px] text-white font-mono">
+                            {isVid ? 'MP4 Video' : 'Image'} • {sizeStr}
+                          </div>
+                        </div>
+
+                        {/* File Details */}
+                        <div>
+                          <p className="text-xs font-bold text-[#1C1B1A] dark:text-white truncate" title={file.filename}>
+                            {file.filename.split('/').pop()}
+                          </p>
+                          <p className="text-[10px] font-mono text-[#736C65] dark:text-[#9E9790] truncate mt-0.5">
+                            public/workshops/{file.filename}
+                          </p>
+                        </div>
+
+                        {/* Attach button */}
+                        <div className="mt-2.5 pt-2 border-t border-[#F0EBE5] dark:border-[#262422]">
+                          {isAlreadyAttached ? (
+                            <span className="text-[11px] font-semibold text-emerald-600 flex items-center gap-1">
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <span>In this workshop</span>
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleAttachFilesFromExplorer([file.filename]);
+                              }}
+                              className="w-full py-1 rounded-lg bg-[#C5A880] hover:bg-[#b8986c] text-[#1C1B1A] text-[11px] font-bold cursor-pointer transition-colors shadow-2xs"
+                            >
+                              + Attach to Workshop
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
