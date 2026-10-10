@@ -1086,7 +1086,7 @@ export const SellerWorkshopMediaModal: React.FC<SellerWorkshopMediaModalProps> =
               <input
                 type="file"
                 multiple
-                accept="image/*,video/*"
+                accept="image/*,video/*,.mp4,.mov,.webm,.m4v"
                 onChange={handleMultiFilesSelected}
                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
               />

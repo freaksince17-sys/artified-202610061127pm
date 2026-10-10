@@ -172,15 +172,8 @@ export const WorkshopGallery: React.FC = () => {
     if (activeGroupKeys.size === 0) return mediaItems;
     return mediaItems.filter((m) => {
       if (!m.groupId) return true;
-      const cleanGroupId = m.groupId.toLowerCase().replace(/^ws-group-/, '');
-      if (activeGroupKeys.has(m.groupId) || activeGroupKeys.has(cleanGroupId) || activeGroupKeys.has(`ws-group-${cleanGroupId}`)) {
-        return true;
-      }
       for (const k of activeGroupKeys) {
-        const normK = k.toLowerCase().replace(/^ws-group-/, '');
-        if (cleanGroupId.includes('macrame') && normK.includes('macrame')) return true;
-        if (cleanGroupId.includes('sunflower') && normK.includes('sunflower')) return true;
-        if (cleanGroupId.includes('pearl') && normK.includes('pearl')) return true;
+        if (isMediaRelatedToGroup(m, k)) return true;
       }
       return false;
     });
@@ -405,7 +398,7 @@ export const WorkshopGallery: React.FC = () => {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search workshops, techniques, or video moments..."
+            placeholder="Search workshops or techniques..."
             className="w-full pl-9 pr-4 py-1.5 bg-[#FAF8F5] dark:bg-[#201E1C] border border-[#E8DFD8] dark:border-white/10 rounded-xl text-xs text-[#1C1B1A] dark:text-white placeholder:text-[#7A746E] dark:placeholder:text-[#A8A29D] focus:outline-none focus:border-[#C5A880]"
           />
         </div>
@@ -417,13 +410,15 @@ export const WorkshopGallery: React.FC = () => {
             <span>{workshopGroups.length} Workshops</span>
           </span>
           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-black/5 dark:bg-white/5">
-            <Video className="w-3.5 h-3.5 text-[#C5A880]" />
-            <span>{activeMediaItems.filter(i => i.type === 'video').length} Videos</span>
-          </span>
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-black/5 dark:bg-white/5">
             <Camera className="w-3.5 h-3.5 text-[#C5A880]" />
-            <span>{activeMediaItems.filter(i => i.type === 'image').length} Photos</span>
+            <span>{activeMediaItems.filter(i => i.type === 'image' || !i.type).length} Photos</span>
           </span>
+          {activeMediaItems.filter(i => i.type === 'video').length > 0 && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-black/5 dark:bg-white/5">
+              <Video className="w-3.5 h-3.5 text-[#C5A880]" />
+              <span>{activeMediaItems.filter(i => i.type === 'video').length} Videos</span>
+            </span>
+          )}
         </div>
       </div>
 

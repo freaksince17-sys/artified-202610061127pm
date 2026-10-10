@@ -1468,12 +1468,12 @@ export const ArtifiedThreeWorkshopsPage: React.FC = () => {
                   </div>
 
                   <div className="flex items-center gap-2">
-                    {/* Hidden Unified File Input accepting both images and videos simultaneously */}
+                    {/* Hidden Unified File Input accepting both images and videos */}
                     <input
                       ref={unifiedMediaInputRef}
                       type="file"
                       multiple
-                      accept="image/*,video/*"
+                      accept="image/*,video/*,.mp4,.mov,.webm,.m4v"
                       className="hidden"
                       onChange={(e) => handleBatchUpload(e.target.files)}
                     />

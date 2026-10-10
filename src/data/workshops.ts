@@ -55,12 +55,13 @@ export function isMediaRelatedToGroup(
   if (!item) return false;
   const url = (item.url || '').toLowerCase();
   const id = (item.id || '').toLowerCase();
+  const title = (item.title || '').toLowerCase();
   const target = (targetGroupKey || '').toLowerCase().replace(/^ws-group-/, '').replace(/^ws-/, '');
   const itemGroup = (item.groupId || '').toLowerCase().replace(/^ws-group-/, '').replace(/^ws-/, '');
 
   // 1. Filter out known banned patterns
   for (const pattern of BANNED_UNRELATED_MEDIA_PATTERNS) {
-    if (url.includes(pattern) || id.includes(pattern)) {
+    if (pattern && (url.includes(pattern) || id.includes(pattern))) {
       return false;
     }
   }
@@ -68,29 +69,33 @@ export function isMediaRelatedToGroup(
   // If no target group requested, item is valid
   if (!target) return true;
 
-  // Direct group assignment
+  // 2. Direct group key or ID match
   if (itemGroup && (itemGroup === target || target.includes(itemGroup) || itemGroup.includes(target))) {
     return true;
   }
 
-  // If item has an explicit assigned groupId, that assignment is authoritative
-  if (itemGroup) {
-    const normGroup = itemGroup.replace(/s$/, '').replace(/-bag$/, '');
-    const normTarget = target.replace(/s$/, '').replace(/-bag$/, '');
-    return normGroup === normTarget || normGroup.includes(normTarget) || normTarget.includes(normGroup);
-  }
+  // 3. Normalize into canonical family categories: 'macrame', 'sunflower', 'pearl'
+  const getFamily = (str: string): string => {
+    if (str.includes('macrame')) return 'macrame';
+    if (str.includes('sunflower') || str.includes('pipe') || str.includes('pipecleaner') || str.includes('eco')) return 'sunflower';
+    if (str.includes('pearl') || str.includes('bag') || str.includes('bead') || str.includes('couture') || str.includes('bridal')) return 'pearl';
+    return str;
+  };
 
-  // Subfolder / URL matching for items without explicit groupId
-  if (url.includes(`/${target}/`) || url.includes(`/${target}_`) || url.includes(`_${target}_`)) {
+  const targetFamily = getFamily(target);
+  const groupFamily = getFamily(itemGroup);
+
+  if (targetFamily && groupFamily && targetFamily === groupFamily) {
     return true;
   }
 
-  // Stem matching fallback only for unassigned items
-  if (target.includes('macrame') && url.includes('macrame')) return true;
-  if (target.includes('sunflower') && (url.includes('sunflower') || url.includes('pipe'))) return true;
-  if (target.includes('pearl') && url.includes('pearl')) return true;
+  // 4. URL or title checking fallback
+  if (targetFamily === 'macrame' && (url.includes('macrame') || title.includes('macrame') || itemGroup.includes('macrame'))) return true;
+  if (targetFamily === 'sunflower' && (url.includes('sunflower') || url.includes('pipe') || url.includes('pipecleaner') || title.includes('sunflower') || title.includes('pipe') || title.includes('eco') || itemGroup.includes('sunflower') || itemGroup.includes('pipe'))) return true;
+  if (targetFamily === 'pearl' && (url.includes('pearl') || url.includes('bag') || title.includes('pearl') || title.includes('bag') || title.includes('bridal') || title.includes('bead') || itemGroup.includes('pearl') || itemGroup.includes('bag'))) return true;
 
-  return false;
+  // If itemGroup is unspecified or doesn't conflict, accept item
+  return !itemGroup;
 }
 
 export function isLegacyFakeMacrameVideo(item: { id?: string; url?: string; type?: 'image' | 'video' }): boolean {
@@ -175,24 +180,11 @@ if (typeof window !== 'undefined') {
       localStorage.removeItem(k);
     });
 
-    // Deep purge of any key containing old pre-seeded Macrame media items
+    // Clean up outdated storage keys without wiping current v30 active storage
     const keys = Object.keys(localStorage);
     keys.forEach((k) => {
-      if (k.startsWith('artified_custom_workshop_media') || k.startsWith('artified_workshop')) {
-        const val = localStorage.getItem(k);
-        if (
-          val &&
-          (val.includes('macrame_cloud') ||
-            val.includes('macrame_desk') ||
-            val.includes('macrame_snap') ||
-            val.includes('macrame_student') ||
-            val.includes('macrame_group') ||
-            val.includes('macrame_pot') ||
-            val.includes('macrame_me_teaching') ||
-            val.includes('ws_media_1791566'))
-        ) {
-          localStorage.removeItem(k);
-        }
+      if (k.startsWith('artified_custom_workshop_media_v') && k !== CUSTOM_MEDIA_STORAGE_KEY) {
+        localStorage.removeItem(k);
       }
     });
   } catch {}
@@ -233,12 +225,14 @@ export function getCustomWorkshopMediaFromStorage(): WorkshopMediaItem[] {
 export function saveCustomWorkshopMediaToStorage(items: WorkshopMediaItem[]): void {
   try {
     const deletedIds = getDeletedWorkshopMediaIds();
-    const cleanItems = items.filter((item) => {
+    const defaultIds = new Set(DEFAULT_WORKSHOP_MEDIA.map((d) => d.id));
+    const cleanCustomItems = items.filter((item) => {
       if (!item || !item.id) return false;
       if (deletedIds.includes(item.id)) return false;
+      if (defaultIds.has(item.id)) return false;
       return true;
     });
-    localStorage.setItem(CUSTOM_MEDIA_STORAGE_KEY, JSON.stringify(cleanItems));
+    localStorage.setItem(CUSTOM_MEDIA_STORAGE_KEY, JSON.stringify(cleanCustomItems));
   } catch (e) {
     console.warn(e);
   }
@@ -688,12 +682,23 @@ export async function fetchWorkshopMedia(): Promise<WorkshopMediaItem[]> {
   const allItems = Array.from(mergedMap.values())
     .map(sanitizeWorkshopMediaItem)
     .filter(item => !deletedIds.includes(item.id));
+  
   saveCustomWorkshopMediaToStorage(allItems);
+
+  // Sync custom items to server disk
+  try {
+    fetch('/api/workshop-media', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(allItems)
+    }).catch(() => {});
+  } catch {}
+
   return allItems;
 }
 
 /**
- * Save or update a workshop media item in Firestore and persistent local cache.
+ * Save or update a workshop media item in Firestore, server disk, and persistent local cache.
  */
 export async function saveWorkshopMediaItem(item: WorkshopMediaItem): Promise<void> {
   try {
@@ -707,6 +712,16 @@ export async function saveWorkshopMediaItem(item: WorkshopMediaItem): Promise<vo
   const existingLocal = getCustomWorkshopMediaFromStorage().filter((m) => m.id !== item.id);
   existingLocal.push(item);
   saveCustomWorkshopMediaToStorage(existingLocal);
+
+  // Sync updated custom media list to server disk
+  try {
+    const currentCustom = getCustomWorkshopMediaFromStorage();
+    fetch('/api/workshop-media', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(currentCustom)
+    }).catch(() => {});
+  } catch {}
 
   // Save to Firestore with payload size guard
   const docRef = doc(db, 'workshop_gallery', item.id);

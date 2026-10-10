@@ -43,9 +43,10 @@ export const WorkshopLightboxModal: React.FC<WorkshopLightboxModalProps> = ({
   initialIndex = 0,
   onNavigate
 }) => {
+  const validItems = items;
   const [internalIndex, setInternalIndex] = useState(initialIndex);
   const activeIndex = currentIndex !== undefined ? currentIndex : internalIndex;
-  const currentItem = items[activeIndex];
+  const currentItem = validItems[activeIndex] || validItems[0] || items[activeIndex];
 
   const videoRef = useRef<HTMLVideoElement>(null);
 

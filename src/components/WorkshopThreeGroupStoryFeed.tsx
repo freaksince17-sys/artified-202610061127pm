@@ -894,7 +894,7 @@ const WorkshopGroupCardItem: React.FC<{
               <span>Upcoming Batch</span>
             ) : (
               <span>
-                {videoCount > 0 ? `${videoCount} Videos • ` : ''}{photoCount} Photos
+                {videoCount > 0 ? `${videoCount} ${videoCount === 1 ? 'Video' : 'Videos'} • ` : ''}{photoCount} {photoCount === 1 ? 'Photo' : 'Photos'}
               </span>
             )}
           </span>
