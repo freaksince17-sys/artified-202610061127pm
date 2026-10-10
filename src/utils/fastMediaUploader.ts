@@ -538,9 +538,9 @@ export async function uploadSingleFileFast(
 
   if (onProgress) onProgress(100);
 
-  // Return disk URL as priority so file is always visible in code folder
-  if (diskUrl) return diskUrl;
+  // Return Firebase Storage cloud URL as top priority so media is globally accessible on artified.com.np as well as AI Studio
   if (cloudUrl) return cloudUrl;
+  if (diskUrl) return diskUrl;
   if (fallbackDataUrl && fallbackDataUrl.startsWith('data:')) return fallbackDataUrl;
 
   if (typeof fileOrBlob !== 'string') {

@@ -505,6 +505,20 @@ export function sanitizeWorkshopMediaItem(item: WorkshopMediaItem): WorkshopMedi
   if (!item) return item;
   const copy = { ...item };
 
+  // If item URL is relative (/workshops/...) and requested on external domain like artified.com.np,
+  // map to the AI Studio preview server URL so videos and photos load seamlessly anywhere.
+  if (typeof window !== 'undefined' && copy.url && copy.url.startsWith('/workshops/')) {
+    const origin = (window.location.origin || '').toLowerCase();
+    const isLocalOrDevServer = origin.includes('run.app') || origin.includes('localhost') || origin.includes('127.0.0.1');
+    if (!isLocalOrDevServer) {
+      const devHost = 'https://ais-pre-qnqjuwdkq32umqc4fww4qw-955108993895.asia-southeast1.run.app';
+      copy.url = `${devHost}${copy.url}`;
+      if (copy.thumbnailUrl && copy.thumbnailUrl.startsWith('/workshops/')) {
+        copy.thumbnailUrl = `${devHost}${copy.thumbnailUrl}`;
+      }
+    }
+  }
+
   const url = (copy.url || '').toLowerCase();
   const thumb = (copy.thumbnailUrl || '').toLowerCase();
 
@@ -723,17 +737,34 @@ export async function saveWorkshopMediaItem(item: WorkshopMediaItem): Promise<vo
     }).catch(() => {});
   } catch {}
 
-  // Save to Firestore with payload size guard
+  // Save to Firestore with payload size guard & cloud storage sync
   const docRef = doc(db, 'workshop_gallery', item.id);
   const now = new Date().toISOString();
   
   let firestoreUrl = item.url;
   let firestoreThumb = item.thumbnailUrl;
-  if (firestoreUrl && firestoreUrl.startsWith('data:') && firestoreUrl.length > 300000) {
-    firestoreUrl = `/workshops/${item.id}.jpg`;
-  }
-  if (firestoreThumb && firestoreThumb.startsWith('data:') && firestoreThumb.length > 300000) {
-    firestoreThumb = firestoreUrl;
+
+  // If URL is a relative path (/workshops/...) or heavy data URL, attempt cloud sync to Firebase Storage
+  if (firestoreUrl && (firestoreUrl.startsWith('data:') || firestoreUrl.startsWith('/workshops/'))) {
+    try {
+      const res = await fetch(firestoreUrl);
+      if (res.ok) {
+        const blob = await res.blob();
+        if (blob && blob.size > 0) {
+          const isVid = item.type === 'video' || firestoreUrl.includes('mp4');
+          const ext = isVid ? 'mp4' : 'jpg';
+          const cloudUrl = await uploadFileToFirebaseStorage(blob, `${item.id}.${ext}`);
+          if (cloudUrl) {
+            firestoreUrl = cloudUrl;
+            if (!firestoreThumb || firestoreThumb.startsWith('data:') || firestoreThumb.startsWith('/workshops/')) {
+              firestoreThumb = cloudUrl;
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Notice: Firebase storage sync in saveWorkshopMediaItem:', e);
+    }
   }
 
   await safeSetDoc(docRef, {
