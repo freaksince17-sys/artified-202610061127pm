@@ -48,7 +48,8 @@ import {
   buildWorkshopGroups,
   deduplicateMediaItems,
   ServerWorkshopFile,
-  WORKSHOP_GROUPS_METADATA
+  WORKSHOP_GROUPS_METADATA,
+  isMediaRelatedToGroup
 } from '../data/workshops';
 import { 
   compressImageWithLibrary, 
@@ -239,11 +240,18 @@ export const UnifiedMasterclassModal: React.FC<UnifiedMasterclassModalProps> = (
 
   if (!isOpen) return null;
 
-  // Filter media items for the currently selected workshop
+  // Resolve current active workshop metadata
+  const currentGroup = availableGroups.find((g) => (g.groupKey || g.id) === activeGroupId || g.id === activeGroupId);
+
+  // Filter media items for the currently selected workshop with strict group logic
   const currentWorkshopMedia = allMediaItems.filter((item) => {
-    if (!activeGroupId && !isCreatingNew) return false;
-    const key = isCreatingNew ? 'new-batch' : activeGroupId;
-    return item.groupId === key || item.groupId === `ws-group-${key}` || (key.startsWith('ws-group-') && item.groupId === key.replace('ws-group-', ''));
+    if (isCreatingNew) {
+      return item.groupId === 'new-batch' || item.groupId === (title.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'new-batch');
+    }
+    if (!currentGroup && !activeGroupId) return false;
+    const targetKey = currentGroup?.groupKey || activeGroupId;
+    const targetId = currentGroup?.id || activeGroupId;
+    return isMediaRelatedToGroup(item, targetKey) || isMediaRelatedToGroup(item, targetId);
   });
 
   // Filter physical files in Code File Explorer drawer based on folder tab
@@ -513,61 +521,125 @@ export const UnifiedMasterclassModal: React.FC<UnifiedMasterclassModalProps> = (
     }
   };
 
-  // Attach selected files from the Code File Explorer to the current workshop
-  const handleAttachFilesFromExplorer = async (specificFilenames?: string[]) => {
+  // Attach or re-assign selected files from the Code File Explorer to a workshop class
+  const handleAttachFilesFromExplorer = async (specificFilenames?: string[], assignToGroupId?: string) => {
     const toAttach = specificFilenames || selectedExplorerFiles;
     if (!toAttach || toAttach.length === 0) return;
 
-    const targetKey = isCreatingNew ? (title.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'new-batch') : activeGroupId;
-    const current = availableGroups.find((g) => (g.groupKey || g.id) === targetKey || g.id === targetKey);
+    const targetKey = assignToGroupId || (isCreatingNew ? (title.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'new-batch') : (currentGroup?.groupKey || activeGroupId));
+    const targetGroup = availableGroups.find((g) => (g.groupKey || g.id) === targetKey || g.id === targetKey);
+    const canonicalKey = targetGroup?.groupKey || (
+      targetKey.toLowerCase().includes('sunflower') || targetKey.toLowerCase().includes('pipe') ? 'sunflower' : 
+      targetKey.toLowerCase().includes('pearl') ? 'pearl-bag' : 'macrame'
+    );
 
-    const newlyAttached: WorkshopMediaItem[] = [];
+    // Call server assign-batch endpoint for persistent atomic assignment
+    try {
+      const res = await fetch('/api/workshop-media/assign-batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filenames: toAttach, targetGroupId: canonicalKey })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.success && Array.isArray(data.items)) {
+          setInternalMedia(data.items);
+          if (onMediaUpdated) {
+            onMediaUpdated(data.items);
+          }
+          setStatusMessage({
+            type: 'success',
+            text: `✨ Successfully assigned ${toAttach.length} item(s) to "${targetGroup?.title || title}"!`
+          });
+          setTimeout(() => setStatusMessage(null), 3500);
+          setSelectedExplorerFiles([]);
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn('Backend batch assign fallback to client updater:', e);
+    }
 
+    // Fallback client-side updater
+    const updatedMedia = [...allMediaItems];
     for (const filename of toAttach) {
       const fileObj = serverFiles.find((f) => f.filename === filename);
       if (!fileObj) continue;
 
       const cleanBase = filename.split('/').pop()?.replace(/\.[^/.]+$/, '') || filename;
-      const aiCaption = autoGenerateMediaCaption(cleanBase, current?.title || title || 'Kathmandu Workshop');
-      
+      const cleanName = filename.split('/').pop() || filename;
+      const aiCaption = autoGenerateMediaCaption(cleanBase, targetGroup?.title || title || 'Kathmandu Workshop');
       const isVid = fileObj.type === 'video' || /\.(mp4|mov|webm|m4v)$/i.test(fileObj.filename);
       const thumb = fileObj.thumbnailUrl || (isVid ? fileObj.url.replace(/\.mp4$/i, '_thumb.jpg') : fileObj.url);
 
-      const newItem: WorkshopMediaItem = {
-        id: `ws_explorer_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-        groupId: targetKey,
-        type: isVid ? 'video' : 'image',
-        title: aiCaption.title,
-        workshopTitle: current?.title || title || 'Artisan Workshop',
-        url: fileObj.url,
-        thumbnailUrl: thumb,
-        caption: aiCaption.caption,
-        craftTechnique: aiCaption.craftTechnique || 'Handcrafted Technique',
-        location: location || 'Kathmandu, Nepal',
-        date: new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
-        instructor: instructor || 'Sahina Shrestha',
-        tags: ['Kathmandu Workshop', badge],
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
+      const existingIndex = updatedMedia.findIndex((m) => 
+        m.url === fileObj.url || (m.url && m.url.endsWith(cleanName))
+      );
 
-      await saveWorkshopMediaItem(newItem);
-      newlyAttached.push(newItem);
+      if (existingIndex >= 0) {
+        const updatedItem: WorkshopMediaItem = {
+          ...updatedMedia[existingIndex],
+          groupId: canonicalKey,
+          workshopTitle: targetGroup?.title || title || updatedMedia[existingIndex].workshopTitle,
+          updatedAt: new Date().toISOString()
+        };
+        updatedMedia[existingIndex] = updatedItem;
+        await saveWorkshopMediaItem(updatedItem);
+      } else {
+        const newItem: WorkshopMediaItem = {
+          id: `ws_media_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+          groupId: canonicalKey,
+          type: isVid ? 'video' : 'image',
+          title: aiCaption.title,
+          workshopTitle: targetGroup?.title || title || 'Artisan Workshop',
+          url: fileObj.url,
+          thumbnailUrl: thumb,
+          caption: aiCaption.caption,
+          craftTechnique: aiCaption.craftTechnique || 'Handcrafted Technique',
+          location: location || 'Kathmandu, Nepal',
+          date: new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+          instructor: instructor || 'Sahina Shrestha',
+          tags: ['Kathmandu Workshop', badge],
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
+        updatedMedia.push(newItem);
+        await saveWorkshopMediaItem(newItem);
+      }
     }
 
-    if (newlyAttached.length > 0) {
-      const updatedList = deduplicateMediaItems([...newlyAttached, ...allMediaItems]);
+    setInternalMedia(updatedMedia);
+    if (onMediaUpdated) {
+      onMediaUpdated(updatedMedia);
+    }
+    setStatusMessage({
+      type: 'success',
+      text: `✨ Successfully assigned ${toAttach.length} item(s) to "${targetGroup?.title || title}"!`
+    });
+    setTimeout(() => setStatusMessage(null), 3500);
+    setSelectedExplorerFiles([]);
+  };
+
+  // Detach a physical file from the active workshop
+  const handleDetachFileFromWorkshop = async (filename: string) => {
+    const cleanName = filename.split('/').pop() || filename;
+    const itemToDetach = allMediaItems.find((m) => 
+      m.url === `/workshops/${filename}` || (m.url && m.url.endsWith(cleanName))
+    );
+    if (itemToDetach) {
+      const updatedItem: WorkshopMediaItem = {
+        ...itemToDetach,
+        groupId: 'unassigned',
+        updatedAt: new Date().toISOString()
+      };
+      await saveWorkshopMediaItem(updatedItem);
+      const updatedList = allMediaItems.map((m) => m.id === itemToDetach.id ? updatedItem : m);
+      setInternalMedia(updatedList);
       if (onMediaUpdated) {
         onMediaUpdated(updatedList);
       }
-      setInternalMedia(updatedList);
-      setStatusMessage({
-        type: 'success',
-        text: `✨ Successfully attached ${newlyAttached.length} item(s) from code explorer to "${current?.title || title}"!`
-      });
-      setTimeout(() => setStatusMessage(null), 3500);
-      setSelectedExplorerFiles([]);
-      setShowServerFilesDrawer(false);
+      setStatusMessage({ type: 'success', text: `Detached "${itemToDetach.title}" from this workshop.` });
+      setTimeout(() => setStatusMessage(null), 2500);
     }
   };
 
@@ -1386,28 +1458,56 @@ export const UnifiedMasterclassModal: React.FC<UnifiedMasterclassModalProps> = (
                     const scoped = filteredExplorerFiles.map((f) => f.filename);
                     setSelectedExplorerFiles((prev) => Array.from(new Set([...prev, ...scoped])));
                   }}
-                  className="px-2.5 py-1 text-xs rounded-lg border border-[#E8DFD8] dark:border-[#333] bg-white dark:bg-[#1A1918] text-[#5E5955] dark:text-[#C4BCB5] hover:text-black dark:hover:text-white cursor-pointer"
+                  className="px-2.5 py-1 text-xs rounded-lg border border-[#E8DFD8] dark:border-[#333] bg-white dark:bg-[#1A1918] text-[#5E5955] dark:text-[#C4BCB5] hover:text-black dark:hover:text-white cursor-pointer font-medium"
                 >
-                  Select All In Folder
+                  Select All ({filteredExplorerFiles.length})
                 </button>
                 {selectedExplorerFiles.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setSelectedExplorerFiles([])}
-                    className="px-2 py-1 text-xs text-rose-500 hover:underline cursor-pointer"
-                  >
-                    Clear ({selectedExplorerFiles.length})
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedExplorerFiles([])}
+                      className="px-2 py-1 text-xs text-rose-500 hover:underline cursor-pointer font-semibold"
+                    >
+                      Clear ({selectedExplorerFiles.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleAttachFilesFromExplorer()}
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Attach ({selectedExplorerFiles.length}) to Active Class</span>
+                    </button>
+                    <div className="flex items-center gap-1 pl-1 border-l border-[#E8DFD8] dark:border-[#333]">
+                      <span className="text-[10px] text-[#736C65] font-bold">Assign to:</span>
+                      <button
+                        type="button"
+                        onClick={() => handleAttachFilesFromExplorer(undefined, 'macrame')}
+                        className="px-2 py-1 text-[11px] font-bold rounded-lg bg-white dark:bg-[#201E1C] border border-[#E8DFD8] dark:border-[#333] hover:border-[#C5A880] text-[#1C1B1A] dark:text-white cursor-pointer"
+                        title="Assign selected to Macrame Wall Art"
+                      >
+                        🪡 Macrame
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleAttachFilesFromExplorer(undefined, 'sunflower')}
+                        className="px-2 py-1 text-[11px] font-bold rounded-lg bg-white dark:bg-[#201E1C] border border-[#E8DFD8] dark:border-[#333] hover:border-[#C5A880] text-[#1C1B1A] dark:text-white cursor-pointer"
+                        title="Assign selected to Pipe Sunflower"
+                      >
+                        🌻 Sunflower
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleAttachFilesFromExplorer(undefined, 'pearl-bag')}
+                        className="px-2 py-1 text-[11px] font-bold rounded-lg bg-white dark:bg-[#201E1C] border border-[#E8DFD8] dark:border-[#333] hover:border-[#C5A880] text-[#1C1B1A] dark:text-white cursor-pointer"
+                        title="Assign selected to Bridal Pearl Bag"
+                      >
+                        🦪 Pearl Bag
+                      </button>
+                    </div>
+                  </>
                 )}
-                <button
-                  type="button"
-                  onClick={() => handleAttachFilesFromExplorer()}
-                  disabled={selectedExplorerFiles.length === 0}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-xs disabled:opacity-40 cursor-pointer"
-                >
-                  <Check className="w-3.5 h-3.5" />
-                  <span>Attach Selected ({selectedExplorerFiles.length}) to Workshop</span>
-                </button>
               </div>
             </div>
 
@@ -1430,9 +1530,21 @@ export const UnifiedMasterclassModal: React.FC<UnifiedMasterclassModalProps> = (
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                   {filteredExplorerFiles.map((file) => {
                     const isSelected = selectedExplorerFiles.includes(file.filename);
-                    const isAlreadyAttached = currentWorkshopMedia.some((m) => 
-                      m.url === file.url || (m.url && m.url.endsWith(file.filename.split('/').pop() || ''))
+                    const cleanName = file.filename.split('/').pop() || file.filename;
+                    
+                    const attachedItem = allMediaItems.find((m) => 
+                      m.url === file.url || (m.url && m.url.endsWith(cleanName))
                     );
+
+                    const attachedGroup = attachedItem 
+                      ? availableGroups.find((g) => (g.groupKey || g.id) === attachedItem.groupId || g.id === attachedItem.groupId)
+                      : null;
+
+                    const isAttachedToThisWorkshop = attachedItem ? (
+                      isMediaRelatedToGroup(attachedItem, currentGroup?.groupKey || activeGroupId) || 
+                      isMediaRelatedToGroup(attachedItem, currentGroup?.id || activeGroupId)
+                    ) : false;
+
                     const isVid = file.type === 'video' || /\.(mp4|mov|webm|m4v)$/i.test(file.filename);
                     const sizeStr = file.size > 1024 * 1024 
                       ? `${(file.size / (1024 * 1024)).toFixed(1)} MB` 
@@ -1441,13 +1553,15 @@ export const UnifiedMasterclassModal: React.FC<UnifiedMasterclassModalProps> = (
                     return (
                       <div
                         key={file.filename}
-                        onClick={() => !isAlreadyAttached && handleToggleSelectExplorerFile(file.filename)}
-                        className={`p-2.5 rounded-2xl border transition-all relative flex flex-col justify-between ${
-                          isAlreadyAttached
-                            ? 'bg-neutral-100/80 dark:bg-neutral-900/40 border-neutral-300 dark:border-neutral-800 opacity-80'
-                            : isSelected
-                            ? 'bg-[#C5A880]/15 border-[#C5A880] shadow-sm ring-1 ring-[#C5A880] cursor-pointer'
-                            : 'bg-white dark:bg-[#1C1B1A] border-[#E8DFD8] dark:border-[#2E2C29] hover:border-[#C5A880]/60 cursor-pointer'
+                        onClick={() => handleToggleSelectExplorerFile(file.filename)}
+                        className={`p-2.5 rounded-2xl border transition-all relative flex flex-col justify-between cursor-pointer ${
+                          isSelected
+                            ? 'bg-[#C5A880]/15 border-[#C5A880] shadow-sm ring-2 ring-[#C5A880]'
+                            : isAttachedToThisWorkshop
+                            ? 'bg-emerald-50/40 dark:bg-emerald-950/20 border-emerald-300 dark:border-emerald-800/60 hover:border-[#C5A880]/60'
+                            : attachedGroup
+                            ? 'bg-amber-50/30 dark:bg-amber-950/15 border-amber-200 dark:border-amber-800/40 hover:border-[#C5A880]/60'
+                            : 'bg-white dark:bg-[#1C1B1A] border-[#E8DFD8] dark:border-[#2E2C29] hover:border-[#C5A880]/60'
                         }`}
                       >
                         {/* Visual Media Preview */}
@@ -1463,22 +1577,21 @@ export const UnifiedMasterclassModal: React.FC<UnifiedMasterclassModalProps> = (
                             <img src={file.url} alt={file.filename} className="w-full h-full object-cover" />
                           )}
 
-                          {/* Checkbox indicator */}
-                          <div className="absolute top-2 left-2 z-10">
-                            {isAlreadyAttached ? (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-600 text-white text-[10px] font-bold shadow-xs">
-                                <Check className="w-3 h-3" />
-                                <span>Attached</span>
-                              </span>
-                            ) : (
-                              <div className="p-1 rounded-lg bg-black/60 text-[#C5A880] backdrop-blur-xs">
-                                {isSelected ? (
-                                  <CheckSquare className="w-4 h-4 fill-[#C5A880] text-black" />
-                                ) : (
-                                  <Square className="w-4 h-4 opacity-70" />
-                                )}
-                              </div>
-                            )}
+                          {/* Checkbox indicator - Always interactive */}
+                          <div 
+                            className="absolute top-2 left-2 z-10"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleToggleSelectExplorerFile(file.filename);
+                            }}
+                          >
+                            <div className="p-1 rounded-lg bg-black/60 text-[#C5A880] backdrop-blur-xs hover:scale-110 transition-transform">
+                              {isSelected ? (
+                                <CheckSquare className="w-4 h-4 fill-[#C5A880] text-black" />
+                              ) : (
+                                <Square className="w-4 h-4 text-white/80" />
+                              )}
+                            </div>
                           </div>
 
                           {/* Delete button */}
@@ -1502,23 +1615,45 @@ export const UnifiedMasterclassModal: React.FC<UnifiedMasterclassModalProps> = (
                           </div>
                         </div>
 
-                        {/* File Details */}
+                        {/* File Details & Class Tag */}
                         <div>
-                          <p className="text-xs font-bold text-[#1C1B1A] dark:text-white truncate" title={file.filename}>
-                            {file.filename.split('/').pop()}
-                          </p>
-                          <p className="text-[10px] font-mono text-[#736C65] dark:text-[#9E9790] truncate mt-0.5">
+                          <div className="flex items-center justify-between gap-1 mb-1">
+                            <p className="text-xs font-bold text-[#1C1B1A] dark:text-white truncate flex-1" title={file.filename}>
+                              {cleanName}
+                            </p>
+                            {isAttachedToThisWorkshop ? (
+                              <span className="shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold">
+                                <Check className="w-3 h-3" />
+                                <span>Attached</span>
+                              </span>
+                            ) : attachedGroup ? (
+                              <span className="shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 text-[10px] font-bold truncate max-w-[110px]" title={attachedGroup.title}>
+                                In: {attachedGroup.title.split(' ')[0]}
+                              </span>
+                            ) : (
+                              <span className="shrink-0 px-1.5 py-0.5 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 text-[10px] font-medium">
+                                Unassigned
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[10px] font-mono text-[#736C65] dark:text-[#9E9790] truncate">
                             public/workshops/{file.filename}
                           </p>
                         </div>
 
-                        {/* Attach button */}
-                        <div className="mt-2.5 pt-2 border-t border-[#F0EBE5] dark:border-[#262422]">
-                          {isAlreadyAttached ? (
-                            <span className="text-[11px] font-semibold text-emerald-600 flex items-center gap-1">
-                              <CheckCircle2 className="w-3.5 h-3.5" />
-                              <span>In this workshop</span>
-                            </span>
+                        {/* Attach/Detach + 1-Click Reassignment Bar */}
+                        <div className="mt-2.5 pt-2 border-t border-[#F0EBE5] dark:border-[#262422] flex flex-col gap-1.5">
+                          {isAttachedToThisWorkshop ? (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDetachFileFromWorkshop(file.filename);
+                              }}
+                              className="w-full py-1 rounded-lg border border-rose-300 dark:border-rose-900/60 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-[10px] font-bold transition-colors cursor-pointer"
+                            >
+                              ✕ Detach from Class
+                            </button>
                           ) : (
                             <button
                               type="button"
@@ -1526,11 +1661,51 @@ export const UnifiedMasterclassModal: React.FC<UnifiedMasterclassModalProps> = (
                                 e.stopPropagation();
                                 handleAttachFilesFromExplorer([file.filename]);
                               }}
-                              className="w-full py-1 rounded-lg bg-[#C5A880] hover:bg-[#b8986c] text-[#1C1B1A] text-[11px] font-bold cursor-pointer transition-colors shadow-2xs"
+                              className="w-full py-1 rounded-lg bg-[#C5A880] hover:bg-[#b8986c] text-[#1C1B1A] text-[10px] font-bold cursor-pointer transition-colors shadow-2xs"
                             >
-                              + Attach to Workshop
+                              + Attach to {currentGroup?.title ? currentGroup.title.split(' ')[0] : 'This Class'}
                             </button>
                           )}
+
+                          {/* 1-Click Direct Reassignment Options */}
+                          <div className="flex items-center justify-between gap-1 pt-1 border-t border-dashed border-[#F0EBE5] dark:border-[#262422]">
+                            <span className="text-[9px] text-[#736C65] dark:text-[#A8A29D] font-semibold shrink-0">Class:</span>
+                            <div className="flex items-center gap-1 overflow-x-auto">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleAttachFilesFromExplorer([file.filename], 'macrame');
+                                }}
+                                className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-neutral-100 dark:bg-neutral-800 hover:bg-[#C5A880] hover:text-[#1C1B1A] transition-colors cursor-pointer shrink-0"
+                                title="Assign to Macrame Wall Art"
+                              >
+                                🪡 Macrame
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleAttachFilesFromExplorer([file.filename], 'sunflower');
+                                }}
+                                className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-neutral-100 dark:bg-neutral-800 hover:bg-[#C5A880] hover:text-[#1C1B1A] transition-colors cursor-pointer shrink-0"
+                                title="Assign to Pipe Sunflower"
+                              >
+                                🌻 Pipe
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleAttachFilesFromExplorer([file.filename], 'pearl-bag');
+                                }}
+                                className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-neutral-100 dark:bg-neutral-800 hover:bg-[#C5A880] hover:text-[#1C1B1A] transition-colors cursor-pointer shrink-0"
+                                title="Assign to Bridal Pearl Bag"
+                              >
+                                🦪 Pearl
+                              </button>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     );

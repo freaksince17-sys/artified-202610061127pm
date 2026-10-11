@@ -577,9 +577,15 @@ export const ArtifiedThreeWorkshopsPage: React.FC = () => {
         const data = await serverRes.json();
         onProgress(100);
         if (data && data.url) {
+          let thumb = data.thumbnailUrl || data.url;
+          if (!isVideo && file instanceof Blob && file.size < 600000) {
+            try {
+              thumb = await fileToBase64(file as File);
+            } catch {}
+          }
           return {
-            url: data.url,
-            thumbnailUrl: data.thumbnailUrl || data.url
+            url: (!isVideo && thumb && thumb.startsWith('data:')) ? thumb : data.url,
+            thumbnailUrl: thumb
           };
         }
       }

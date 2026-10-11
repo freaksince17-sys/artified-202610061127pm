@@ -589,6 +589,32 @@ async function startServer() {
         fs.writeFileSync(keepFile, '# Keep directory tracked in code file explorer\n', 'utf-8');
       }
     });
+
+    // Auto-organize any loose files in public/workshops/ root into the three canonical class folders
+    try {
+      const rootFiles = fs.readdirSync(workshopsDir);
+      for (const file of rootFiles) {
+        const fullPath = path.join(workshopsDir, file);
+        if (fs.statSync(fullPath).isFile() && !file.startsWith('.')) {
+          const lower = file.toLowerCase();
+          let targetFolder = 'Macrame';
+          if (lower.includes('pearl')) {
+            targetFolder = 'Pearls';
+          } else if (lower.includes('pipe') || lower.includes('sunflower')) {
+            targetFolder = 'Pipecleaner Sunflower';
+          } else if (lower.includes('macrame')) {
+            targetFolder = 'Macrame';
+          }
+          const dest = path.join(workshopsDir, targetFolder, file);
+          if (!fs.existsSync(dest)) {
+            try {
+              fs.renameSync(fullPath, dest);
+              console.log(`[Workshop Organizer] Moved loose file ${file} -> public/workshops/${targetFolder}/${file}`);
+            } catch {}
+          }
+        }
+      }
+    } catch {}
   };
   ensureWorkshopFoldersExist();
   const instagramVideosDir = path.resolve(process.cwd(), 'public/instagram_videos');
@@ -907,12 +933,15 @@ async function startServer() {
       }
 
       const cleanTitle = title || origBase.replace(/[_-]/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
+      const canonicalGroupId = subDir === 'Pipecleaner Sunflower' ? 'sunflower' : (subDir === 'Pearls' ? 'pearl-bag' : 'macrame');
+      const canonicalWorkshopTitle = subDir === 'Pipecleaner Sunflower' ? 'Waste Pipe to Sunflower Eco-Art Workshop' : (subDir === 'Pearls' ? 'Bridal Pearl Bag & Bead Weaving Workshop' : 'Macrame Wall Art & Planters Workshop');
+
       const newItem = {
         id: `ws_media_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-        groupId: subDir === 'Pipecleaner Sunflower' ? 'pipecleaner-sunflower' : (subDir === 'Pearls' ? 'pearls' : 'macrame'),
+        groupId: canonicalGroupId,
         type: isVid ? 'video' : 'image',
         title: cleanTitle,
-        workshopTitle: subDir === 'Pipecleaner Sunflower' ? 'Pipecleaner Sunflower Crafting Workshop' : (subDir === 'Pearls' ? 'Handcrafted Baroque Pearl Bag Workshop' : 'Macrame Wall Art & Planters Workshop'),
+        workshopTitle: canonicalWorkshopTitle,
         url: publicUrl,
         thumbnailUrl: thumbUrl,
         caption: caption || `${cleanTitle} session recorded at Kathmandu Workshop, Nepal.`,
@@ -927,6 +956,10 @@ async function startServer() {
 
       allItems = [newItem, ...allItems.filter((i) => i.url !== publicUrl && i.id !== newItem.id)];
       fs.writeFileSync(workshopMediaJsonPath, JSON.stringify(allItems, null, 2), 'utf-8');
+      try {
+        const rootDataPath = path.resolve(process.cwd(), 'data/workshop_media.json');
+        fs.writeFileSync(rootDataPath, JSON.stringify(allItems, null, 2), 'utf-8');
+      } catch {}
 
       return res.json({
         success: true,
@@ -1093,12 +1126,15 @@ async function startServer() {
       // Generate workshop media item
       const itemId = `ws_media_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
       const cleanTitle = title || origName.replace(/[_-]/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
+      const canonicalGroupId = subDir === 'Pipecleaner Sunflower' ? 'sunflower' : (subDir === 'Pearls' ? 'pearl-bag' : 'macrame');
+      const canonicalWorkshopTitle = subDir === 'Pipecleaner Sunflower' ? 'Waste Pipe to Sunflower Eco-Art Workshop' : (subDir === 'Pearls' ? 'Bridal Pearl Bag & Bead Weaving Workshop' : 'Macrame Wall Art & Planters Workshop');
+
       const newItem = {
         id: itemId,
-        groupId: subDir === 'Pipecleaner Sunflower' ? 'pipecleaner-sunflower' : (subDir === 'Pearls' ? 'pearls' : 'macrame'),
+        groupId: canonicalGroupId,
         type: isVideo ? 'video' : 'image',
         title: cleanTitle,
-        workshopTitle: subDir === 'Pipecleaner Sunflower' ? 'Pipecleaner Sunflower Crafting Workshop' : (subDir === 'Pearls' ? 'Handcrafted Baroque Pearl Bag Workshop' : 'Macrame Wall Art & Planters Workshop'),
+        workshopTitle: canonicalWorkshopTitle,
         url: publicUrl,
         thumbnailUrl: thumbUrl,
         caption: caption || `${cleanTitle} session recorded at Kathmandu Workshop, Nepal.`,
@@ -1113,6 +1149,10 @@ async function startServer() {
 
       allItems = [newItem, ...allItems.filter((i) => i.id !== newItem.id)];
       fs.writeFileSync(workshopMediaJsonPath, JSON.stringify(allItems, null, 2), 'utf-8');
+      try {
+        const rootDataPath = path.resolve(process.cwd(), 'data/workshop_media.json');
+        fs.writeFileSync(rootDataPath, JSON.stringify(allItems, null, 2), 'utf-8');
+      } catch {}
 
       return res.json({
         success: true,
@@ -1153,6 +1193,10 @@ async function startServer() {
         return res.status(400).json({ error: 'Expected an array of media items' });
       }
       fs.writeFileSync(workshopMediaJsonPath, JSON.stringify(items, null, 2), 'utf-8');
+      try {
+        const rootDataPath = path.resolve(process.cwd(), 'data/workshop_media.json');
+        fs.writeFileSync(rootDataPath, JSON.stringify(items, null, 2), 'utf-8');
+      } catch {}
       return res.json({ success: true, items });
     } catch (err: any) {
       console.error('Error saving workshop_media.json:', err);
@@ -1217,10 +1261,97 @@ async function startServer() {
       // Always guarantee the 3 folders and their .gitkeep remain present
       ensureWorkshopFoldersExist();
 
+      try {
+        const rootDataPath = path.resolve(process.cwd(), 'data/workshop_media.json');
+        fs.writeFileSync(rootDataPath, JSON.stringify(allItems, null, 2), 'utf-8');
+      } catch {}
+
       return res.json({ success: true, id });
     } catch (err: any) {
       console.error('Error in /api/workshop-media/delete:', err);
       return res.status(500).json({ error: err.message || 'Failed to delete media item' });
+    }
+  });
+
+  // POST /api/workshop-media/assign-batch - Assign or re-assign files to specific workshop class without duplicates
+  app.post('/api/workshop-media/assign-batch', (req, res) => {
+    try {
+      const { filenames, targetGroupId } = req.body;
+      if (!Array.isArray(filenames) || filenames.length === 0 || !targetGroupId) {
+        return res.status(400).json({ error: 'Missing filenames array or targetGroupId' });
+      }
+
+      const canonicalGroup = 
+        targetGroupId.toLowerCase().includes('sunflower') || targetGroupId.toLowerCase().includes('pipe') ? 'sunflower' :
+        targetGroupId.toLowerCase().includes('pearl') ? 'pearl-bag' : 'macrame';
+
+      const workshopTitle = 
+        canonicalGroup === 'sunflower' ? 'Waste Pipe to Sunflower Eco-Art Workshop' :
+        canonicalGroup === 'pearl-bag' ? 'Bridal Pearl Bag & Bead Weaving Workshop' : 'Macrame Wall Art & Planters Workshop';
+
+      let allItems: any[] = [];
+      if (fs.existsSync(workshopMediaJsonPath)) {
+        try {
+          allItems = JSON.parse(fs.readFileSync(workshopMediaJsonPath, 'utf-8'));
+          if (!Array.isArray(allItems)) allItems = [];
+        } catch {
+          allItems = [];
+        }
+      }
+
+      const updatedFilenames: string[] = [];
+
+      for (const fn of filenames) {
+        const cleanBase = fn.split('/').pop()?.replace(/\.[^/.]+$/, '') || fn;
+        const isVid = /\.(mp4|mov|webm|m4v)$/i.test(fn);
+        const encodedUrl = `/workshops/${fn.split('/').map(encodeURIComponent).join('/')}`;
+        const cleanName = fn.split('/').pop() || fn;
+
+        const existingIdx = allItems.findIndex((m) => 
+          m.url === encodedUrl || (m.url && m.url.endsWith(cleanName))
+        );
+
+        if (existingIdx >= 0) {
+          allItems[existingIdx] = {
+            ...allItems[existingIdx],
+            groupId: canonicalGroup,
+            workshopTitle,
+            updatedAt: new Date().toISOString()
+          };
+          updatedFilenames.push(fn);
+        } else {
+          const newItem = {
+            id: `ws_media_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+            groupId: canonicalGroup,
+            type: isVid ? 'video' : 'image',
+            title: cleanBase.replace(/[_-]/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()),
+            workshopTitle,
+            url: encodedUrl,
+            thumbnailUrl: isVid ? encodedUrl.replace(/\.[^/.]+$/, '_thumb.jpg') : encodedUrl,
+            caption: `${cleanBase.replace(/[_-]/g, ' ')} session recorded at Kathmandu Workshop, Nepal.`,
+            craftTechnique: canonicalGroup === 'sunflower' ? 'Conduit Pipe & Petal Craft' : canonicalGroup === 'pearl-bag' ? 'Baroque Pearl Weaving' : 'Macrame Knotting',
+            location: 'Kathmandu, Nepal',
+            date: new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+            instructor: 'Sahina Shrestha',
+            tags: ['Kathmandu Workshop', canonicalGroup === 'sunflower' ? 'Eco-Art' : canonicalGroup === 'pearl-bag' ? 'Bridal Couture' : 'Fiber Art'],
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          };
+          allItems.push(newItem);
+          updatedFilenames.push(fn);
+        }
+      }
+
+      fs.writeFileSync(workshopMediaJsonPath, JSON.stringify(allItems, null, 2), 'utf-8');
+      try {
+        const rootDataPath = path.resolve(process.cwd(), 'data/workshop_media.json');
+        fs.writeFileSync(rootDataPath, JSON.stringify(allItems, null, 2), 'utf-8');
+      } catch {}
+
+      return res.json({ success: true, updatedCount: updatedFilenames.length, items: allItems });
+    } catch (err: any) {
+      console.error('Error in /api/workshop-media/assign-batch:', err);
+      return res.status(500).json({ error: err.message || 'Failed to assign media' });
     }
   });
 

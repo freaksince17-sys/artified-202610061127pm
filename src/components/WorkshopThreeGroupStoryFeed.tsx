@@ -153,8 +153,8 @@ const CohortStorytellingPlayer: React.FC<{
   const [currentUrl, setCurrentUrl] = useState<string>('');
   const [isMediaLoaded, setIsMediaLoaded] = useState(false);
 
-  const items = group.items;
-  const currentItem = items[activeIndex] || items[0];
+  const items = group.items || [];
+  const currentItem = items[activeIndex] || items[0] || null;
   const isVideo = currentItem ? (currentItem.type === 'video' || isVideoMedia(currentItem.url || '', currentItem.title)) : false;
   const isSelected = currentItem ? selectedIds.includes(currentItem.id) : false;
 
@@ -297,8 +297,34 @@ const CohortStorytellingPlayer: React.FC<{
     }
   };
 
-  const displayMediaUrl = getCacheBustedUrl(currentUrl || currentItem.url, currentItem.updatedAt);
-  const displayThumbUrl = getCacheBustedUrl(currentItem.thumbnailUrl || currentUrl || currentItem.url, currentItem.updatedAt);
+  if (!currentItem) {
+    return (
+      <div className="flex flex-col w-full bg-[#181716] dark:bg-[#121110] p-4 rounded-2xl border border-white/10 shadow-xs">
+        <div className="relative w-full aspect-square rounded-xl overflow-hidden bg-black/60 border border-white/10 flex flex-col items-center justify-center p-6 text-center select-none">
+          <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mb-3 text-[#C5A880]">
+            <Camera className="w-7 h-7 opacity-80" />
+          </div>
+          <h4 className="font-serif text-sm sm:text-base font-bold text-white mb-1">
+            {group.title}
+          </h4>
+          <p className="text-xs text-white/60 max-w-xs leading-relaxed mb-3">
+            Clean slate — no photos or videos uploaded yet.
+          </p>
+          {isSellerMode && (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#C5A880]/20 text-[#E6CA9E] border border-[#C5A880]/30 text-xs font-semibold">
+              <Sparkles className="w-3.5 h-3.5" />
+              Upload workshop media to showcase this cohort
+            </span>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  const embeddedImg = !isVideo ? (getWorkshopEmbeddedFallback(currentUrl) || getWorkshopEmbeddedFallback(currentItem.url) || getWorkshopEmbeddedFallback(currentItem.thumbnailUrl)) : null;
+  const embeddedThumb = getWorkshopEmbeddedFallback(currentItem.thumbnailUrl) || getWorkshopEmbeddedFallback(currentItem.url);
+  const displayMediaUrl = embeddedImg || getCacheBustedUrl(currentUrl || currentItem.url, currentItem.updatedAt);
+  const displayThumbUrl = embeddedThumb || getCacheBustedUrl(currentItem.thumbnailUrl || currentUrl || currentItem.url, currentItem.updatedAt);
 
   return (
     <div className="flex flex-col w-full bg-[#181716] dark:bg-[#121110] p-1.5 sm:p-2 rounded-2xl border border-white/10 shadow-xs">
@@ -681,6 +707,9 @@ const CohortStorytellingPlayer: React.FC<{
                   src={cleanThumbSrc}
                   alt={item.title}
                   className="w-full h-full object-cover"
+                  onError={(e) => {
+                    (e.currentTarget as HTMLElement).style.display = 'none';
+                  }}
                 />
                 {isThumbSelected && (
                   <span className="absolute inset-0 bg-[#C5A880]/50 flex items-center justify-center">

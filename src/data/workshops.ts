@@ -12,6 +12,7 @@ import { uploadFileToFirebaseStorage, batchDeleteFirebaseStorageFiles } from '..
 import firebaseConfig from '../../firebase-applet-config.json';
 import SAVED_WORKSHOP_GROUPS from './workshop_groups.json';
 import SAVED_WORKSHOP_MEDIA from './workshop_media.json';
+import { getWorkshopEmbeddedFallback } from './workshopEmbeddedFallbacks';
 
 const BUCKET = firebaseConfig.storageBucket || 'amped-turbine-3mn89.firebasestorage.app';
 
@@ -36,7 +37,7 @@ export const WORKSHOP_FOLDER_VIDEOS: WorkshopFolderAsset[] = [];
 
 export const WORKSHOP_FOLDER_PHOTOS: WorkshopFolderAsset[] = [];
 
-export const DEFAULT_WORKSHOP_MEDIA: WorkshopMediaItem[] = SAVED_WORKSHOP_MEDIA as WorkshopMediaItem[];
+export const DEFAULT_WORKSHOP_MEDIA: WorkshopMediaItem[] = (SAVED_WORKSHOP_MEDIA as unknown) as WorkshopMediaItem[];
 
 export const WORKSHOP_GROUPS_METADATA: Omit<WorkshopGroup, 'items'>[] = SAVED_WORKSHOP_GROUPS as Omit<WorkshopGroup, 'items'>[];
 
@@ -53,7 +54,7 @@ export function isMediaRelatedToGroup(
   targetGroupKey?: string
 ): boolean {
   if (!item) return false;
-  const url = (item.url || '').toLowerCase();
+  const rawUrl = decodeURIComponent(item.url || '').toLowerCase();
   const id = (item.id || '').toLowerCase();
   const title = (item.title || '').toLowerCase();
   const target = (targetGroupKey || '').toLowerCase().replace(/^ws-group-/, '').replace(/^ws-/, '');
@@ -61,7 +62,7 @@ export function isMediaRelatedToGroup(
 
   // 1. Filter out known banned patterns
   for (const pattern of BANNED_UNRELATED_MEDIA_PATTERNS) {
-    if (pattern && (url.includes(pattern) || id.includes(pattern))) {
+    if (pattern && (rawUrl.includes(pattern) || id.includes(pattern))) {
       return false;
     }
   }
@@ -69,13 +70,23 @@ export function isMediaRelatedToGroup(
   // If no target group requested, item is valid
   if (!target) return true;
 
-  // 2. Direct group key or ID match
-  if (itemGroup && (itemGroup === target || target.includes(itemGroup) || itemGroup.includes(target))) {
-    return true;
+  // 2. Physical workshop folder in URL is authoritative!
+  let detectedFolderFamily: 'macrame' | 'sunflower' | 'pearl' | null = null;
+  if (rawUrl.includes('/workshops/macrame') || rawUrl.includes('macrame_')) {
+    detectedFolderFamily = 'macrame';
+  } else if (
+    rawUrl.includes('/workshops/pipecleaner sunflower') || 
+    rawUrl.includes('/workshops/pipecleaner%20sunflower') || 
+    rawUrl.includes('pipe_sunflower') || 
+    rawUrl.includes('pipe_sunglower')
+  ) {
+    detectedFolderFamily = 'sunflower';
+  } else if (rawUrl.includes('/workshops/pearls') || rawUrl.includes('pearl_bag')) {
+    detectedFolderFamily = 'pearl';
   }
 
-  // 3. Normalize into canonical family categories: 'macrame', 'sunflower', 'pearl'
-  const getFamily = (str: string): string => {
+  // 3. Normalize target group key into canonical family category
+  const getFamily = (str: string): 'macrame' | 'sunflower' | 'pearl' | string => {
     if (str.includes('macrame')) return 'macrame';
     if (str.includes('sunflower') || str.includes('pipe') || str.includes('pipecleaner') || str.includes('eco')) return 'sunflower';
     if (str.includes('pearl') || str.includes('bag') || str.includes('bead') || str.includes('couture') || str.includes('bridal')) return 'pearl';
@@ -83,32 +94,44 @@ export function isMediaRelatedToGroup(
   };
 
   const targetFamily = getFamily(target);
-  const groupFamily = getFamily(itemGroup);
 
-  if (targetFamily && groupFamily && targetFamily === groupFamily) {
-    return true;
+  // If physical folder is authoritative, match strictly against targetFamily
+  if (detectedFolderFamily) {
+    return detectedFolderFamily === targetFamily;
   }
 
-  // 4. URL or title checking fallback
-  if (targetFamily === 'macrame' && (url.includes('macrame') || title.includes('macrame') || itemGroup.includes('macrame'))) return true;
-  if (targetFamily === 'sunflower' && (url.includes('sunflower') || url.includes('pipe') || url.includes('pipecleaner') || title.includes('sunflower') || title.includes('pipe') || title.includes('eco') || itemGroup.includes('sunflower') || itemGroup.includes('pipe'))) return true;
-  if (targetFamily === 'pearl' && (url.includes('pearl') || url.includes('bag') || title.includes('pearl') || title.includes('bag') || title.includes('bridal') || title.includes('bead') || itemGroup.includes('pearl') || itemGroup.includes('bag'))) return true;
+  // 4. If itemGroup is explicitly set
+  if (itemGroup) {
+    const groupFamily = getFamily(itemGroup);
+    return groupFamily === targetFamily || itemGroup === target || target.includes(itemGroup) || itemGroup.includes(target);
+  }
 
-  // If itemGroup is unspecified or doesn't conflict, accept item
-  return !itemGroup;
+  // 5. Fallback heuristics if no physical path or groupId is available
+  if (targetFamily === 'macrame') return title.includes('macrame') || id.includes('macrame');
+  if (targetFamily === 'sunflower') return title.includes('sunflower') || title.includes('pipe') || id.includes('pipe') || id.includes('sunflower');
+  if (targetFamily === 'pearl') return title.includes('pearl') || title.includes('bridal') || id.includes('pearl');
+
+  return false;
 }
 
 export function isLegacyFakeMacrameVideo(item: { id?: string; url?: string; type?: 'image' | 'video' }): boolean {
   return !isMediaRelatedToGroup(item, 'macrame');
 }
 
-const CUSTOM_GROUPS_STORAGE_KEY = 'artified_custom_workshop_groups_v30';
-const CUSTOM_MEDIA_STORAGE_KEY = 'artified_custom_workshop_media_v30';
+const CUSTOM_GROUPS_STORAGE_KEY = 'artified_custom_workshop_groups_v32';
+const CUSTOM_MEDIA_STORAGE_KEY = 'artified_custom_workshop_media_v32';
 
 // Purge any contaminated legacy cache keys on initial import
 if (typeof window !== 'undefined') {
   try {
     [
+      'artified_custom_workshop_media_v31',
+      'artified_custom_workshop_groups_v31',
+      'artified_custom_workshop_media_v30',
+      'artified_custom_workshop_groups_v30',
+      'artified_deleted_workshop_ids_v12',
+      'artified_deleted_workshop_ids_v13',
+      'artified_deleted_workshop_ids_v14',
       'artified_custom_workshop_media_v29',
       'artified_custom_workshop_groups_v29',
       'artified_custom_workshop_media_v28',
@@ -458,7 +481,7 @@ export function getCanonicalMediaKey(item: WorkshopMediaItem): string {
   if (!item) return '';
   const rawUrl = (item.url || item.thumbnailUrl || '').trim().toLowerCase();
   
-  if (rawUrl) {
+  if (rawUrl && !rawUrl.startsWith('data:')) {
     // Extract base filename without query string or encoding
     const decoded = decodeURIComponent(rawUrl.split('?')[0]);
     let baseName = decoded.split('/').pop() || decoded;
@@ -468,16 +491,20 @@ export function getCanonicalMediaKey(item: WorkshopMediaItem): string {
 
     // Normalize separators and extensions
     const cleanBase = baseName.replace(/[^a-z0-9_.-]/g, '_').toLowerCase();
-    if (cleanBase && !cleanBase.includes('placeholder') && !cleanBase.includes('avatar')) {
+    if (cleanBase && !cleanBase.includes('placeholder') && !cleanBase.includes('avatar') && cleanBase.length > 3) {
       return cleanBase;
     }
+  }
+
+  if (item.id) {
+    return item.id;
   }
 
   if (item.title && item.title.trim().length > 3) {
     return item.title.toLowerCase().replace(/[^a-z0-9]/g, '_');
   }
 
-  return item.id || '';
+  return '';
 }
 
 export function deduplicateMediaItems(items: WorkshopMediaItem[]): WorkshopMediaItem[] {
@@ -505,20 +532,6 @@ export function sanitizeWorkshopMediaItem(item: WorkshopMediaItem): WorkshopMedi
   if (!item) return item;
   const copy = { ...item };
 
-  // If item URL is relative (/workshops/...) and requested on external domain like artified.com.np,
-  // map to the AI Studio preview server URL so videos and photos load seamlessly anywhere.
-  if (typeof window !== 'undefined' && copy.url && copy.url.startsWith('/workshops/')) {
-    const origin = (window.location.origin || '').toLowerCase();
-    const isLocalOrDevServer = origin.includes('run.app') || origin.includes('localhost') || origin.includes('127.0.0.1');
-    if (!isLocalOrDevServer) {
-      const devHost = 'https://ais-pre-qnqjuwdkq32umqc4fww4qw-955108993895.asia-southeast1.run.app';
-      copy.url = `${devHost}${copy.url}`;
-      if (copy.thumbnailUrl && copy.thumbnailUrl.startsWith('/workshops/')) {
-        copy.thumbnailUrl = `${devHost}${copy.thumbnailUrl}`;
-      }
-    }
-  }
-
   const url = (copy.url || '').toLowerCase();
   const thumb = (copy.thumbnailUrl || '').toLowerCase();
 
@@ -544,10 +557,21 @@ export function sanitizeWorkshopMediaItem(item: WorkshopMediaItem): WorkshopMedi
         copy.thumbnailUrl = copy.url || '';
       }
     }
+    // Check if an embedded thumbnail fallback exists for instant display
+    const thumbFallback = getWorkshopEmbeddedFallback(copy.thumbnailUrl) || getWorkshopEmbeddedFallback(copy.url);
+    if (thumbFallback) {
+      copy.thumbnailUrl = thumbFallback;
+    }
   } else {
     copy.type = 'image';
     if (!copy.thumbnailUrl) {
       copy.thumbnailUrl = copy.url;
+    }
+    // For images, if an embedded fallback exists, use it so it renders instantly on any domain (artified.com.np & Google AI Studio)
+    const imgFallback = getWorkshopEmbeddedFallback(copy.url) || getWorkshopEmbeddedFallback(copy.thumbnailUrl);
+    if (imgFallback) {
+      copy.url = imgFallback;
+      copy.thumbnailUrl = imgFallback;
     }
   }
 
@@ -591,7 +615,7 @@ export function buildWorkshopGroups(
   });
 }
 
-const DELETED_IDS_STORAGE_KEY = 'artified_deleted_workshop_ids_v12';
+const DELETED_IDS_STORAGE_KEY = 'artified_deleted_workshop_ids_v15';
 
 export const LEGACY_MOCK_MEDIA_IDS: string[] = [];
 
@@ -1024,8 +1048,13 @@ export async function uploadWorkshopFileDirectly(payload: {
     if (sRes.ok) {
       const sData = await sRes.json();
       if (sData && sData.success && sData.url) {
-        finalUrl = sData.url;
-        finalThumb = sData.thumbnailUrl || sData.url;
+        if (payload.type === 'image' && payload.fileBase64 && payload.fileBase64.startsWith('data:') && payload.fileBase64.length < 500000) {
+          finalUrl = payload.fileBase64;
+          finalThumb = payload.thumbnailBase64 || payload.fileBase64;
+        } else {
+          finalUrl = sData.url;
+          finalThumb = sData.thumbnailUrl || sData.url;
+        }
       }
     }
   } catch (err) {

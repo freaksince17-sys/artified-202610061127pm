@@ -358,7 +358,7 @@ export const WorkshopLightboxModal: React.FC<WorkshopLightboxModalProps> = ({
           ) : (
             <div className="relative w-full h-full flex items-center justify-center p-2">
               <img
-                src={currentUrl || currentItem.url}
+                src={getWorkshopEmbeddedFallback(currentUrl || currentItem.url) || currentUrl || currentItem.url}
                 alt={currentItem.title}
                 onError={() => {
                   const fallback = getWorkshopEmbeddedFallback(currentUrl || currentItem.url || currentItem.thumbnailUrl);
