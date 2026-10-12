@@ -50,13 +50,17 @@ export function getWorkshopEmbeddedFallback(urlOrPath?: string): string | null {
   if (WORKSHOP_EMBEDDED_FALLBACKS[filename]) {
     return WORKSHOP_EMBEDDED_FALLBACKS[filename];
   }
-  const decoded = decodeURIComponent(cleanUrl);
-  if (WORKSHOP_EMBEDDED_FALLBACKS[decoded]) {
-    return WORKSHOP_EMBEDDED_FALLBACKS[decoded];
-  }
-  const decodedFilename = decodeURIComponent(filename);
-  if (WORKSHOP_EMBEDDED_FALLBACKS[decodedFilename]) {
-    return WORKSHOP_EMBEDDED_FALLBACKS[decodedFilename];
-  }
+  try {
+    const decoded = decodeURIComponent(cleanUrl);
+    if (WORKSHOP_EMBEDDED_FALLBACKS[decoded]) {
+      return WORKSHOP_EMBEDDED_FALLBACKS[decoded];
+    }
+  } catch {}
+  try {
+    const decodedFilename = decodeURIComponent(filename);
+    if (WORKSHOP_EMBEDDED_FALLBACKS[decodedFilename]) {
+      return WORKSHOP_EMBEDDED_FALLBACKS[decodedFilename];
+    }
+  } catch {}
   return null;
 }

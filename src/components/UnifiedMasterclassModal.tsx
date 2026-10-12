@@ -81,7 +81,56 @@ interface UnifiedMasterclassModalProps {
   onMediaUpdated?: (items: WorkshopMediaItem[]) => void;
 }
 
-export const UnifiedMasterclassModal: React.FC<UnifiedMasterclassModalProps> = ({
+class UnifiedMasterclassModalErrorBoundary extends React.Component<
+  { children: React.ReactNode; onClose: () => void },
+  { hasError: boolean; errorMsg: string }
+> {
+  constructor(props: { children: React.ReactNode; onClose: () => void }) {
+    super(props);
+    this.state = { hasError: false, errorMsg: '' };
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, errorMsg: error?.message || 'Error initializing editor' };
+  }
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    console.warn('UnifiedMasterclassModalErrorBoundary caught error:', error, info);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+          <div className="max-w-md w-full bg-white dark:bg-[#1C1B1A] p-6 rounded-2xl border border-[#E8DFD8] dark:border-[#333] text-center shadow-xl">
+            <h3 className="font-serif text-lg font-bold text-[#1C1B1A] dark:text-white mb-2">
+              Workshop Studio Editor
+            </h3>
+            <p className="text-xs text-[#736C65] dark:text-[#A8A29D] mb-4">
+              Unable to open editor for this workshop. Please try again.
+            </p>
+            <div className="flex items-center justify-center gap-2">
+              <button
+                type="button"
+                onClick={() => this.setState({ hasError: false, errorMsg: '' })}
+                className="px-4 py-2 rounded-xl bg-[#C5A880] text-[#1C1B1A] text-xs font-bold cursor-pointer hover:bg-[#b8986c]"
+              >
+                Retry
+              </button>
+              <button
+                type="button"
+                onClick={this.props.onClose}
+                className="px-4 py-2 rounded-xl bg-neutral-200 dark:bg-neutral-800 text-xs font-semibold cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+const UnifiedMasterclassModalInner: React.FC<UnifiedMasterclassModalProps> = ({
   isOpen,
   onClose,
   availableGroups: propGroups,
@@ -99,18 +148,10 @@ export const UnifiedMasterclassModal: React.FC<UnifiedMasterclassModalProps> = (
   const availableGroups = propGroups && propGroups.length > 0 ? propGroups : internalGroups;
   const allMediaItems = propMedia !== undefined ? propMedia : internalMedia;
 
-  useEffect(() => {
-    if (isOpen && (!propGroups || propGroups.length === 0)) {
-      Promise.all([fetchWorkshopGroups(), fetchWorkshopMedia()]).then(([gMetas, media]) => {
-        setInternalMedia(media || []);
-        const built = buildWorkshopGroups(media || [], gMetas || WORKSHOP_GROUPS_METADATA);
-        setInternalGroups(built);
-      });
-    }
-  }, [isOpen, propGroups]);
-
-  // Active selected workshop
-  const [activeGroupId, setActiveGroupId] = useState<string>('');
+  // Active selected workshop - initialized safely from defaultGroupId or first available group
+  const [activeGroupId, setActiveGroupId] = useState<string>(() => {
+    return defaultGroupId || (propGroups && propGroups[0] ? (propGroups[0].groupKey || propGroups[0].id) : '');
+  });
   const [isCreatingNew, setIsCreatingNew] = useState(false);
 
   // Form State: Workshop Details
@@ -146,7 +187,18 @@ export const UnifiedMasterclassModal: React.FC<UnifiedMasterclassModalProps> = (
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Initialize selected workshop
+  // Sync internal fallback when props are empty
+  useEffect(() => {
+    if (isOpen && (!propGroups || propGroups.length === 0)) {
+      Promise.all([fetchWorkshopGroups(), fetchWorkshopMedia()]).then(([gMetas, media]) => {
+        setInternalMedia(media || []);
+        const built = buildWorkshopGroups(media || [], gMetas || WORKSHOP_GROUPS_METADATA);
+        setInternalGroups(built);
+      });
+    }
+  }, [isOpen, propGroups]);
+
+  // Synchronize active selected workshop whenever defaultGroupId or isOpen changes
   useEffect(() => {
     if (!isOpen) return;
 
@@ -154,7 +206,7 @@ export const UnifiedMasterclassModal: React.FC<UnifiedMasterclassModalProps> = (
       setActiveGroupId(defaultGroupId);
       setIsCreatingNew(false);
     } else if (availableGroups.length > 0 && !activeGroupId) {
-      setActiveGroupId(availableGroups[0].groupKey || availableGroups[0].id);
+      setActiveGroupId(availableGroups[0]?.groupKey || availableGroups[0]?.id || '');
       setIsCreatingNew(false);
     } else if (availableGroups.length === 0) {
       setIsCreatingNew(true);
@@ -168,13 +220,14 @@ export const UnifiedMasterclassModal: React.FC<UnifiedMasterclassModalProps> = (
         if (folders && folders.length > 0) {
           setAvailableFolders(folders);
         }
-      });
+      }).catch(() => {});
       loadServerFiles();
     }
   }, [isOpen]);
 
   // Load details of the active workshop and synchronize destination folder
   useEffect(() => {
+    if (!isOpen) return;
     if (isCreatingNew) {
       const batchNum = availableGroups.length + 1;
       setTitle(`Workshop Batch #${batchNum < 10 ? '0' + batchNum : batchNum}`);
@@ -220,16 +273,16 @@ export const UnifiedMasterclassModal: React.FC<UnifiedMasterclassModalProps> = (
       setTargetFolder(matchedFolder);
       setExplorerFolderFilter(matchedFolder);
     }
-  }, [activeGroupId, isCreatingNew, availableGroups]);
+  }, [isOpen, activeGroupId, isCreatingNew, availableGroups]);
 
   // Load physical files in public/workshops/
   const loadServerFiles = async () => {
     setIsLoadingServerFiles(true);
     try {
       const files = await fetchWorkshopFilesFromServer();
-      setServerFiles(files);
+      setServerFiles(Array.isArray(files) ? files : []);
     } catch {
-      // Ignored
+      setServerFiles([]);
     } finally {
       setIsLoadingServerFiles(false);
     }
@@ -243,35 +296,54 @@ export const UnifiedMasterclassModal: React.FC<UnifiedMasterclassModalProps> = (
 
   if (!isOpen) return null;
 
-  // Resolve current active workshop metadata
-  const currentGroup = availableGroups.find((g) => (g.groupKey || g.id) === activeGroupId || g.id === activeGroupId);
+  // Resolve current active workshop metadata safely
+  const currentGroup = availableGroups.find((g) => (g.groupKey || g.id) === activeGroupId || g.id === activeGroupId) || availableGroups[0];
 
   // Filter media items for the currently selected workshop with strict group logic
   const currentWorkshopMedia = allMediaItems.filter((item) => {
+    if (!item) return false;
     if (isCreatingNew) {
-      return item.groupId === 'new-batch' || item.groupId === (title.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'new-batch');
+      const cleanTitle = (title || '').toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'new-batch';
+      return item.groupId === 'new-batch' || item.groupId === cleanTitle;
     }
-    if (!currentGroup && !activeGroupId) return false;
-    const targetKey = currentGroup?.groupKey || activeGroupId;
-    const targetId = currentGroup?.id || activeGroupId;
+    const targetKey = currentGroup?.groupKey || activeGroupId || 'macrame';
+    const targetId = currentGroup?.id || activeGroupId || 'macrame';
     return isMediaRelatedToGroup(item, targetKey) || isMediaRelatedToGroup(item, targetId);
   });
 
+  // Safe URI decoder
+  const safeDecodeString = (str: string): string => {
+    try {
+      return decodeURIComponent(str || '');
+    } catch {
+      return str || '';
+    }
+  };
+
   // Filter physical files in Code File Explorer drawer based on folder tab with alias deduplication
   const filteredExplorerFiles = React.useMemo(() => {
+    if (!Array.isArray(serverFiles)) return [];
     const scoped = serverFiles.filter((f) => {
+      if (!f || !f.filename) return false;
       if (explorerFolderFilter === 'all') return true;
       const cat = (f.category || f.folder || '').toLowerCase();
-      const target = explorerFolderFilter.toLowerCase();
+      const target = (explorerFolderFilter || '').toLowerCase();
       return cat === target || f.filename.toLowerCase().startsWith(target + '/');
     });
 
     const seen = new Set<string>();
     const deduplicated: typeof serverFiles = [];
-    const sorted = [...scoped].sort((a, b) => (b.filename.includes(' ') ? 1 : 0) - (a.filename.includes(' ') ? 1 : 0));
+    const sorted = [...scoped].sort((a, b) => {
+      const aSpace = a.filename?.includes(' ') ? 1 : 0;
+      const bSpace = b.filename?.includes(' ') ? 1 : 0;
+      return bSpace - aSpace;
+    });
     for (const f of sorted) {
+      if (!f || !f.filename) continue;
       const folder = f.folder || f.category || (f.filename.includes('/') ? f.filename.split('/')[0] : '');
-      const base = f.filename.split('/').pop()?.replace(/\.[^/.]+$/, '').replace(/_\d+$/, '').replace(/[^a-z0-9]/g, '') || '';
+      const parts = f.filename.split('/');
+      const last = parts[parts.length - 1] || '';
+      const base = last.replace(/\.[^/.]+$/, '').replace(/_\d+$/, '').replace(/[^a-z0-9]/g, '');
       const key = `${folder.toLowerCase()}:${base.toLowerCase()}`;
       if (!seen.has(key)) {
         seen.add(key);
@@ -1647,9 +1719,10 @@ export const UnifiedMasterclassModal: React.FC<UnifiedMasterclassModalProps> = (
 
                     // Smart match against allMediaItems by full URL, filename, or normalized base
                     const attachedItem = allMediaItems.find((m) => {
+                      if (!m) return false;
                       if (m.url === file.url) return true;
-                      const mDec = decodeURIComponent(m.url || '').toLowerCase();
-                      const fileDec = decodeURIComponent(file.url || file.filename).toLowerCase();
+                      const mDec = safeDecodeString(m.url || '').toLowerCase();
+                      const fileDec = safeDecodeString(file.url || file.filename || '').toLowerCase();
                       if (mDec.endsWith(cleanName.toLowerCase())) return true;
                       const mBase = mDec.split('/').pop()?.replace(/\.[^/.]+$/, '').replace(/_\d+$/, '').replace(/[^a-z0-9]/g, '');
                       const fBase = cleanName.toLowerCase().replace(/\.[^/.]+$/, '').replace(/_\d+$/, '').replace(/[^a-z0-9]/g, '');
@@ -1752,8 +1825,8 @@ export const UnifiedMasterclassModal: React.FC<UnifiedMasterclassModalProps> = (
                                 <span>Attached</span>
                               </span>
                             ) : attachedGroup ? (
-                              <span className="shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 text-[10px] font-bold truncate max-w-[110px]" title={attachedGroup.title}>
-                                In: {attachedGroup.title.split(' ')[0]}
+                              <span className="shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 text-[10px] font-bold truncate max-w-[110px]" title={attachedGroup.title || 'Class'}>
+                                In: {attachedGroup.title ? attachedGroup.title.split(' ')[0] : 'Class'}
                               </span>
                             ) : (
                               <span className="shrink-0 px-1.5 py-0.5 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 text-[10px] font-medium">
@@ -1777,7 +1850,7 @@ export const UnifiedMasterclassModal: React.FC<UnifiedMasterclassModalProps> = (
                               }}
                               className="w-full py-1.5 rounded-xl border border-rose-300 dark:border-rose-900/60 bg-rose-50/40 dark:bg-rose-950/20 text-rose-600 dark:text-rose-400 hover:bg-rose-100 text-[10px] font-bold transition-all cursor-pointer flex items-center justify-center gap-1"
                             >
-                              ✕ Detach from {currentGroup?.title?.split(' ')[0] || title || 'Class'}
+                              ✕ Detach from {currentGroup?.title?.split(' ')[0] || title?.split(' ')[0] || 'Class'}
                             </button>
                           ) : (
                             <button
@@ -1788,7 +1861,7 @@ export const UnifiedMasterclassModal: React.FC<UnifiedMasterclassModalProps> = (
                               }}
                               className="w-full py-1.5 rounded-xl bg-[#C5A880] hover:bg-[#b8986c] text-[#1C1B1A] text-[10px] font-bold cursor-pointer transition-all shadow-2xs flex items-center justify-center gap-1"
                             >
-                              <span>+ Add to {currentGroup?.title?.split(' ')[0] || title || 'Class'}</span>
+                              <span>+ Add to {currentGroup?.title?.split(' ')[0] || title?.split(' ')[0] || 'Class'}</span>
                             </button>
                           )}
 
@@ -1856,3 +1929,13 @@ export const UnifiedMasterclassModal: React.FC<UnifiedMasterclassModalProps> = (
     </div>
   );
 };
+
+export const UnifiedMasterclassModal: React.FC<UnifiedMasterclassModalProps> = (props) => {
+  if (!props.isOpen) return null;
+  return (
+    <UnifiedMasterclassModalErrorBoundary onClose={props.onClose}>
+      <UnifiedMasterclassModalInner {...props} />
+    </UnifiedMasterclassModalErrorBoundary>
+  );
+};
+

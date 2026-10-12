@@ -53,18 +53,26 @@ export const BANNED_UNRELATED_MEDIA_PATTERNS = [
   'ws_media_pearl_bag_signature'
 ];
 
+function safeDecodeURI(str: string): string {
+  try {
+    return decodeURIComponent(str || '');
+  } catch {
+    return str || '';
+  }
+}
+
 export function isMediaRelatedToGroup(
   item: { id?: string; url?: string; title?: string; groupId?: string; type?: 'image' | 'video' }, 
   targetGroupKey?: string
 ): boolean {
   if (!item) return false;
-  const rawUrl = decodeURIComponent(item.url || '').toLowerCase();
+  const rawUrl = safeDecodeURI(item.url || '').toLowerCase();
   const id = (item.id || '').toLowerCase();
   const title = (item.title || '').toLowerCase();
   const target = (targetGroupKey || '').toLowerCase().replace(/^ws-group-/, '').replace(/^ws-/, '');
   const itemGroup = (item.groupId || '').toLowerCase().replace(/^ws-group-/, '').replace(/^ws-/, '');
 
-  // 1. Filter out known banned patterns and specific pearl bag photo
+  // 1. Filter out known banned patterns and any pearl bag image/photo from the workshop class
   if (
     id.includes('pearl_bag_signature') ||
     id === 'ws_media_pearl_bag_signature' ||
@@ -76,15 +84,6 @@ export function isMediaRelatedToGroup(
     return false;
   }
 
-  for (const pattern of BANNED_UNRELATED_MEDIA_PATTERNS) {
-    if (pattern && (rawUrl.includes(pattern) || id.includes(pattern))) {
-      return false;
-    }
-  }
-
-  // If no target group requested, item is valid
-  if (!target) return true;
-
   // Canonical family normalizer
   const getFamily = (str: string): 'macrame' | 'sunflower' | 'pearl' | string => {
     const s = (str || '').toLowerCase();
@@ -95,6 +94,20 @@ export function isMediaRelatedToGroup(
   };
 
   const targetFamily = getFamily(target);
+
+  // User specifically requested no photos in Pearl Bag workshop class (only authentic videos)
+  if (targetFamily === 'pearl' && (item.type === 'image' || rawUrl.endsWith('.jpg') || rawUrl.endsWith('.jpeg') || rawUrl.endsWith('.png') || rawUrl.endsWith('.webp'))) {
+    return false;
+  }
+
+  for (const pattern of BANNED_UNRELATED_MEDIA_PATTERNS) {
+    if (pattern && (rawUrl.includes(pattern) || id.includes(pattern))) {
+      return false;
+    }
+  }
+
+  // If no target group requested, item is valid
+  if (!target) return true;
 
   // 2. Physical workshop folder in URL or path is strictly authoritative
   let detectedFolderFamily: 'macrame' | 'sunflower' | 'pearl' | null = null;
@@ -529,7 +542,7 @@ export function getCanonicalMediaKey(item: WorkshopMediaItem): string {
   
   if (rawUrl && !rawUrl.startsWith('data:')) {
     // Extract base filename without query string or encoding
-    const decoded = decodeURIComponent(rawUrl.split('?')[0]);
+    const decoded = safeDecodeURI(rawUrl.split('?')[0]);
     let baseName = decoded.split('/').pop() || decoded;
     
     // Strip generated random prefixes if they contain a known asset name

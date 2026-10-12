@@ -212,30 +212,37 @@ export const WorkshopGallery: React.FC = () => {
     setIsMasterclassModalOpen(true);
   };
 
-  const handleEditItem = (item: WorkshopMediaItem) => {
-    setTargetGroupKey(item.groupId);
+  const handleEditItem = (item?: WorkshopMediaItem) => {
+    if (!item) return;
+    setTargetGroupKey(item.groupId || 'macrame');
     setIsMasterclassModalOpen(true);
   };
 
-  const handleReplaceItem = (item: WorkshopMediaItem) => {
+  const handleReplaceItem = (item?: WorkshopMediaItem) => {
+    if (!item) return;
     setReplaceTargetItem(item);
     setIsReplaceModalOpen(true);
   };
 
-  const handleDeleteItem = (deletedItem: WorkshopMediaItem) => {
+  const handleDeleteItem = (deletedItem?: WorkshopMediaItem) => {
+    if (!deletedItem || !deletedItem.id) return;
     setMediaItems((prev) => prev.filter((item) => item.id !== deletedItem.id));
   };
 
   const handleBatchDelete = (deletedIds: string[]) => {
+    if (!Array.isArray(deletedIds)) return;
     setMediaItems((prev) => prev.filter((item) => !deletedIds.includes(item.id)));
   };
 
-  const handleEditGroup = (group: WorkshopGroup) => {
-    setTargetGroupKey(group.groupKey || group.id);
+  const handleEditGroup = (group?: WorkshopGroup) => {
+    if (!group) return;
+    const targetKey = group.groupKey || group.id || 'macrame';
+    setTargetGroupKey(targetKey);
     setIsMasterclassModalOpen(true);
   };
 
-  const handleDeleteGroup = async (group: WorkshopGroup) => {
+  const handleDeleteGroup = async (group?: WorkshopGroup) => {
+    if (!group) return;
     try {
       const gId = group.id;
       const gKey = group.groupKey;

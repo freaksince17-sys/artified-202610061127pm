@@ -346,14 +346,21 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
   const [isCompareOpen, setIsCompareOpen] = useState<boolean>(false);
 
-  // Refer a Friend Community Rewards State (Seller can hide or show)
+  // Refer a Friend Community Rewards State (Seller can hide or show - strictly OFF by default)
   const [isReferralOpen, setIsReferralOpen] = useState<boolean>(false);
   const [isReferralVisible, setIsReferralVisible] = useState<boolean>(() => {
     try {
-      const stored = localStorage.getItem('artified_referral_visible');
-      return stored !== null ? stored !== 'false' : true;
+      // Check version 2 key first
+      const v2 = localStorage.getItem('artified_referral_visible_v2');
+      if (v2 !== null) {
+        return v2 === 'true';
+      }
+      // If only legacy key exists, clean it up so it never forces 'on'
+      localStorage.removeItem('artified_referral_visible');
+      localStorage.setItem('artified_referral_visible_v2', 'false');
+      return false;
     } catch {
-      return true;
+      return false;
     }
   });
 
@@ -361,6 +368,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsReferralVisible((prev) => {
       const next = !prev;
       try {
+        localStorage.setItem('artified_referral_visible_v2', String(next));
         localStorage.setItem('artified_referral_visible', String(next));
       } catch (e) {
         // ignore
