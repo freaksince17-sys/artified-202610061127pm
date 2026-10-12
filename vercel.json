@@ -28,7 +28,25 @@
       ]
     },
     {
-      "source": "/(assets|workshops|instagram_videos|nepal_media|icons)/(.*)",
+      "source": "/(index.html|sw.js|manifest.webmanifest|registerSW.js)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/assets/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/(workshops|instagram_videos|nepal_media|icons)/(.*)",
       "headers": [
         {
           "key": "Access-Control-Allow-Origin",
@@ -40,7 +58,7 @@
         },
         {
           "key": "Cache-Control",
-          "value": "public, max-age=86400, stale-while-revalidate=604800"
+          "value": "public, max-age=3600, stale-while-revalidate=86400"
         }
       ]
     }

@@ -42,6 +42,8 @@ export default defineConfig(() => {
           ]
         },
         workbox: {
+          skipWaiting: true,
+          clientsClaim: true,
           globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,jpg,jpeg}'],
           maximumFileSizeToCacheInBytes: 30 * 1024 * 1024, // 30MB safety margin for large bundles
           runtimeCaching: [
