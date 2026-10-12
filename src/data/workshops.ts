@@ -46,7 +46,11 @@ export const BANNED_UNRELATED_MEDIA_PATTERNS = [
   'instagram_videos',
   'tiktok_videos',
   'artisan_avatar.png',
-  'og-image'
+  'og-image',
+  'pearl%20bag%20signature',
+  'pearl_bag_signature',
+  'artified_signature_pearl_bag',
+  'ws_media_pearl_bag_signature'
 ];
 
 export function isMediaRelatedToGroup(
@@ -60,7 +64,18 @@ export function isMediaRelatedToGroup(
   const target = (targetGroupKey || '').toLowerCase().replace(/^ws-group-/, '').replace(/^ws-/, '');
   const itemGroup = (item.groupId || '').toLowerCase().replace(/^ws-group-/, '').replace(/^ws-/, '');
 
-  // 1. Filter out known banned patterns
+  // 1. Filter out known banned patterns and specific pearl bag photo
+  if (
+    id.includes('pearl_bag_signature') ||
+    id === 'ws_media_pearl_bag_signature' ||
+    rawUrl.includes('pearl%20bag%20signature') ||
+    rawUrl.includes('pearl_bag_signature') ||
+    rawUrl.includes('artified_signature_pearl_bag') ||
+    title.includes('pearl bag showcase')
+  ) {
+    return false;
+  }
+
   for (const pattern of BANNED_UNRELATED_MEDIA_PATTERNS) {
     if (pattern && (rawUrl.includes(pattern) || id.includes(pattern))) {
       return false;
@@ -70,46 +85,77 @@ export function isMediaRelatedToGroup(
   // If no target group requested, item is valid
   if (!target) return true;
 
-  // 2. Physical workshop folder in URL is authoritative!
-  let detectedFolderFamily: 'macrame' | 'sunflower' | 'pearl' | null = null;
-  if (rawUrl.includes('/workshops/macrame') || rawUrl.includes('macrame_')) {
-    detectedFolderFamily = 'macrame';
-  } else if (
-    rawUrl.includes('/workshops/pipecleaner sunflower') || 
-    rawUrl.includes('/workshops/pipecleaner%20sunflower') || 
-    rawUrl.includes('pipe_sunflower') || 
-    rawUrl.includes('pipe_sunglower')
-  ) {
-    detectedFolderFamily = 'sunflower';
-  } else if (rawUrl.includes('/workshops/pearls') || rawUrl.includes('pearl_bag')) {
-    detectedFolderFamily = 'pearl';
-  }
-
-  // 3. Normalize target group key into canonical family category
+  // Canonical family normalizer
   const getFamily = (str: string): 'macrame' | 'sunflower' | 'pearl' | string => {
-    if (str.includes('macrame')) return 'macrame';
-    if (str.includes('sunflower') || str.includes('pipe') || str.includes('pipecleaner') || str.includes('eco')) return 'sunflower';
-    if (str.includes('pearl') || str.includes('bag') || str.includes('bead') || str.includes('couture') || str.includes('bridal')) return 'pearl';
-    return str;
+    const s = (str || '').toLowerCase();
+    if (s.includes('pearl') || s.includes('bead') || s.includes('couture') || s.includes('bridal')) return 'pearl';
+    if (s.includes('sunflower') || s.includes('pipe') || s.includes('pipecleaner') || s.includes('eco') || s.includes('sunglower')) return 'sunflower';
+    if (s.includes('macrame') || s.includes('knot') || s.includes('cord')) return 'macrame';
+    return s;
   };
 
   const targetFamily = getFamily(target);
 
-  // If physical folder is authoritative, match strictly against targetFamily
+  // 2. Physical workshop folder in URL or path is strictly authoritative
+  let detectedFolderFamily: 'macrame' | 'sunflower' | 'pearl' | null = null;
+  if (
+    rawUrl.includes('/workshops/pearls') || 
+    rawUrl.includes('/pearls/') ||
+    rawUrl.startsWith('pearls/') ||
+    rawUrl.includes('pearl_bag') || 
+    rawUrl.includes('pearl bag') ||
+    rawUrl.includes('pearl')
+  ) {
+    detectedFolderFamily = 'pearl';
+  } else if (
+    rawUrl.includes('/workshops/pipecleaner sunflower') || 
+    rawUrl.includes('/workshops/pipecleaner%20sunflower') || 
+    rawUrl.includes('/pipecleaner sunflower/') ||
+    rawUrl.startsWith('pipecleaner sunflower/') ||
+    rawUrl.includes('pipe_sunflower') || 
+    rawUrl.includes('pipe sunflower') || 
+    rawUrl.includes('pipe_sunglower') ||
+    rawUrl.includes('pipe sunglower') ||
+    rawUrl.includes('sunflower') ||
+    rawUrl.includes('pipecleaner')
+  ) {
+    detectedFolderFamily = 'sunflower';
+  } else if (
+    rawUrl.includes('/workshops/macrame') || 
+    rawUrl.includes('/macrame/') ||
+    rawUrl.startsWith('macrame/') ||
+    rawUrl.includes('macrame_') || 
+    rawUrl.includes('macrame ') ||
+    rawUrl.includes('macrame')
+  ) {
+    detectedFolderFamily = 'macrame';
+  }
+
   if (detectedFolderFamily) {
     return detectedFolderFamily === targetFamily;
   }
 
-  // 4. If itemGroup is explicitly set
+  // 3. Explicit item.groupId is used when URL is abstract (e.g. data URI)
   if (itemGroup) {
     const groupFamily = getFamily(itemGroup);
-    return groupFamily === targetFamily || itemGroup === target || target.includes(itemGroup) || itemGroup.includes(target);
+    return groupFamily === targetFamily || itemGroup === target;
   }
 
-  // 5. Fallback heuristics if no physical path or groupId is available
-  if (targetFamily === 'macrame') return title.includes('macrame') || id.includes('macrame');
-  if (targetFamily === 'sunflower') return title.includes('sunflower') || title.includes('pipe') || id.includes('pipe') || id.includes('sunflower');
-  if (targetFamily === 'pearl') return title.includes('pearl') || title.includes('bridal') || id.includes('pearl');
+  // 4. Strong semantic keyword detection across URL, filename, title, and ID
+  const allText = `${rawUrl} ${title} ${id}`.toLowerCase();
+  const hasPearl = allText.includes('pearl') || allText.includes('bead') || allText.includes('clutch');
+  const hasSunflower = allText.includes('sunflower') || allText.includes('pipe') || allText.includes('sunglower') || allText.includes('pipecleaner');
+  const hasMacrame = allText.includes('macrame') || allText.includes('knot') || allText.includes('cord');
+
+  if (hasPearl) {
+    return targetFamily === 'pearl';
+  }
+  if (hasSunflower) {
+    return targetFamily === 'sunflower';
+  }
+  if (hasMacrame) {
+    return targetFamily === 'macrame';
+  }
 
   return false;
 }
@@ -617,7 +663,9 @@ export function buildWorkshopGroups(
 
 const DELETED_IDS_STORAGE_KEY = 'artified_deleted_workshop_ids_v15';
 
-export const LEGACY_MOCK_MEDIA_IDS: string[] = [];
+export const LEGACY_MOCK_MEDIA_IDS: string[] = [
+  'ws_media_pearl_bag_signature'
+];
 
 export function getDeletedWorkshopMediaIds(): string[] {
   try {

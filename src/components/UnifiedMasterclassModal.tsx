@@ -209,13 +209,16 @@ export const UnifiedMasterclassModal: React.FC<UnifiedMasterclassModalProps> = (
 
       // Automatically map folder in code explorer to this workshop
       const norm = (current.groupKey || current.id || '').toLowerCase();
+      let matchedFolder = 'Macrame';
       if (norm.includes('sunflower') || norm.includes('pipe')) {
-        setTargetFolder('Pipecleaner Sunflower');
+        matchedFolder = 'Pipecleaner Sunflower';
       } else if (norm.includes('pearl')) {
-        setTargetFolder('Pearls');
+        matchedFolder = 'Pearls';
       } else if (norm.includes('macrame')) {
-        setTargetFolder('Macrame');
+        matchedFolder = 'Macrame';
       }
+      setTargetFolder(matchedFolder);
+      setExplorerFolderFilter(matchedFolder);
     }
   }, [activeGroupId, isCreatingNew, availableGroups]);
 
@@ -254,13 +257,29 @@ export const UnifiedMasterclassModal: React.FC<UnifiedMasterclassModalProps> = (
     return isMediaRelatedToGroup(item, targetKey) || isMediaRelatedToGroup(item, targetId);
   });
 
-  // Filter physical files in Code File Explorer drawer based on folder tab
-  const filteredExplorerFiles = serverFiles.filter((f) => {
-    if (explorerFolderFilter === 'all') return true;
-    const cat = (f.category || f.folder || '').toLowerCase();
-    const target = explorerFolderFilter.toLowerCase();
-    return cat === target || f.filename.toLowerCase().startsWith(target + '/');
-  });
+  // Filter physical files in Code File Explorer drawer based on folder tab with alias deduplication
+  const filteredExplorerFiles = React.useMemo(() => {
+    const scoped = serverFiles.filter((f) => {
+      if (explorerFolderFilter === 'all') return true;
+      const cat = (f.category || f.folder || '').toLowerCase();
+      const target = explorerFolderFilter.toLowerCase();
+      return cat === target || f.filename.toLowerCase().startsWith(target + '/');
+    });
+
+    const seen = new Set<string>();
+    const deduplicated: typeof serverFiles = [];
+    const sorted = [...scoped].sort((a, b) => (b.filename.includes(' ') ? 1 : 0) - (a.filename.includes(' ') ? 1 : 0));
+    for (const f of sorted) {
+      const folder = f.folder || f.category || (f.filename.includes('/') ? f.filename.split('/')[0] : '');
+      const base = f.filename.split('/').pop()?.replace(/\.[^/.]+$/, '').replace(/_\d+$/, '').replace(/[^a-z0-9]/g, '') || '';
+      const key = `${folder.toLowerCase()}:${base.toLowerCase()}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        deduplicated.push(f);
+      }
+    }
+    return deduplicated;
+  }, [serverFiles, explorerFolderFilter]);
 
   // Extract info from attached media using Gemini Vision API
   const handleExtractInfoFromMedia = async () => {
@@ -521,17 +540,61 @@ export const UnifiedMasterclassModal: React.FC<UnifiedMasterclassModalProps> = (
     }
   };
 
+  // 1-Click Auto-sync all 3 workshop folders on disk to their canonical classes
+  const handleSyncAllFolders = async () => {
+    setIsLoadingServerFiles(true);
+    try {
+      const res = await fetch('/api/workshop-media/sync-folders', { method: 'POST' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.success && Array.isArray(data.items)) {
+          setInternalMedia(data.items);
+          if (onMediaUpdated) {
+            onMediaUpdated(data.items);
+          }
+          setStatusMessage({
+            type: 'success',
+            text: `✨ Successfully synced all 3 folders! Pearl -> Pearl Bag, Sunflower -> Sunflower, Macrame -> Macrame!`
+          });
+          setTimeout(() => setStatusMessage(null), 3500);
+          loadServerFiles();
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn('Sync folders error:', e);
+    } finally {
+      setIsLoadingServerFiles(false);
+    }
+  };
+
   // Attach or re-assign selected files from the Code File Explorer to a workshop class
   const handleAttachFilesFromExplorer = async (specificFilenames?: string[], assignToGroupId?: string) => {
     const toAttach = specificFilenames || selectedExplorerFiles;
     if (!toAttach || toAttach.length === 0) return;
 
-    const targetKey = assignToGroupId || (isCreatingNew ? (title.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'new-batch') : (currentGroup?.groupKey || activeGroupId));
+    const activeWorkshopKey = isCreatingNew
+      ? (title.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'new-batch')
+      : (currentGroup?.groupKey || activeGroupId || 'macrame');
+
+    // Determine target group based on context:
+    let defaultFolderTarget: string | undefined = undefined;
+    if (explorerFolderFilter.toLowerCase().includes('pearl')) {
+      defaultFolderTarget = 'pearl-bag';
+    } else if (explorerFolderFilter.toLowerCase().includes('sunflower') || explorerFolderFilter.toLowerCase().includes('pipe')) {
+      defaultFolderTarget = 'sunflower';
+    } else if (explorerFolderFilter.toLowerCase().includes('macrame')) {
+      defaultFolderTarget = 'macrame';
+    }
+
+    const effectiveAssignTo = assignToGroupId || (explorerFolderFilter !== 'all' ? defaultFolderTarget : activeWorkshopKey);
+    const isByFolder = effectiveAssignTo === 'by-folder' || effectiveAssignTo === 'auto';
+    const targetKey = isByFolder ? 'by-folder' : (effectiveAssignTo || activeWorkshopKey);
     const targetGroup = availableGroups.find((g) => (g.groupKey || g.id) === targetKey || g.id === targetKey);
-    const canonicalKey = targetGroup?.groupKey || (
+    const canonicalKey = isByFolder ? 'by-folder' : (targetGroup?.groupKey || (
       targetKey.toLowerCase().includes('sunflower') || targetKey.toLowerCase().includes('pipe') ? 'sunflower' : 
       targetKey.toLowerCase().includes('pearl') ? 'pearl-bag' : 'macrame'
-    );
+    ));
 
     // Call server assign-batch endpoint for persistent atomic assignment
     try {
@@ -549,10 +612,13 @@ export const UnifiedMasterclassModal: React.FC<UnifiedMasterclassModalProps> = (
           }
           setStatusMessage({
             type: 'success',
-            text: `✨ Successfully assigned ${toAttach.length} item(s) to "${targetGroup?.title || title}"!`
+            text: isByFolder
+              ? `✨ Successfully organized all ${toAttach.length} file(s) into their true workshop classes!`
+              : `✨ Successfully assigned ${toAttach.length} item(s) to "${targetGroup?.title || title || 'Workshop'}"!`
           });
           setTimeout(() => setStatusMessage(null), 3500);
           setSelectedExplorerFiles([]);
+          loadServerFiles();
           return;
         }
       }
@@ -566,9 +632,16 @@ export const UnifiedMasterclassModal: React.FC<UnifiedMasterclassModalProps> = (
       const fileObj = serverFiles.find((f) => f.filename === filename);
       if (!fileObj) continue;
 
+      const fnLower = filename.toLowerCase();
+      const resolvedFamily = isByFolder ? (
+        fnLower.includes('sunflower') || fnLower.includes('pipe') ? 'sunflower' :
+        fnLower.includes('pearl') ? 'pearl-bag' : 'macrame'
+      ) : canonicalKey;
+
       const cleanBase = filename.split('/').pop()?.replace(/\.[^/.]+$/, '') || filename;
       const cleanName = filename.split('/').pop() || filename;
-      const aiCaption = autoGenerateMediaCaption(cleanBase, targetGroup?.title || title || 'Kathmandu Workshop');
+      const effectiveGroup = availableGroups.find((g) => (g.groupKey || g.id) === resolvedFamily || g.id === resolvedFamily);
+      const aiCaption = autoGenerateMediaCaption(cleanBase, effectiveGroup?.title || targetGroup?.title || title || 'Kathmandu Workshop');
       const isVid = fileObj.type === 'video' || /\.(mp4|mov|webm|m4v)$/i.test(fileObj.filename);
       const thumb = fileObj.thumbnailUrl || (isVid ? fileObj.url.replace(/\.mp4$/i, '_thumb.jpg') : fileObj.url);
 
@@ -579,8 +652,8 @@ export const UnifiedMasterclassModal: React.FC<UnifiedMasterclassModalProps> = (
       if (existingIndex >= 0) {
         const updatedItem: WorkshopMediaItem = {
           ...updatedMedia[existingIndex],
-          groupId: canonicalKey,
-          workshopTitle: targetGroup?.title || title || updatedMedia[existingIndex].workshopTitle,
+          groupId: resolvedFamily,
+          workshopTitle: effectiveGroup?.title || targetGroup?.title || title || updatedMedia[existingIndex].workshopTitle,
           updatedAt: new Date().toISOString()
         };
         updatedMedia[existingIndex] = updatedItem;
@@ -588,10 +661,10 @@ export const UnifiedMasterclassModal: React.FC<UnifiedMasterclassModalProps> = (
       } else {
         const newItem: WorkshopMediaItem = {
           id: `ws_media_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-          groupId: canonicalKey,
+          groupId: resolvedFamily,
           type: isVid ? 'video' : 'image',
           title: aiCaption.title,
-          workshopTitle: targetGroup?.title || title || 'Artisan Workshop',
+          workshopTitle: effectiveGroup?.title || targetGroup?.title || title || 'Artisan Workshop',
           url: fileObj.url,
           thumbnailUrl: thumb,
           caption: aiCaption.caption,
@@ -614,7 +687,9 @@ export const UnifiedMasterclassModal: React.FC<UnifiedMasterclassModalProps> = (
     }
     setStatusMessage({
       type: 'success',
-      text: `✨ Successfully assigned ${toAttach.length} item(s) to "${targetGroup?.title || title}"!`
+      text: isByFolder
+        ? `✨ Successfully organized all media by class folder!`
+        : `✨ Successfully assigned ${toAttach.length} item(s) to "${targetGroup?.title || title}"!`
     });
     setTimeout(() => setStatusMessage(null), 3500);
     setSelectedExplorerFiles([]);
@@ -1415,7 +1490,7 @@ export const UnifiedMasterclassModal: React.FC<UnifiedMasterclassModalProps> = (
 
             {/* Folder Filter Tabs & Batch Bar */}
             <div className="py-3 border-b border-[#E8DFD8] dark:border-[#262422] flex flex-col md:flex-row md:items-center justify-between gap-2.5 shrink-0">
-              {/* Folder Tabs */}
+              {/* Folder Tabs with Workshop Identity */}
               <div className="flex flex-wrap items-center gap-1.5">
                 <button
                   type="button"
@@ -1433,18 +1508,25 @@ export const UnifiedMasterclassModal: React.FC<UnifiedMasterclassModalProps> = (
                     (f.category || f.folder || '').toLowerCase() === fName.toLowerCase() || 
                     f.filename.toLowerCase().startsWith(fName.toLowerCase() + '/')
                   ).length;
+                  const isPearls = fName.toLowerCase().includes('pearl');
+                  const isPipe = fName.toLowerCase().includes('sunflower') || fName.toLowerCase().includes('pipe');
+                  const icon = isPearls ? '🦪' : isPipe ? '🌻' : '🪡';
+                  const shortClass = isPearls ? 'Pearl Bag' : isPipe ? 'Sunflower' : 'Macrame';
+
                   return (
                     <button
                       key={fName}
                       type="button"
                       onClick={() => setExplorerFolderFilter(fName)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                         explorerFolderFilter.toLowerCase() === fName.toLowerCase()
                           ? 'bg-[#C5A880] text-[#1C1B1A] shadow-xs'
                           : 'bg-white dark:bg-[#1E1C1A] text-[#736C65] hover:text-[#1C1B1A] border border-[#E8DFD8] dark:border-[#333]'
                       }`}
+                      title={`Files for ${shortClass} Workshop`}
                     >
-                      📁 {fName} ({count})
+                      <span>{icon} {fName}</span>
+                      <span className="px-1.5 py-0.2 rounded-full bg-black/10 text-[10px]">{count}</span>
                     </button>
                   );
                 })}
@@ -1462,6 +1544,18 @@ export const UnifiedMasterclassModal: React.FC<UnifiedMasterclassModalProps> = (
                 >
                   Select All ({filteredExplorerFiles.length})
                 </button>
+
+                {/* 1-Click Sync All 3 Folders button */}
+                <button
+                  type="button"
+                  onClick={handleSyncAllFolders}
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:brightness-110 text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
+                  title="Auto-organize every file by its folder on disk: Pearls -> Pearl Bag, Sunflower -> Sunflower, Macrame -> Macrame"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>⚡ Auto-Sync All 3 Folders</span>
+                </button>
+
                 {selectedExplorerFiles.length > 0 && (
                   <>
                     <button
@@ -1471,23 +1565,34 @@ export const UnifiedMasterclassModal: React.FC<UnifiedMasterclassModalProps> = (
                     >
                       Clear ({selectedExplorerFiles.length})
                     </button>
+                    
+                    {/* Dynamic Context-Aware Attach Button */}
                     <button
                       type="button"
                       onClick={() => handleAttachFilesFromExplorer()}
                       className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
                     >
                       <Check className="w-3.5 h-3.5" />
-                      <span>Attach ({selectedExplorerFiles.length}) to Active Class</span>
+                      <span>
+                        {explorerFolderFilter.toLowerCase().includes('pearl')
+                          ? `Attach (${selectedExplorerFiles.length}) to 🦪 Pearl Bag Workshop`
+                          : explorerFolderFilter.toLowerCase().includes('sunflower') || explorerFolderFilter.toLowerCase().includes('pipe')
+                          ? `Attach (${selectedExplorerFiles.length}) to 🌻 Sunflower Workshop`
+                          : explorerFolderFilter.toLowerCase().includes('macrame')
+                          ? `Attach (${selectedExplorerFiles.length}) to 🪡 Macrame Workshop`
+                          : `Auto-Organize (${selectedExplorerFiles.length}) by Folder`}
+                      </span>
                     </button>
+
                     <div className="flex items-center gap-1 pl-1 border-l border-[#E8DFD8] dark:border-[#333]">
                       <span className="text-[10px] text-[#736C65] font-bold">Assign to:</span>
                       <button
                         type="button"
-                        onClick={() => handleAttachFilesFromExplorer(undefined, 'macrame')}
+                        onClick={() => handleAttachFilesFromExplorer(undefined, 'pearl-bag')}
                         className="px-2 py-1 text-[11px] font-bold rounded-lg bg-white dark:bg-[#201E1C] border border-[#E8DFD8] dark:border-[#333] hover:border-[#C5A880] text-[#1C1B1A] dark:text-white cursor-pointer"
-                        title="Assign selected to Macrame Wall Art"
+                        title="Assign selected to Bridal Pearl Bag"
                       >
-                        🪡 Macrame
+                        🦪 Pearl Bag
                       </button>
                       <button
                         type="button"
@@ -1499,11 +1604,11 @@ export const UnifiedMasterclassModal: React.FC<UnifiedMasterclassModalProps> = (
                       </button>
                       <button
                         type="button"
-                        onClick={() => handleAttachFilesFromExplorer(undefined, 'pearl-bag')}
+                        onClick={() => handleAttachFilesFromExplorer(undefined, 'macrame')}
                         className="px-2 py-1 text-[11px] font-bold rounded-lg bg-white dark:bg-[#201E1C] border border-[#E8DFD8] dark:border-[#333] hover:border-[#C5A880] text-[#1C1B1A] dark:text-white cursor-pointer"
-                        title="Assign selected to Bridal Pearl Bag"
+                        title="Assign selected to Macrame Wall Art"
                       >
-                        🦪 Pearl Bag
+                        🪡 Macrame
                       </button>
                     </div>
                   </>
@@ -1532,9 +1637,24 @@ export const UnifiedMasterclassModal: React.FC<UnifiedMasterclassModalProps> = (
                     const isSelected = selectedExplorerFiles.includes(file.filename);
                     const cleanName = file.filename.split('/').pop() || file.filename;
                     
-                    const attachedItem = allMediaItems.find((m) => 
-                      m.url === file.url || (m.url && m.url.endsWith(cleanName))
-                    );
+                    const fileFolder = file.category || file.folder || (file.filename.includes('/') ? file.filename.split('/')[0] : '');
+                    const checkStr = `${fileFolder} ${file.filename}`.toLowerCase();
+                    const isPearlFolder = checkStr.includes('pearl') || checkStr.includes('bead');
+                    const isSunflowerFolder = checkStr.includes('sunflower') || checkStr.includes('pipe') || checkStr.includes('sunglower');
+                    const canonicalClassKey = isPearlFolder ? 'pearl-bag' : isSunflowerFolder ? 'sunflower' : 'macrame';
+                    const canonicalClassTitle = isPearlFolder ? 'Bridal Pearl Bag' : isSunflowerFolder ? 'Pipe Sunflower' : 'Macrame Wall Art';
+                    const canonicalIcon = isPearlFolder ? '🦪' : isSunflowerFolder ? '🌻' : '🪡';
+
+                    // Smart match against allMediaItems by full URL, filename, or normalized base
+                    const attachedItem = allMediaItems.find((m) => {
+                      if (m.url === file.url) return true;
+                      const mDec = decodeURIComponent(m.url || '').toLowerCase();
+                      const fileDec = decodeURIComponent(file.url || file.filename).toLowerCase();
+                      if (mDec.endsWith(cleanName.toLowerCase())) return true;
+                      const mBase = mDec.split('/').pop()?.replace(/\.[^/.]+$/, '').replace(/_\d+$/, '').replace(/[^a-z0-9]/g, '');
+                      const fBase = cleanName.toLowerCase().replace(/\.[^/.]+$/, '').replace(/_\d+$/, '').replace(/[^a-z0-9]/g, '');
+                      return mBase && fBase && mBase === fBase;
+                    });
 
                     const attachedGroup = attachedItem 
                       ? availableGroups.find((g) => (g.groupKey || g.id) === attachedItem.groupId || g.id === attachedItem.groupId)
@@ -1569,7 +1689,7 @@ export const UnifiedMasterclassModal: React.FC<UnifiedMasterclassModalProps> = (
                           {isVid ? (
                             <>
                               <video src={file.url} className="w-full h-full object-cover" muted playsInline />
-                              <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                              <div className="absolute inset-0 bg-black/30 flex items-center justify-center pointer-events-none">
                                 <Video className="w-6 h-6 text-white" />
                               </div>
                             </>
@@ -1613,6 +1733,11 @@ export const UnifiedMasterclassModal: React.FC<UnifiedMasterclassModalProps> = (
                           <div className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded-md bg-black/70 backdrop-blur-xs text-[10px] text-white font-mono">
                             {isVid ? 'MP4 Video' : 'Image'} • {sizeStr}
                           </div>
+
+                          {/* Folder badge on top right */}
+                          <div className="absolute bottom-2 left-2 px-1.5 py-0.5 rounded-md bg-black/70 backdrop-blur-xs text-[9px] text-amber-200 font-semibold">
+                            {canonicalIcon} {fileFolder}
+                          </div>
                         </div>
 
                         {/* File Details & Class Tag */}
@@ -1650,20 +1775,20 @@ export const UnifiedMasterclassModal: React.FC<UnifiedMasterclassModalProps> = (
                                 e.stopPropagation();
                                 handleDetachFileFromWorkshop(file.filename);
                               }}
-                              className="w-full py-1 rounded-lg border border-rose-300 dark:border-rose-900/60 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-[10px] font-bold transition-colors cursor-pointer"
+                              className="w-full py-1.5 rounded-xl border border-rose-300 dark:border-rose-900/60 bg-rose-50/40 dark:bg-rose-950/20 text-rose-600 dark:text-rose-400 hover:bg-rose-100 text-[10px] font-bold transition-all cursor-pointer flex items-center justify-center gap-1"
                             >
-                              ✕ Detach from Class
+                              ✕ Detach from {currentGroup?.title?.split(' ')[0] || title || 'Class'}
                             </button>
                           ) : (
                             <button
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleAttachFilesFromExplorer([file.filename]);
+                                handleAttachFilesFromExplorer([file.filename], currentGroup?.groupKey || activeGroupId || canonicalClassKey);
                               }}
-                              className="w-full py-1 rounded-lg bg-[#C5A880] hover:bg-[#b8986c] text-[#1C1B1A] text-[10px] font-bold cursor-pointer transition-colors shadow-2xs"
+                              className="w-full py-1.5 rounded-xl bg-[#C5A880] hover:bg-[#b8986c] text-[#1C1B1A] text-[10px] font-bold cursor-pointer transition-all shadow-2xs flex items-center justify-center gap-1"
                             >
-                              + Attach to {currentGroup?.title ? currentGroup.title.split(' ')[0] : 'This Class'}
+                              <span>+ Add to {currentGroup?.title?.split(' ')[0] || title || 'Class'}</span>
                             </button>
                           )}
 
@@ -1675,12 +1800,16 @@ export const UnifiedMasterclassModal: React.FC<UnifiedMasterclassModalProps> = (
                                 type="button"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  handleAttachFilesFromExplorer([file.filename], 'macrame');
+                                  handleAttachFilesFromExplorer([file.filename], 'pearl-bag');
                                 }}
-                                className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-neutral-100 dark:bg-neutral-800 hover:bg-[#C5A880] hover:text-[#1C1B1A] transition-colors cursor-pointer shrink-0"
-                                title="Assign to Macrame Wall Art"
+                                className={`px-1.5 py-0.5 rounded text-[9px] font-bold transition-colors cursor-pointer shrink-0 ${
+                                  attachedGroup?.groupKey === 'pearl-bag'
+                                    ? 'bg-amber-200 dark:bg-amber-900/60 text-[#1C1B1A] dark:text-white font-extrabold ring-1 ring-amber-400'
+                                    : 'bg-neutral-100 dark:bg-neutral-800 hover:bg-[#C5A880] hover:text-[#1C1B1A]'
+                                }`}
+                                title="Assign to Bridal Pearl Bag"
                               >
-                                🪡 Macrame
+                                🦪 Pearl
                               </button>
                               <button
                                 type="button"
@@ -1688,7 +1817,11 @@ export const UnifiedMasterclassModal: React.FC<UnifiedMasterclassModalProps> = (
                                   e.stopPropagation();
                                   handleAttachFilesFromExplorer([file.filename], 'sunflower');
                                 }}
-                                className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-neutral-100 dark:bg-neutral-800 hover:bg-[#C5A880] hover:text-[#1C1B1A] transition-colors cursor-pointer shrink-0"
+                                className={`px-1.5 py-0.5 rounded text-[9px] font-bold transition-colors cursor-pointer shrink-0 ${
+                                  attachedGroup?.groupKey === 'sunflower'
+                                    ? 'bg-amber-200 dark:bg-amber-900/60 text-[#1C1B1A] dark:text-white font-extrabold ring-1 ring-amber-400'
+                                    : 'bg-neutral-100 dark:bg-neutral-800 hover:bg-[#C5A880] hover:text-[#1C1B1A]'
+                                }`}
                                 title="Assign to Pipe Sunflower"
                               >
                                 🌻 Pipe
@@ -1697,12 +1830,16 @@ export const UnifiedMasterclassModal: React.FC<UnifiedMasterclassModalProps> = (
                                 type="button"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  handleAttachFilesFromExplorer([file.filename], 'pearl-bag');
+                                  handleAttachFilesFromExplorer([file.filename], 'macrame');
                                 }}
-                                className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-neutral-100 dark:bg-neutral-800 hover:bg-[#C5A880] hover:text-[#1C1B1A] transition-colors cursor-pointer shrink-0"
-                                title="Assign to Bridal Pearl Bag"
+                                className={`px-1.5 py-0.5 rounded text-[9px] font-bold transition-colors cursor-pointer shrink-0 ${
+                                  attachedGroup?.groupKey === 'macrame'
+                                    ? 'bg-amber-200 dark:bg-amber-900/60 text-[#1C1B1A] dark:text-white font-extrabold ring-1 ring-amber-400'
+                                    : 'bg-neutral-100 dark:bg-neutral-800 hover:bg-[#C5A880] hover:text-[#1C1B1A]'
+                                }`}
+                                title="Assign to Macrame Wall Art"
                               >
-                                🦪 Pearl
+                                🪡 Macrame
                               </button>
                             </div>
                           </div>

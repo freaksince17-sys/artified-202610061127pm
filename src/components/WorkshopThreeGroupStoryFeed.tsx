@@ -36,7 +36,7 @@ import { refetchWorkshopMediaFromStorage } from '../utils/workshopDiagnostics';
 import { getWorkshopEmbeddedFallback } from '../data/workshopEmbeddedFallbacks';
 import { isVideoMedia } from '../services/firebaseWorkshopStorageService';
 import { useInView } from '../utils/useInView';
-import { getCacheBustedUrl } from '../utils/cacheBuster';
+import { getCacheBustedUrl, getVideoAlternativeUrls } from '../utils/cacheBuster';
 
 interface WorkshopThreeGroupStoryFeedProps {
   groups: WorkshopGroup[];
@@ -51,7 +51,7 @@ interface WorkshopThreeGroupStoryFeedProps {
 }
 
 /**
- * Auto-plays video on hover with muted looping preview
+ * Auto-plays workshop video seamlessly inline with muted loop preview without requiring hover
  */
 const WorkshopVideoHoverThumbnail: React.FC<{
   videoUrl: string;
@@ -61,52 +61,63 @@ const WorkshopVideoHoverThumbnail: React.FC<{
   onLoaded?: () => void;
 }> = ({ videoUrl, posterUrl, alt, updatedAt, onLoaded }) => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const [isHoveredPlaying, setIsHoveredPlaying] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [candidateIndex, setCandidateIndex] = useState(0);
 
-  const cleanVidUrl = getCacheBustedUrl(videoUrl, updatedAt);
+  const candidates = React.useMemo(() => getVideoAlternativeUrls(videoUrl), [videoUrl]);
+  const activeCandidateUrl = candidates[candidateIndex] || getCacheBustedUrl(videoUrl, updatedAt);
   const cleanPosterUrl = getCacheBustedUrl(posterUrl, updatedAt);
 
-  const handleMouseEnter = () => {
+  // Auto-play video seamlessly on mount without requiring mouse hover
+  useEffect(() => {
     if (videoRef.current) {
-      videoRef.current.currentTime = 0;
+      videoRef.current.muted = true;
       const playPromise = videoRef.current.play();
       if (playPromise !== undefined) {
         playPromise
-          .then(() => setIsHoveredPlaying(true))
-          .catch(() => setIsHoveredPlaying(false));
+          .then(() => setIsPlaying(true))
+          .catch(() => {
+            if (videoRef.current) {
+              videoRef.current.muted = true;
+              videoRef.current.play().then(() => setIsPlaying(true)).catch(() => {});
+            }
+          });
       }
     }
-  };
+  }, [activeCandidateUrl]);
 
-  const handleMouseLeave = () => {
-    if (videoRef.current) {
-      videoRef.current.pause();
-      setIsHoveredPlaying(false);
+  const handleVideoError = () => {
+    if (candidateIndex + 1 < candidates.length) {
+      setCandidateIndex((prev) => prev + 1);
     }
   };
 
   return (
-    <div
-      className="absolute inset-0 w-full h-full overflow-hidden bg-black"
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
-    >
+    <div className="absolute inset-0 w-full h-full overflow-hidden bg-black">
       <video
         ref={videoRef}
-        src={cleanVidUrl}
+        src={activeCandidateUrl}
         poster={cleanPosterUrl}
         muted
         playsInline
+        autoPlay
         loop
-        preload="metadata"
+        preload="auto"
+        onError={handleVideoError}
         onLoadedData={() => onLoaded && onLoaded()}
         onCanPlay={() => onLoaded && onLoaded()}
+        onPlay={() => setIsPlaying(true)}
         className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
         style={{ width: '100%', height: '100%', objectFit: 'cover' }}
       />
-      {isHoveredPlaying && (
-        <span className="absolute top-2 left-2 z-20 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-[#25D366] text-white shadow-xs animate-pulse">
-          <span>Playing</span>
+      {isPlaying ? (
+        <span className="absolute top-2 left-2 z-20 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-[#25D366] text-white shadow-xs">
+          <span>Reel</span>
+        </span>
+      ) : (
+        <span className="absolute top-2 left-2 z-20 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-black/70 backdrop-blur-xs text-[#E6CA9E] shadow-xs">
+          <Video className="w-2.5 h-2.5" />
+          <span>Video</span>
         </span>
       )}
     </div>
@@ -152,17 +163,21 @@ const CohortStorytellingPlayer: React.FC<{
   const [isDeleting, setIsDeleting] = useState(false);
   const [currentUrl, setCurrentUrl] = useState<string>('');
   const [isMediaLoaded, setIsMediaLoaded] = useState(false);
+  const [candidateIndex, setCandidateIndex] = useState(0);
 
   const items = group.items || [];
   const currentItem = items[activeIndex] || items[0] || null;
   const isVideo = currentItem ? (currentItem.type === 'video' || isVideoMedia(currentItem.url || '', currentItem.title)) : false;
   const isSelected = currentItem ? selectedIds.includes(currentItem.id) : false;
 
+  const candidates = React.useMemo(() => getVideoAlternativeUrls(currentItem?.url || currentUrl), [currentItem?.url, currentUrl]);
+
   useEffect(() => {
     setMediaError(null);
     setDeleteConfirm(false);
     setIsReloading(false);
     setIsMediaLoaded(false);
+    setCandidateIndex(0);
     if (currentItem) {
       if (!isVideo) {
         const embedded = getWorkshopEmbeddedFallback(currentItem.url) || getWorkshopEmbeddedFallback(currentItem.thumbnailUrl);
@@ -182,7 +197,9 @@ const CohortStorytellingPlayer: React.FC<{
       }
     }
     if (isVideo && videoRef.current) {
-      videoRef.current.currentTime = 0;
+      try {
+        videoRef.current.currentTime = 0;
+      } catch {}
       videoRef.current.muted = isMuted;
       videoRef.current
         .play()
@@ -191,7 +208,11 @@ const CohortStorytellingPlayer: React.FC<{
           setMediaError(null);
         })
         .catch(() => {
-          setIsPlaying(false);
+          if (videoRef.current) {
+            videoRef.current.muted = true;
+            setIsMuted(true);
+            videoRef.current.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
+          }
         });
     } else {
       setIsPlaying(false);
@@ -324,6 +345,7 @@ const CohortStorytellingPlayer: React.FC<{
   const embeddedImg = !isVideo ? (getWorkshopEmbeddedFallback(currentUrl) || getWorkshopEmbeddedFallback(currentItem.url) || getWorkshopEmbeddedFallback(currentItem.thumbnailUrl)) : null;
   const embeddedThumb = getWorkshopEmbeddedFallback(currentItem.thumbnailUrl) || getWorkshopEmbeddedFallback(currentItem.url);
   const displayMediaUrl = embeddedImg || getCacheBustedUrl(currentUrl || currentItem.url, currentItem.updatedAt);
+  const activeVideoCandidate = isVideo ? (candidates[candidateIndex] || displayMediaUrl) : displayMediaUrl;
   const displayThumbUrl = embeddedThumb || getCacheBustedUrl(currentItem.thumbnailUrl || currentUrl || currentItem.url, currentItem.updatedAt);
 
   return (
@@ -441,13 +463,13 @@ const CohortStorytellingPlayer: React.FC<{
             )}
             <video
               ref={videoRef}
-              src={displayMediaUrl}
+              src={activeVideoCandidate}
               poster={getWorkshopEmbeddedFallback(displayThumbUrl) || displayThumbUrl || undefined}
               playsInline
               loop
               autoPlay
               muted={isMuted}
-              preload="metadata"
+              preload="auto"
               onLoadedData={() => setIsMediaLoaded(true)}
               onCanPlay={() => setIsMediaLoaded(true)}
               onPlay={() => {
@@ -457,11 +479,16 @@ const CohortStorytellingPlayer: React.FC<{
               }}
               onPause={() => setIsPlaying(false)}
               onError={async () => {
+                if (candidateIndex + 1 < candidates.length) {
+                  setCandidateIndex((prev) => prev + 1);
+                  return;
+                }
                 // Attempt auto-revival from storage before presenting error
                 try {
                   const recovered = await refetchWorkshopMediaFromStorage(currentItem);
                   if (recovered && recovered !== currentUrl && recovered !== currentItem.url) {
                     setCurrentUrl(recovered);
+                    setCandidateIndex(0);
                     return;
                   }
                 } catch {}

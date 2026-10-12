@@ -111,19 +111,14 @@ export default defineConfig(() => {
               },
             },
             {
-              // Cache local video files for offline slow-motion reels loops
-              urlPattern: /\.(?:mp4|webm|mov)$/i,
-              handler: 'CacheFirst',
-              options: {
-                cacheName: 'artified-video-assets',
-                expiration: {
-                  maxEntries: 30,
-                  maxAgeSeconds: 60 * 60 * 24 * 60, // 60 days
-                },
-                cacheableResponse: {
-                  statuses: [0, 200],
-                },
-              },
+              // Video files and workshop media MUST be NetworkOnly so browser native media streaming engine handles HTTP 206 range requests
+              urlPattern: /\.(?:mp4|webm|mov|m4v)$/i,
+              handler: 'NetworkOnly',
+            },
+            {
+              // Public workshops media MUST be NetworkOnly to ensure direct partial streaming and fresh files
+              urlPattern: /^\/workshops\/.*/i,
+              handler: 'NetworkOnly',
             },
             {
               // Cache Google Fonts

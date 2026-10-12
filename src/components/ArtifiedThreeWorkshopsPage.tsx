@@ -49,6 +49,7 @@ import { compressImageToBlob } from '../utils/fastMediaUploader';
 import { useCart } from '../context/CartContext';
 import { ArtifiedLogo } from './ArtifiedLogo';
 import { WorkshopLightboxModal } from './WorkshopLightboxModal';
+import { getVideoAlternativeUrls } from '../utils/cacheBuster';
 
 export interface WorkshopClassDef {
   id: string;
@@ -201,24 +202,34 @@ const HoverVideoCard: React.FC<{
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isAudioMuted, setIsAudioMuted] = useState(true);
+  const [candidateIndex, setCandidateIndex] = useState(0);
 
-  const handleMouseEnter = () => {
+  const candidates = React.useMemo(() => getVideoAlternativeUrls(video.url), [video.url]);
+  const activeVideoUrl = candidates[candidateIndex] || video.url;
+
+  // Auto-play video seamlessly on mount without requiring hover
+  useEffect(() => {
+    setCandidateIndex(0);
     if (videoRef.current) {
-      videoRef.current.currentTime = 0;
+      videoRef.current.muted = true;
       const playPromise = videoRef.current.play();
       if (playPromise !== undefined) {
         playPromise
           .then(() => setIsPlaying(true))
-          .catch(() => setIsPlaying(false));
+          .catch(() => {
+            // Autoplay with sound restricted, retry muted
+            if (videoRef.current) {
+              videoRef.current.muted = true;
+              videoRef.current.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
+            }
+          });
       }
     }
-  };
+  }, [video.url, activeVideoUrl]);
 
-  const handleMouseLeave = () => {
-    if (videoRef.current) {
-      videoRef.current.pause();
-      videoRef.current.currentTime = 0;
-      setIsPlaying(false);
+  const handleVideoError = () => {
+    if (candidateIndex + 1 < candidates.length) {
+      setCandidateIndex((prev) => prev + 1);
     }
   };
 
@@ -228,6 +239,20 @@ const HoverVideoCard: React.FC<{
       const nextMuted = !isAudioMuted;
       videoRef.current.muted = nextMuted;
       setIsAudioMuted(nextMuted);
+      if (videoRef.current.paused) {
+        videoRef.current.play().then(() => setIsPlaying(true)).catch(() => {});
+      }
+    }
+  };
+
+  const handleTogglePlay = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!videoRef.current) return;
+    if (videoRef.current.paused) {
+      videoRef.current.play().then(() => setIsPlaying(true)).catch(() => {});
+    } else {
+      videoRef.current.pause();
+      setIsPlaying(false);
     }
   };
 
@@ -237,39 +262,41 @@ const HoverVideoCard: React.FC<{
     >
       <div 
         className="relative w-full aspect-square bg-black overflow-hidden cursor-pointer"
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
-        onClick={() => onOpenTheater && onOpenTheater(video)}
+        onClick={() => onOpenTheater ? onOpenTheater(video) : handleTogglePlay}
       >
         <video
           ref={videoRef}
-          src={video.url}
+          src={activeVideoUrl}
           poster={video.thumbnailUrl && video.thumbnailUrl !== video.url ? video.thumbnailUrl : undefined}
           muted={isAudioMuted}
+          autoPlay
           loop
           playsInline
-          preload="metadata"
+          preload="auto"
+          onError={handleVideoError}
+          onPlay={() => setIsPlaying(true)}
+          onPause={() => setIsPlaying(false)}
           className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-102"
           style={{ width: '100%', height: '100%', objectFit: 'cover' }}
         />
 
-        {/* Hover Status Indicator Badge */}
+        {/* Video Status Indicator Badge */}
         <div className="absolute top-2.5 left-2.5 z-10 flex items-center gap-1.5 pointer-events-none">
           {isPlaying ? (
-            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-[#25D366] text-white shadow-md animate-pulse">
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-[#25D366] text-white shadow-md">
               <Play className="w-2.5 h-2.5 fill-current" />
-              <span>Playing Preview</span>
+              <span>Playing</span>
             </span>
           ) : (
             <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-black/70 backdrop-blur-md text-white/90 border border-white/10">
               <Video className="w-2.5 h-2.5 text-[#C5A880]" />
-              <span>Hover to Play</span>
+              <span>Video Reel</span>
             </span>
           )}
         </div>
 
-        {/* Hover Audio Controls */}
-        <div className="absolute top-2.5 right-2.5 z-10 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+        {/* Audio & Playback Controls */}
+        <div className="absolute top-2.5 right-2.5 z-10 flex items-center gap-1.5">
           <button
             type="button"
             onClick={toggleSound}
@@ -280,11 +307,14 @@ const HoverVideoCard: React.FC<{
           </button>
         </div>
 
-        {/* Watermark Play Icon */}
+        {/* Pause/Play Overlay Cue */}
         {!isPlaying && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/25 pointer-events-none transition-opacity">
-            <div className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center text-white border border-white/30 shadow-lg group-hover:scale-110 transition-transform">
-              <Play className="w-4 h-4 fill-white ml-0.5" />
+          <div 
+            onClick={handleTogglePlay}
+            className="absolute inset-0 flex items-center justify-center bg-black/40 cursor-pointer transition-opacity"
+          >
+            <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center text-white border border-white/30 shadow-lg hover:scale-110 transition-transform">
+              <Play className="w-5 h-5 fill-white ml-0.5" />
             </div>
           </div>
         )}

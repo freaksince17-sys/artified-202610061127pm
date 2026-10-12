@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   Play, 
   Pause, 
@@ -23,6 +23,7 @@ import {
 import { WorkshopMediaItem } from '../types';
 import { useCart } from '../context/CartContext';
 import { deleteWorkshopMediaItem } from '../data/workshops';
+import { getVideoAlternativeUrls } from '../utils/cacheBuster';
 
 interface WorkshopAlternatingFeedProps {
   items: WorkshopMediaItem[];
@@ -43,52 +44,73 @@ const WorkshopVideoHoverCard: React.FC<{
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
+  const [candidateIndex, setCandidateIndex] = useState(0);
 
-  const handleMouseEnter = () => {
+  const candidates = React.useMemo(() => getVideoAlternativeUrls(item.url), [item.url]);
+  const activeVideoUrl = candidates[candidateIndex] || item.url;
+
+  // Auto-play video smoothly on mount
+  useEffect(() => {
+    setCandidateIndex(0);
     if (videoRef.current) {
-      videoRef.current.currentTime = 0;
+      videoRef.current.muted = true;
       const playPromise = videoRef.current.play();
       if (playPromise !== undefined) {
         playPromise
           .then(() => setIsPlaying(true))
           .catch(() => {
-            // Autoplay prevented or aborted
-            setIsPlaying(false);
+            if (videoRef.current) {
+              videoRef.current.muted = true;
+              videoRef.current.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
+            }
           });
       }
     }
-  };
+  }, [item.url, activeVideoUrl]);
 
-  const handleMouseLeave = () => {
-    if (videoRef.current) {
-      videoRef.current.pause();
-      setIsPlaying(false);
+  const handleVideoError = () => {
+    if (candidateIndex + 1 < candidates.length) {
+      setCandidateIndex((prev) => prev + 1);
     }
   };
 
   const toggleMute = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (videoRef.current) {
-      videoRef.current.muted = !videoRef.current.muted;
-      setIsMuted(videoRef.current.muted);
+      const nextMuted = !videoRef.current.muted;
+      videoRef.current.muted = nextMuted;
+      setIsMuted(nextMuted);
+    }
+  };
+
+  const handleTogglePlay = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!videoRef.current) return;
+    if (videoRef.current.paused) {
+      videoRef.current.play().then(() => setIsPlaying(true)).catch(() => {});
+    } else {
+      videoRef.current.pause();
+      setIsPlaying(false);
     }
   };
 
   return (
     <div
       className="relative w-full h-full min-h-[320px] sm:min-h-[400px] lg:min-h-[460px] rounded-3xl overflow-hidden bg-[#151413] shadow-lg group cursor-pointer border border-[#E8DFD8]/80 dark:border-[#2E2C29]"
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
       onClick={onClick}
     >
       <video
         ref={videoRef}
-        src={item.url}
+        src={activeVideoUrl}
         poster={item.thumbnailUrl || undefined}
         muted={isMuted}
         playsInline
+        autoPlay
         loop
-        preload="metadata"
+        preload="auto"
+        onError={handleVideoError}
+        onPlay={() => setIsPlaying(true)}
+        onPause={() => setIsPlaying(false)}
         className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
       />
 
@@ -104,26 +126,27 @@ const WorkshopVideoHoverCard: React.FC<{
         </span>
 
         {isPlaying && (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-[#25D366]/90 text-white backdrop-blur-md animate-pulse shadow-md">
-            <span className="w-2 h-2 rounded-full bg-white animate-ping" />
-            <span>Hover Previewing</span>
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-[#25D366]/90 text-white backdrop-blur-md shadow-md">
+            <span className="w-2 h-2 rounded-full bg-white" />
+            <span>Playing Reel</span>
           </span>
         )}
       </div>
 
-      {/* Hover preview cue / Play Button overlay */}
-      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none transition-all duration-300">
-        {!isPlaying ? (
-          <div className="flex flex-col items-center gap-2">
-            <div className="w-16 h-16 rounded-full bg-black/60 backdrop-blur-md text-white border-2 border-white/40 flex items-center justify-center shadow-2xl transition-transform duration-300 transform group-hover:scale-115 group-hover:bg-[#C5A880] group-hover:text-[#1C1B1A]">
-              <Play className="w-7 h-7 fill-current ml-1" />
-            </div>
-            <span className="px-3 py-1 rounded-full text-[11px] font-medium bg-black/60 text-white/90 backdrop-blur-xs border border-white/10 opacity-90 group-hover:opacity-100 transition-opacity">
-              Hover to preview • Click to expand
-            </span>
+      {/* Play/Pause control overlay */}
+      {!isPlaying && (
+        <div 
+          onClick={handleTogglePlay}
+          className="absolute inset-0 flex flex-col items-center justify-center bg-black/30 transition-all duration-300"
+        >
+          <div className="w-16 h-16 rounded-full bg-black/60 backdrop-blur-md text-white border-2 border-white/40 flex items-center justify-center shadow-2xl transition-transform duration-300 transform group-hover:scale-115 group-hover:bg-[#C5A880] group-hover:text-[#1C1B1A]">
+            <Play className="w-7 h-7 fill-current ml-1" />
           </div>
-        ) : null}
-      </div>
+          <span className="mt-2 px-3 py-1 rounded-full text-[11px] font-medium bg-black/60 text-white/90 backdrop-blur-xs border border-white/10">
+            Click to play • Expand theater
+          </span>
+        </div>
+      )}
 
       {/* Bottom overlay bar with audio toggle and expand button */}
       <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between z-10">
