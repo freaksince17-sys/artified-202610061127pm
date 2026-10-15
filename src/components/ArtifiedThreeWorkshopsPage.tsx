@@ -88,19 +88,19 @@ export const CANONICAL_WORKSHOPS: WorkshopClassDef[] = [
   {
     id: 'ws-sunflower',
     key: 'sunflower',
-    title: 'Waste Pipe to Sunflower Eco-Art Workshop',
+    title: 'Pipecleaner Sunflower Crafting Workshop',
     badge: 'UPCOMING WORKSHOP BATCH',
-    tagline: 'Upcycled Conduit Pipes • Petal Sculpting & Ring Bases',
+    tagline: 'Vibrant Chenille Stems • Petal Shaping & Center Weaving',
     schedule: 'Bi-Weekly Sundays • 1:00 PM - 4:00 PM',
     location: 'Kathmandu Studio, Nepal',
     instructor: 'Sahina Shrestha',
     capacity: 12,
-    description: 'Transform discarded industrial conduit pipes into breathtaking botanical sunflower sculptures using precision heat-molding, petal fabric creasing, and eco-patina layering.',
-    whatsappMessage: 'Namaste Sahina! I would like to reserve a seat for the Waste Pipe to Sunflower Eco-Art Workshop in Kathmandu.',
+    description: 'Craft realistic, everlasting sunflower blooms using flexible pipecleaner chenille stems, core wiring, layered petal arrangements, and custom stem wrap techniques with Sahina Shrestha in Kathmandu.',
+    whatsappMessage: 'Namaste Sahina! I would like to reserve a seat for the Pipecleaner Sunflower Crafting Workshop in Kathmandu.',
     techniques: [
-      'Conduit Pipe Sectioning & Radial Heating',
-      'Fabric Petal Creasing & Symmetrical Layering',
-      'Central Seed Core Texturing & Eco-Sealing'
+      'Chenille Stem Petal Loop Shaping',
+      'Layered Center Disc Weaving',
+      'Flexible Wire Stem Support & Leaf Mounting'
     ]
   },
   {
@@ -124,9 +124,9 @@ export const CANONICAL_WORKSHOPS: WorkshopClassDef[] = [
 ];
 
 // Persistent keys
-const CLASSES_STORAGE_KEY = 'artified_workshop_classes_list_v33';
-const LOCAL_MEDIA_KEY = 'artified_three_workshops_media_v33';
-const TOMBSTONE_DELETED_KEY = 'artified_deleted_media_ids_v33';
+const CLASSES_STORAGE_KEY = 'artified_workshop_classes_list_v35';
+const LOCAL_MEDIA_KEY = 'artified_three_workshops_media_v35';
+const TOMBSTONE_DELETED_KEY = 'artified_deleted_media_ids_v35';
 
 function getTombstones(): string[] {
   try {
@@ -547,12 +547,25 @@ export const ArtifiedThreeWorkshopsPage: React.FC = () => {
   // Helper to get media for a specific workshop
   const getWorkshopMedia = (classKey: string) => {
     const tombstones = new Set(getTombstones());
-    return mediaList.filter(item => {
+    const filtered = mediaList.filter(item => {
       if (tombstones.has(item.id)) return false;
       const g = (item.groupId || '').toLowerCase().replace(/^ws-/, '').replace(/^ws-group-/, '');
       const key = classKey.toLowerCase();
       return g === key || g.includes(key) || key.includes(g);
     });
+
+    const keyLower = classKey.toLowerCase();
+    if (keyLower.includes('pearl')) {
+      return filtered.slice(0, 2);
+    }
+    if (keyLower.includes('sunflower') || keyLower.includes('pipe')) {
+      return filtered.slice(0, 6);
+    }
+    if (keyLower.includes('macrame')) {
+      return filtered.slice(0, 8);
+    }
+
+    return filtered;
   };
 
   // Convert File to Persistent Base64 Data URL (guarantees media never breaks or uses temporary blob:)

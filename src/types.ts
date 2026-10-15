@@ -296,6 +296,7 @@ export interface WorkshopMediaItem {
   likes?: string;
   views?: string;
   whatsappMessage?: string;
+  isAudioRemoved?: boolean; // When true, seller has muted/removed the audio track for this workshop video
   createdAt?: string;
   updatedAt?: string;
 }

@@ -58,7 +58,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   }
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
-    return { hasError: true, errorMessage: error.message };
+    return { hasError: true, errorMessage: error?.message || 'An unexpected render error occurred.' };
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
@@ -68,22 +68,87 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen bg-[#FAF8F5] text-[#1C1B1A] flex flex-col items-center justify-center p-6 text-center">
-          <div className="max-w-md w-full bg-white p-8 rounded-2xl border border-[#E8DFD8] shadow-sm">
-            <h2 className="font-serif text-2xl font-bold text-[#1C1B1A] mb-2">Artified_np</h2>
-            <p className="text-sm text-[#736C65] mb-6">
-              A temporary issue occurred while syncing with the server. You can refresh the page to continue browsing.
+        <div className="min-h-screen bg-[#FAF8F5] dark:bg-[#0F0E0E] text-[#1C1B1A] dark:text-[#F5F2EB] flex flex-col items-center justify-center p-6 text-center">
+          <div className="max-w-md w-full bg-white dark:bg-[#1A1918] p-8 rounded-2xl border border-[#E8DFD8] dark:border-[#2E2C29] shadow-sm">
+            <h2 className="font-serif text-2xl font-bold text-[#1C1B1A] dark:text-white mb-2">Artified_np</h2>
+            <p className="text-sm text-[#736C65] dark:text-[#A8A29D] mb-6 leading-relaxed">
+              We encountered a brief hiccup while rendering. You can continue browsing our catalog or reload the application.
             </p>
-            <button
-              type="button"
-              onClick={() => {
-                this.setState({ hasError: false, errorMessage: '' });
-                window.location.reload();
-              }}
-              className="w-full py-3 px-6 bg-[#1C1B1A] text-white rounded-xl text-xs font-semibold uppercase tracking-wider hover:bg-[#333] transition-colors cursor-pointer"
-            >
-              Reload Website
-            </button>
+            <div className="flex flex-col gap-2.5">
+              <button
+                type="button"
+                onClick={() => {
+                  this.setState({ hasError: false, errorMessage: '' });
+                  window.location.href = '/';
+                }}
+                className="w-full py-3 px-6 bg-[#1C1B1A] dark:bg-white text-white dark:text-[#1C1B1A] rounded-xl text-xs font-bold uppercase tracking-wider hover:bg-[#333] dark:hover:bg-neutral-200 transition-colors cursor-pointer"
+              >
+                Return to Shop
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  this.setState({ hasError: false, errorMessage: '' });
+                }}
+                className="w-full py-2.5 px-6 bg-neutral-100 dark:bg-neutral-800 text-[#5E5955] dark:text-[#C4BCB5] rounded-xl text-xs font-semibold hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors cursor-pointer"
+              >
+                Try Again
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+export class ModalErrorBoundary extends Component<
+  { children: React.ReactNode; fallbackTitle?: string; onClose?: () => void },
+  { hasError: boolean; errorMessage: string }
+> {
+  constructor(props: { children: React.ReactNode; fallbackTitle?: string; onClose?: () => void }) {
+    super(props);
+    this.state = { hasError: false, errorMessage: '' };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, errorMessage: error?.message || 'Error loading modal content' };
+  }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.warn('ModalErrorBoundary caught error:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+          <div className="max-w-md w-full bg-white dark:bg-[#1C1B1A] p-6 rounded-2xl border border-[#E8DFD8] dark:border-[#333] text-center shadow-xl">
+            <h3 className="font-serif text-lg font-bold text-[#1C1B1A] dark:text-white mb-2">
+              {this.props.fallbackTitle || 'Studio Editor'}
+            </h3>
+            <p className="text-xs text-[#736C65] dark:text-[#A8A29D] mb-4">
+              Unable to load editor details right now.
+            </p>
+            <div className="flex items-center justify-center gap-2">
+              <button
+                type="button"
+                onClick={() => this.setState({ hasError: false, errorMessage: '' })}
+                className="px-4 py-2 rounded-xl bg-[#C5A880] text-[#1C1B1A] text-xs font-bold cursor-pointer hover:bg-[#b8986c]"
+              >
+                Retry
+              </button>
+              {this.props.onClose && (
+                <button
+                  type="button"
+                  onClick={this.props.onClose}
+                  className="px-4 py-2 rounded-xl bg-neutral-200 dark:bg-neutral-800 text-xs font-semibold cursor-pointer"
+                >
+                  Close
+                </button>
+              )}
+            </div>
           </div>
         </div>
       );

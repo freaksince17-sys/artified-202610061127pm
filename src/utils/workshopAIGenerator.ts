@@ -109,10 +109,10 @@ export function autoGenerateMediaCaption(filename: string, groupTitle = 'Artisan
     craftTechnique = 'Macrame Tension & Knotting';
     tags = ['Macrame', 'Cord Tension', 'Handmade Nepal', clean];
   } else if (lower.includes('sunflower') || lower.includes('pipe') || lower.includes('waste') || lower.includes('eco')) {
-    title = `Upcycled Waste Pipe to Sunflower Petal Craft (${clean})`;
-    caption = `Step-by-step transformation of discarded pipes into bright, enduring sunflower petals with fabric wrapping and clean edge binding.`;
-    craftTechnique = 'Pipe Ring & Petal Sculpting';
-    tags = ['Eco Upcycling', 'Sunflowers', 'Waste to Art', clean];
+    title = `Pipecleaner Sunflower Petal Crafting (${clean})`;
+    caption = `Step-by-step shaping of flexible chenille stems into vibrant sunflower petals with core wiring and clean leaf wrapping.`;
+    craftTechnique = 'Chenille Stem Wire Sculpting';
+    tags = ['Pipecleaner Sunflower', 'Chenille Craft', 'Handmade Flowers', clean];
   } else if (lower.includes('pearl') || lower.includes('bead') || lower.includes('bag')) {
     title = `Pearl Bag Cross-Weaving & Structural Beading (${clean})`;
     caption = `Precision hand-beading of acrylic pearls into rigid interlocking grids for evening bags and bridal couture.`;

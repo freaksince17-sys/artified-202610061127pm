@@ -15,10 +15,11 @@ import {
   ExternalLink,
   Wrench,
   Copy,
-  Check
+  Check,
+  Boxes
 } from 'lucide-react';
 import { WorkshopMediaItem } from '../types';
-import { runWorkshopMediaDiagnostic, refetchWorkshopMediaFromStorage, DiagnosticResult } from '../utils/workshopDiagnostics';
+import { runWorkshopMediaDiagnostic, refetchWorkshopMediaFromStorage, validateRegistryInventory, DiagnosticResult, RegistryValidationReport } from '../utils/workshopDiagnostics';
 
 interface WorkshopDiagnosticsModalProps {
   isOpen: boolean;
@@ -38,6 +39,7 @@ export const WorkshopDiagnosticsModal: React.FC<WorkshopDiagnosticsModalProps> =
   const [activeTab, setActiveTab] = useState<'all' | 'errors' | 'videos'>('all');
   const [repairingId, setRepairingId] = useState<string | null>(null);
   const [copiedLogs, setCopiedLogs] = useState(false);
+  const [inventoryReport, setInventoryReport] = useState<RegistryValidationReport | null>(null);
 
   useEffect(() => {
     if (isOpen && mediaItems.length > 0) {
@@ -50,6 +52,10 @@ export const WorkshopDiagnosticsModal: React.FC<WorkshopDiagnosticsModalProps> =
     setResults([]);
     console.clear();
     console.info('🩺 Starting Full Workshop Masterclass Media Health & MIME Diagnostic Audit...');
+
+    // Run Registry Inventory Validation
+    const report = validateRegistryInventory(mediaItems);
+    setInventoryReport(report);
 
     const tempResults: DiagnosticResult[] = [];
 
@@ -149,6 +155,29 @@ export const WorkshopDiagnosticsModal: React.FC<WorkshopDiagnosticsModalProps> =
             </button>
           </div>
         </div>
+
+        {/* Inventory Validation Strip */}
+        {inventoryReport && (
+          <div className={`px-5 py-3 border-b text-xs flex flex-wrap items-center justify-between gap-2 ${
+            inventoryReport.isValid 
+              ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-800 dark:text-emerald-300' 
+              : 'bg-amber-500/10 border-amber-500/20 text-amber-800 dark:text-amber-300'
+          }`}>
+            <div className="flex items-center gap-2 font-medium">
+              <Boxes className="w-4 h-4 text-[#C5A880]" />
+              <span>Registry Validation Check: <strong>{inventoryReport.isValid ? 'PASSED (Target 16 Items Verified)' : 'DISCREPANCY DETECTED'}</strong></span>
+            </div>
+            <div className="flex items-center gap-3 text-[11px] font-mono">
+              <span>Macrame: <strong>{inventoryReport.macrameCount}/8</strong></span>
+              <span>•</span>
+              <span>Pipecleaner Sunflower: <strong>{inventoryReport.sunflowerCount}/6</strong></span>
+              <span>•</span>
+              <span>Pearl Bag: <strong>{inventoryReport.pearlCount}/2</strong></span>
+              <span>•</span>
+              <span>Total Combined: <strong>{inventoryReport.totalCount}/16</strong></span>
+            </div>
+          </div>
+        )}
 
         {/* Stats Summary Strip */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 bg-[#F2EDE4] dark:bg-[#141312] border-b border-[#E8DFD8] dark:border-white/10">

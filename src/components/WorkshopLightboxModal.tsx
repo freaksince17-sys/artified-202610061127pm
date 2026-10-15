@@ -286,12 +286,13 @@ export const WorkshopLightboxModal: React.FC<WorkshopLightboxModalProps> = ({
             <div className="relative w-full h-full flex items-center justify-center">
               <video
                 ref={videoRef}
+                key={currentItem.id || currentUrl}
                 src={currentUrl || currentItem.url}
                 poster={getWorkshopEmbeddedFallback(currentItem.thumbnailUrl || currentItem.url) || currentItem.thumbnailUrl || undefined}
                 playsInline
                 loop
                 autoPlay
-                muted={isMuted}
+                muted={!!currentItem.isAudioRemoved || isMuted}
                 preload="auto"
                 onClick={togglePlay}
                 onPlay={() => {
@@ -334,14 +335,21 @@ export const WorkshopLightboxModal: React.FC<WorkshopLightboxModalProps> = ({
                   >
                     {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 fill-white" />}
                   </button>
-                  <button
-                    type="button"
-                    onClick={toggleMute}
-                    className="text-white hover:text-[#C5A880] transition-colors cursor-pointer"
-                    title={isMuted ? "Unmute" : "Mute"}
-                  >
-                    {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
-                  </button>
+                  {currentItem.isAudioRemoved ? (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-300 bg-amber-500/20 px-2 py-0.5 rounded-md border border-amber-500/30">
+                      <VolumeX className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Audio Removed</span>
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={toggleMute}
+                      className="text-white hover:text-[#C5A880] transition-colors cursor-pointer"
+                      title={isMuted ? "Unmute" : "Mute"}
+                    >
+                      {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                    </button>
+                  )}
                   {currentItem.duration && (
                     <span className="text-white/70 text-xs font-mono">
                       {currentItem.duration}

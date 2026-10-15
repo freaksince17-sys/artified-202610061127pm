@@ -29,7 +29,9 @@ import {
   Square,
   FileVideo,
   FileImage,
-  HardDrive
+  HardDrive,
+  Volume2,
+  VolumeX
 } from 'lucide-react';
 import { WorkshopGroup, WorkshopMediaItem } from '../types';
 import { 
@@ -37,6 +39,7 @@ import {
   deleteWorkshopGroup, 
   saveWorkshopMediaItem, 
   deleteWorkshopMediaPermanent,
+  toggleWorkshopMediaAudio,
   uploadWorkshopFileDirectly,
   fetchWorkshopFilesFromServer,
   deleteWorkshopFileFromServer,
@@ -977,6 +980,29 @@ const UnifiedMasterclassModalInner: React.FC<UnifiedMasterclassModalProps> = ({
     }
   };
 
+  // Toggle whether audio is removed (muted) or restored for a video media item
+  const handleToggleMediaAudio = async (item: WorkshopMediaItem) => {
+    try {
+      const updated = await toggleWorkshopMediaAudio(item.id);
+      if (updated) {
+        const nextMedia = allMediaItems.map((m) => (m.id === item.id ? updated : m));
+        if (onMediaUpdated) {
+          onMediaUpdated(nextMedia);
+        }
+        setInternalMedia(nextMedia);
+        setStatusMessage({
+          type: 'success',
+          text: updated.isAudioRemoved 
+            ? `Audio removed from "${item.title}". Video is now silent for customers.`
+            : `Audio restored to "${item.title}". Sound is active.`
+        });
+        setTimeout(() => setStatusMessage(null), 3000);
+      }
+    } catch (err: any) {
+      setStatusMessage({ type: 'error', text: err?.message || 'Failed to toggle audio settings.' });
+    }
+  };
+
   return (
     <div 
       className="fixed inset-0 z-[120] flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-md animate-fade-in"
@@ -1449,41 +1475,103 @@ const UnifiedMasterclassModalInner: React.FC<UnifiedMasterclassModalProps> = ({
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                {currentWorkshopMedia.map((m) => (
-                  <div
-                    key={m.id}
-                    className="p-2 rounded-xl bg-[#FAF8F5] dark:bg-[#201E1C] border border-[#E8DFD8] dark:border-white/10 relative group"
-                  >
-                    <div className="w-full aspect-square rounded-lg overflow-hidden bg-black mb-2 relative">
-                      {m.type === 'video' ? (
-                        <>
-                          <video src={m.url} className="w-full h-full object-cover" muted playsInline />
-                          <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                            <Video className="w-5 h-5 text-white" />
-                          </div>
-                        </>
-                      ) : (
-                        <img src={m.url || m.thumbnailUrl} alt={m.title} className="w-full h-full object-cover" />
+                {currentWorkshopMedia.map((m) => {
+                  if (!m) return null;
+                  const isVid = m.type === 'video' || (m.url && m.url.includes('.mp4'));
+                  return (
+                    <div
+                      key={m.id || `wm_${Math.random()}`}
+                      className="p-2 rounded-xl bg-[#FAF8F5] dark:bg-[#201E1C] border border-[#E8DFD8] dark:border-white/10 relative group flex flex-col justify-between"
+                    >
+                      <div>
+                        <div className="w-full aspect-square rounded-lg overflow-hidden bg-black mb-2 relative">
+                          {isVid ? (
+                            <>
+                              <video src={m.url} className="w-full h-full object-cover" muted playsInline />
+                              <div className="absolute inset-0 bg-black/40 flex items-center justify-center pointer-events-none">
+                                <Video className="w-5 h-5 text-white" />
+                              </div>
+                            </>
+                          ) : (
+                            <img src={m.url || m.thumbnailUrl} alt={m.title || 'Workshop Media'} className="w-full h-full object-cover" />
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteMediaItem(m)}
+                            className="absolute top-1.5 right-1.5 p-1 rounded-md bg-rose-600 text-white opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer shadow-xs"
+                            title="Delete photo/video"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+
+                          {/* Quick Audio Toggle Button for Video */}
+                          {isVid && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleToggleMediaAudio(m);
+                              }}
+                              className={`absolute bottom-1.5 left-1.5 px-2 py-1 rounded-md text-[10px] font-bold flex items-center gap-1 backdrop-blur-md transition-all cursor-pointer shadow-xs ${
+                                m.isAudioRemoved
+                                  ? 'bg-amber-500 text-black font-extrabold ring-1 ring-amber-300'
+                                  : 'bg-black/70 text-white hover:bg-black'
+                              }`}
+                              title={m.isAudioRemoved ? 'Audio removed (silent): Click to restore sound' : 'Click to remove audio (make silent for customers)'}
+                            >
+                              {m.isAudioRemoved ? (
+                                <>
+                                  <VolumeX className="w-3 h-3 text-black" />
+                                  <span>Silent (Audio Removed)</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Volume2 className="w-3 h-3 text-emerald-400" />
+                                  <span>Audio Active</span>
+                                </>
+                              )}
+                            </button>
+                          )}
+                        </div>
+
+                        <h4 className="text-xs font-bold text-[#1C1B1A] dark:text-white truncate" title={m.title}>
+                          {m.title || 'Untitled Media'}
+                        </h4>
+                        <p className="text-[10px] text-[#736C65] dark:text-[#A8A29D] line-clamp-2 mt-0.5">
+                          {m.caption || m.description || 'Kathmandu workshop session media'}
+                        </p>
+                      </div>
+
+                      {/* Video Audio Action Bar */}
+                      {isVid && (
+                        <div className="mt-2 pt-2 border-t border-[#E8DFD8] dark:border-white/10 flex items-center justify-between">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleMediaAudio(m)}
+                            className={`w-full py-1 rounded-lg text-[10px] font-bold transition-colors cursor-pointer flex items-center justify-center gap-1 ${
+                              m.isAudioRemoved
+                                ? 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-600 dark:text-amber-300 border border-amber-500/40'
+                                : 'bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-[#5E5955] dark:text-[#C4BCB5]'
+                            }`}
+                          >
+                            {m.isAudioRemoved ? (
+                              <>
+                                <VolumeX className="w-3 h-3 text-amber-500" />
+                                <span>🔊 Restore Audio</span>
+                              </>
+                            ) : (
+                              <>
+                                <Volume2 className="w-3 h-3 text-emerald-500" />
+                                <span>🔇 Remove Audio</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
                       )}
-
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteMediaItem(m)}
-                        className="absolute top-1.5 right-1.5 p-1 rounded-md bg-rose-600 text-white opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer shadow-xs"
-                        title="Delete photo/video"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
                     </div>
-
-                    <h4 className="text-xs font-bold text-[#1C1B1A] dark:text-white truncate">
-                      {m.title}
-                    </h4>
-                    <p className="text-[10px] text-[#736C65] dark:text-[#A8A29D] line-clamp-2 mt-0.5">
-                      {m.caption}
-                    </p>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

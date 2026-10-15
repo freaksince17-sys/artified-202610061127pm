@@ -88,8 +88,18 @@ export function isMediaRelatedToGroup(
   const getFamily = (str: string): 'macrame' | 'sunflower' | 'pearl' | string => {
     const s = (str || '').toLowerCase();
     if (s.includes('pearl') || s.includes('bead') || s.includes('couture') || s.includes('bridal')) return 'pearl';
-    if (s.includes('sunflower') || s.includes('pipe') || s.includes('pipecleaner') || s.includes('eco') || s.includes('sunglower')) return 'sunflower';
-    if (s.includes('macrame') || s.includes('knot') || s.includes('cord')) return 'macrame';
+    if (
+      s.includes('sunflower') || 
+      s.includes('pipe') || 
+      s.includes('pipecleaner') || 
+      s.includes('eco') || 
+      s.includes('sunglower') ||
+      s.includes('chenille') ||
+      s.includes('stem') ||
+      s.includes('floral') ||
+      s.includes('sculpting')
+    ) return 'sunflower';
+    if (s.includes('macrame') || s.includes('knot') || s.includes('cord') || s.includes('wall art') || s.includes('planter')) return 'macrame';
     return s;
   };
 
@@ -157,7 +167,7 @@ export function isMediaRelatedToGroup(
   // 4. Strong semantic keyword detection across URL, filename, title, and ID
   const allText = `${rawUrl} ${title} ${id}`.toLowerCase();
   const hasPearl = allText.includes('pearl') || allText.includes('bead') || allText.includes('clutch');
-  const hasSunflower = allText.includes('sunflower') || allText.includes('pipe') || allText.includes('sunglower') || allText.includes('pipecleaner');
+  const hasSunflower = allText.includes('sunflower') || allText.includes('pipe') || allText.includes('sunglower') || allText.includes('pipecleaner') || allText.includes('chenille') || allText.includes('stem') || allText.includes('floral') || allText.includes('sculpting');
   const hasMacrame = allText.includes('macrame') || allText.includes('knot') || allText.includes('cord');
 
   if (hasPearl) {
@@ -177,13 +187,19 @@ export function isLegacyFakeMacrameVideo(item: { id?: string; url?: string; type
   return !isMediaRelatedToGroup(item, 'macrame');
 }
 
-const CUSTOM_GROUPS_STORAGE_KEY = 'artified_custom_workshop_groups_v32';
-const CUSTOM_MEDIA_STORAGE_KEY = 'artified_custom_workshop_media_v32';
+const CUSTOM_GROUPS_STORAGE_KEY = 'artified_custom_workshop_groups_v35';
+const CUSTOM_MEDIA_STORAGE_KEY = 'artified_custom_workshop_media_v35';
 
 // Purge any contaminated legacy cache keys on initial import
 if (typeof window !== 'undefined') {
   try {
     [
+      'artified_custom_workshop_media_v34',
+      'artified_custom_workshop_groups_v34',
+      'artified_custom_workshop_media_v33',
+      'artified_custom_workshop_groups_v33',
+      'artified_custom_workshop_media_v32',
+      'artified_custom_workshop_groups_v32',
       'artified_custom_workshop_media_v31',
       'artified_custom_workshop_groups_v31',
       'artified_custom_workshop_media_v30',
@@ -626,11 +642,13 @@ export function sanitizeWorkshopMediaItem(item: WorkshopMediaItem): WorkshopMedi
     if (!copy.thumbnailUrl) {
       copy.thumbnailUrl = copy.url;
     }
-    // For images, if an embedded fallback exists, use it so it renders instantly on any domain (artified.com.np & Google AI Studio)
+    // For images, provide high-quality fallback for thumbnail and preview
     const imgFallback = getWorkshopEmbeddedFallback(copy.url) || getWorkshopEmbeddedFallback(copy.thumbnailUrl);
     if (imgFallback) {
-      copy.url = imgFallback;
       copy.thumbnailUrl = imgFallback;
+      if (!copy.url) {
+        copy.url = imgFallback;
+      }
     }
   }
 
@@ -781,19 +799,44 @@ export async function fetchWorkshopMedia(): Promise<WorkshopMediaItem[]> {
   const allItems = Array.from(mergedMap.values())
     .map(sanitizeWorkshopMediaItem)
     .filter(item => !deletedIds.includes(item.id));
+
+  const finalEnforcedItems = enforceStrictWorkshopMediaLimits(allItems);
   
-  saveCustomWorkshopMediaToStorage(allItems);
+  saveCustomWorkshopMediaToStorage(finalEnforcedItems);
 
   // Sync custom items to server disk
   try {
     fetch('/api/workshop-media', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(allItems)
+      body: JSON.stringify(finalEnforcedItems)
     }).catch(() => {});
   } catch {}
 
-  return allItems;
+  return finalEnforcedItems;
+}
+
+export function enforceStrictWorkshopMediaLimits(items: WorkshopMediaItem[]): WorkshopMediaItem[] {
+  const macrameItems: WorkshopMediaItem[] = [];
+  const sunflowerItems: WorkshopMediaItem[] = [];
+  const pearlItems: WorkshopMediaItem[] = [];
+  const otherItems: WorkshopMediaItem[] = [];
+
+  items.forEach((item) => {
+    const g = (item.groupId || '').toLowerCase();
+    const u = (item.url || '').toLowerCase();
+    if (g.includes('macrame') || u.includes('macrame')) {
+      if (macrameItems.length < 8) macrameItems.push(item);
+    } else if (g.includes('sunflower') || g.includes('pipe') || u.includes('sunflower') || u.includes('pipe')) {
+      if (sunflowerItems.length < 6) sunflowerItems.push(item);
+    } else if (g.includes('pearl') || u.includes('pearl')) {
+      if (pearlItems.length < 2) pearlItems.push(item);
+    } else {
+      otherItems.push(item);
+    }
+  });
+
+  return [...macrameItems, ...sunflowerItems, ...pearlItems, ...otherItems];
 }
 
 /**
@@ -859,6 +902,27 @@ export async function saveWorkshopMediaItem(item: WorkshopMediaItem): Promise<vo
     updatedAt: now,
     createdAt: item.createdAt || now
   }, { merge: true });
+}
+
+/**
+ * Toggle whether a workshop video has its audio removed (muted) or restored.
+ * Reversible at any time by the seller.
+ */
+export async function toggleWorkshopMediaAudio(itemId: string, forceState?: boolean): Promise<WorkshopMediaItem | null> {
+  const currentCustom = getCustomWorkshopMediaFromStorage();
+  const allMedia = [...currentCustom, ...DEFAULT_WORKSHOP_MEDIA];
+  const target = allMedia.find((m) => m.id === itemId);
+  if (!target) return null;
+
+  const nextAudioRemoved = forceState !== undefined ? forceState : !target.isAudioRemoved;
+  const updatedItem: WorkshopMediaItem = {
+    ...target,
+    isAudioRemoved: nextAudioRemoved,
+    updatedAt: new Date().toISOString()
+  };
+
+  await saveWorkshopMediaItem(updatedItem);
+  return updatedItem;
 }
 
 /**

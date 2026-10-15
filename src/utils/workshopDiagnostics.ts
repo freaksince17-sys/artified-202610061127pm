@@ -322,15 +322,91 @@ export function verifyUploadPath(localId: string, docId: string, storageUri: str
  * Outputs the exact Storage URI and the corresponding Firestore document URL/ID to the console
  * after every successful upload to inspect assignment accuracy.
  */
+export interface RegistryValidationReport {
+  isValid: boolean;
+  totalCount: number;
+  macrameCount: number;
+  sunflowerCount: number;
+  pearlCount: number;
+  expectedTotal: number;
+  discrepancies: string[];
+}
+
+/**
+ * Validates that the workshop media registry strictly matches the inventory rules:
+ * - Combined count of photos and videos = exactly 16
+ * - Macrame = 8 items
+ * - Pipecleaner Sunflower ("Waste Pipe") = 6 items
+ * - Pearl Bag = 2 items
+ */
+export function validateRegistryInventory(items: WorkshopMediaItem[]): RegistryValidationReport {
+  const discrepancies: string[] = [];
+  
+  let macrameCount = 0;
+  let sunflowerCount = 0;
+  let pearlCount = 0;
+
+  items.forEach((item) => {
+    const groupId = (item.groupId || '').toLowerCase();
+    const title = (item.title || '').toLowerCase();
+    const url = (item.url || '').toLowerCase();
+
+    if (groupId.includes('macrame') || url.includes('macrame')) {
+      macrameCount++;
+    } else if (groupId.includes('sunflower') || groupId.includes('pipe') || url.includes('sunflower') || url.includes('pipe')) {
+      sunflowerCount++;
+    } else if (groupId.includes('pearl') || url.includes('pearl')) {
+      pearlCount++;
+    } else {
+      discrepancies.push(`Unassigned or unrecognized category for item: "${item.title}" (${item.id})`);
+    }
+  });
+
+  const totalCount = items.length;
+
+  if (totalCount !== 16) {
+    discrepancies.push(`Total combined count is ${totalCount}, expected exactly 16.`);
+  }
+  if (macrameCount !== 8) {
+    discrepancies.push(`Macrame count is ${macrameCount}, expected strictly 8 items.`);
+  }
+  if (sunflowerCount !== 6) {
+    discrepancies.push(`Pipecleaner Sunflower ("Waste Pipe") count is ${sunflowerCount}, expected strictly 6 items.`);
+  }
+  if (pearlCount !== 2) {
+    discrepancies.push(`Pearl Bag count is ${pearlCount}, expected strictly 2 items.`);
+  }
+
+  const isValid = discrepancies.length === 0;
+
+  console.group(`🔎 [Registry Inventory Validation Check] Status: ${isValid ? 'PASSED ✅' : 'DISCREPANCY DETECTED ❌'}`);
+  console.info(`Total Combined: ${totalCount}/16 | Macrame: ${macrameCount}/8 | Sunflower/Pipe: ${sunflowerCount}/6 | Pearl: ${pearlCount}/2`);
+  if (!isValid) {
+    console.warn('Inventory Discrepancies:', discrepancies);
+  }
+  console.groupEnd();
+
+  return {
+    isValid,
+    totalCount,
+    macrameCount,
+    sunflowerCount,
+    pearlCount,
+    expectedTotal: 16,
+    discrepancies
+  };
+}
+
 export function logMediaIntegrity(storageUri: string, firestoreDocId: string, item: WorkshopMediaItem): void {
   console.group(`🎯 [logMediaIntegrity] Media Upload Success Inspection`);
   console.info(`📦 Firestore Document ID: ${firestoreDocId}`);
   console.info(`🔗 Exact Storage URI: ${storageUri}`);
-  console.info(`🏷️ Workshop Title: ${item.workshopTitle} (Group: ${item.groupId})`);
+  console.info(`🏷️ Workshop Title: ${item.workshopTitle || ''} (Group: ${item.groupId})`);
   console.info(`📋 Item Title: ${item.title}`);
   console.info(`⏱️ Timestamp: ${item.createdAt}`);
   console.info('✨ Integrity Check: Verified zero cross-linking and correct document assignment.');
   console.groupEnd();
 }
+
 
 

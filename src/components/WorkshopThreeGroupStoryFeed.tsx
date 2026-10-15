@@ -31,7 +31,7 @@ import {
 } from 'lucide-react';
 import { WorkshopGroup, WorkshopMediaItem } from '../types';
 import { useCart } from '../context/CartContext';
-import { deleteWorkshopMediaItem, batchDeleteWorkshopMediaItems } from '../data/workshops';
+import { deleteWorkshopMediaItem, batchDeleteWorkshopMediaItems, toggleWorkshopMediaAudio } from '../data/workshops';
 import { refetchWorkshopMediaFromStorage } from '../utils/workshopDiagnostics';
 import { getWorkshopEmbeddedFallback } from '../data/workshopEmbeddedFallbacks';
 import { isVideoMedia } from '../services/firebaseWorkshopStorageService';
@@ -62,29 +62,29 @@ const WorkshopVideoHoverThumbnail: React.FC<{
 }> = ({ videoUrl, posterUrl, alt, updatedAt, onLoaded }) => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
   const [candidateIndex, setCandidateIndex] = useState(0);
 
   const candidates = React.useMemo(() => getVideoAlternativeUrls(videoUrl), [videoUrl]);
   const activeCandidateUrl = candidates[candidateIndex] || getCacheBustedUrl(videoUrl, updatedAt);
   const cleanPosterUrl = getCacheBustedUrl(posterUrl, updatedAt);
 
-  // Auto-play video seamlessly on mount without requiring mouse hover
+  // Lazy-load: Only stream video when hovered or interacted with
   useEffect(() => {
-    if (videoRef.current) {
+    if (!videoRef.current) return;
+    if (isHovered) {
       videoRef.current.muted = true;
       const playPromise = videoRef.current.play();
       if (playPromise !== undefined) {
         playPromise
           .then(() => setIsPlaying(true))
-          .catch(() => {
-            if (videoRef.current) {
-              videoRef.current.muted = true;
-              videoRef.current.play().then(() => setIsPlaying(true)).catch(() => {});
-            }
-          });
+          .catch(() => {});
       }
+    } else {
+      videoRef.current.pause();
+      setIsPlaying(false);
     }
-  }, [activeCandidateUrl]);
+  }, [isHovered, activeCandidateUrl]);
 
   const handleVideoError = () => {
     if (candidateIndex + 1 < candidates.length) {
@@ -93,16 +93,21 @@ const WorkshopVideoHoverThumbnail: React.FC<{
   };
 
   return (
-    <div className="absolute inset-0 w-full h-full overflow-hidden bg-black">
+    <div 
+      className="absolute inset-0 w-full h-full overflow-hidden bg-black"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      onTouchStart={() => setIsHovered(true)}
+    >
       <video
         ref={videoRef}
+        key={activeCandidateUrl}
         src={activeCandidateUrl}
         poster={cleanPosterUrl}
         muted
         playsInline
-        autoPlay
         loop
-        preload="auto"
+        preload="metadata"
         onError={handleVideoError}
         onLoadedData={() => onLoaded && onLoaded()}
         onCanPlay={() => onLoaded && onLoaded()}
@@ -151,7 +156,7 @@ const CohortStorytellingPlayer: React.FC<{
   isSelectionMode,
   selectedIds = [],
   onToggleSelect,
-  isInView
+  isInView = true
 }) => {
   const { isSellerMode } = useCart();
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -164,30 +169,60 @@ const CohortStorytellingPlayer: React.FC<{
   const [currentUrl, setCurrentUrl] = useState<string>('');
   const [isMediaLoaded, setIsMediaLoaded] = useState(false);
   const [candidateIndex, setCandidateIndex] = useState(0);
+  const [isTogglingAudio, setIsTogglingAudio] = useState(false);
 
   const items = group.items || [];
-  const currentItem = items[activeIndex] || items[0] || null;
+  const safeActiveIndex = (activeIndex >= 0 && activeIndex < items.length) ? activeIndex : 0;
+  const currentItem = items[safeActiveIndex] || items[0] || null;
   const isVideo = currentItem ? (currentItem.type === 'video' || isVideoMedia(currentItem.url || '', currentItem.title)) : false;
   const isSelected = currentItem ? selectedIds.includes(currentItem.id) : false;
 
-  const candidates = React.useMemo(() => getVideoAlternativeUrls(currentItem?.url || currentUrl), [currentItem?.url, currentUrl]);
+  // Track active item ID synchronously to reset candidateIndex and media states on slide change
+  const [activeItemId, setActiveItemId] = useState(currentItem?.id);
+  if (currentItem && currentItem.id !== activeItemId) {
+    setActiveItemId(currentItem.id);
+    setCandidateIndex(0);
+    setMediaError(null);
+    setIsMediaLoaded(false);
+  }
+
+  // Determine base target URL directly from currentItem without stale state lag
+  const rawItemUrl = currentItem?.url || '';
+  const candidates = React.useMemo(() => getVideoAlternativeUrls(rawItemUrl), [rawItemUrl]);
+
+  // Determine poster/cover image URL strictly as a valid image
+  const resolvedPosterUrl = React.useMemo(() => {
+    if (!currentItem) return undefined;
+    if (currentItem.thumbnailUrl && (currentItem.thumbnailUrl.startsWith('data:image') || /\.(jpg|jpeg|png|webp)($|\?)/i.test(currentItem.thumbnailUrl))) {
+      return getCacheBustedUrl(currentItem.thumbnailUrl, currentItem.updatedAt);
+    }
+    const fallback = getWorkshopEmbeddedFallback(currentItem.thumbnailUrl) || getWorkshopEmbeddedFallback(currentItem.url);
+    if (fallback) return fallback;
+    if (currentItem.thumbnailUrl && !/\.(mp4|mov|webm|m4v)($|\?)/i.test(currentItem.thumbnailUrl)) {
+      return getCacheBustedUrl(currentItem.thumbnailUrl, currentItem.updatedAt);
+    }
+    return undefined;
+  }, [currentItem?.id, currentItem?.thumbnailUrl, currentItem?.url, currentItem?.updatedAt]);
+
+  const photoUrl = currentItem && !isVideo && rawItemUrl ? getCacheBustedUrl(rawItemUrl, currentItem?.updatedAt) : null;
+  const embeddedImg = currentItem && !isVideo ? (getWorkshopEmbeddedFallback(rawItemUrl) || getWorkshopEmbeddedFallback(currentItem.thumbnailUrl)) : null;
+  const displayMediaUrl = photoUrl || embeddedImg || '';
+  const activeVideoCandidate = isVideo ? (candidates[candidateIndex] || getCacheBustedUrl(rawItemUrl, currentItem?.updatedAt)) : displayMediaUrl;
 
   useEffect(() => {
     setMediaError(null);
     setDeleteConfirm(false);
     setIsReloading(false);
     setIsMediaLoaded(false);
-    setCandidateIndex(0);
     if (currentItem) {
       if (!isVideo) {
-        const embedded = getWorkshopEmbeddedFallback(currentItem.url) || getWorkshopEmbeddedFallback(currentItem.thumbnailUrl);
-        setCurrentUrl(embedded || currentItem.url);
+        const primary = currentItem.url || currentItem.thumbnailUrl;
+        const embedded = getWorkshopEmbeddedFallback(primary);
+        setCurrentUrl(primary || embedded || '');
       } else {
-        // Video: use the item's url directly
         setCurrentUrl(currentItem.url);
       }
 
-      // If currentItem.url is a transient blob: URL that might have expired across sessions, attempt auto-revival
       if (currentItem.url && currentItem.url.startsWith('blob:')) {
         refetchWorkshopMediaFromStorage(currentItem).then((fresh) => {
           if (fresh && fresh !== currentItem.url) {
@@ -198,9 +233,10 @@ const CohortStorytellingPlayer: React.FC<{
     }
     if (isVideo && videoRef.current) {
       try {
+        videoRef.current.load();
         videoRef.current.currentTime = 0;
       } catch {}
-      videoRef.current.muted = isMuted;
+      videoRef.current.muted = !!currentItem?.isAudioRemoved || isMuted;
       videoRef.current
         .play()
         .then(() => {
@@ -217,7 +253,7 @@ const CohortStorytellingPlayer: React.FC<{
     } else {
       setIsPlaying(false);
     }
-  }, [activeIndex, isVideo, currentItem?.id, currentItem?.url]);
+  }, [safeActiveIndex, isVideo, currentItem?.id, currentItem?.url, activeVideoCandidate]);
 
   if (!currentItem) {
     return (
@@ -243,13 +279,13 @@ const CohortStorytellingPlayer: React.FC<{
 
   const handlePrev = (e: React.MouseEvent) => {
     e.stopPropagation();
-    const newIdx = (activeIndex - 1 + items.length) % items.length;
+    const newIdx = (safeActiveIndex - 1 + items.length) % items.length;
     onSelectIndex(newIdx);
   };
 
   const handleNext = (e: React.MouseEvent) => {
     e.stopPropagation();
-    const newIdx = (activeIndex + 1) % items.length;
+    const newIdx = (safeActiveIndex + 1) % items.length;
     onSelectIndex(newIdx);
   };
 
@@ -277,10 +313,33 @@ const CohortStorytellingPlayer: React.FC<{
 
   const handleToggleMute = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (currentItem?.isAudioRemoved) return; // Audio is muted/removed by seller
     if (!videoRef.current) return;
     const nextMuted = !isMuted;
     videoRef.current.muted = nextMuted;
     setIsMuted(nextMuted);
+  };
+
+  const handleToggleAudioRemoved = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!currentItem) return;
+    setIsTogglingAudio(true);
+    try {
+      const updated = await toggleWorkshopMediaAudio(currentItem.id);
+      if (updated) {
+        currentItem.isAudioRemoved = updated.isAudioRemoved;
+        if (videoRef.current) {
+          videoRef.current.muted = !!updated.isAudioRemoved || isMuted;
+        }
+        if (onEditItem) {
+          onEditItem(updated);
+        }
+      }
+    } catch (err) {
+      console.error('Error toggling workshop media audio:', err);
+    } finally {
+      setIsTogglingAudio(false);
+    }
   };
 
   const handleReloadMedia = async (e: React.MouseEvent) => {
@@ -342,11 +401,7 @@ const CohortStorytellingPlayer: React.FC<{
     );
   }
 
-  const embeddedImg = !isVideo ? (getWorkshopEmbeddedFallback(currentUrl) || getWorkshopEmbeddedFallback(currentItem.url) || getWorkshopEmbeddedFallback(currentItem.thumbnailUrl)) : null;
-  const embeddedThumb = getWorkshopEmbeddedFallback(currentItem.thumbnailUrl) || getWorkshopEmbeddedFallback(currentItem.url);
-  const displayMediaUrl = embeddedImg || getCacheBustedUrl(currentUrl || currentItem.url, currentItem.updatedAt);
-  const activeVideoCandidate = isVideo ? (candidates[candidateIndex] || displayMediaUrl) : displayMediaUrl;
-  const displayThumbUrl = embeddedThumb || getCacheBustedUrl(currentItem.thumbnailUrl || currentUrl || currentItem.url, currentItem.updatedAt);
+  const displayThumbUrl = resolvedPosterUrl || getCacheBustedUrl(currentItem.thumbnailUrl || rawItemUrl, currentItem.updatedAt);
 
   return (
     <div className="flex flex-col w-full bg-[#181716] dark:bg-[#121110] p-1.5 sm:p-2 rounded-2xl border border-white/10 shadow-xs">
@@ -358,7 +413,7 @@ const CohortStorytellingPlayer: React.FC<{
           if (isSelectionMode && onToggleSelect) {
             onToggleSelect(currentItem.id);
           } else if (!mediaError) {
-            onOpenLightbox(items, activeIndex);
+            onOpenLightbox(items, safeActiveIndex);
           }
         }}
       >
@@ -380,36 +435,7 @@ const CohortStorytellingPlayer: React.FC<{
           </div>
         )}
 
-        {/* Placeholder shimmer effect while waiting for lazy-load observer to trigger */}
-        {!isInView ? (
-          <div className="absolute inset-0 w-full h-full aspect-square bg-[#1A1817] flex items-center justify-center overflow-hidden select-none">
-            {/* Dark background base */}
-            <div className="absolute inset-0 bg-gradient-to-br from-[#1C1A18] via-[#141312] to-[#1C1A18]" />
-
-            {/* Glowing placeholder shimmer sweep */}
-            <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/10 to-transparent animate-shimmer" />
-
-            {/* Skeleton visual elements */}
-            <div className="relative z-10 flex flex-col items-center gap-2.5 text-white/40">
-              <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center shadow-inner">
-                {isVideo ? (
-                  <Video className="w-6 h-6 text-[#C5A880]/70" />
-                ) : (
-                  <Camera className="w-6 h-6 text-[#C5A880]/70" />
-                )}
-              </div>
-              <div className="h-2 w-28 rounded-full bg-white/10 overflow-hidden relative">
-                <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
-              </div>
-            </div>
-
-            {/* 1:1 Lazy-Load Indicator Badge */}
-            <div className="absolute bottom-3 left-3 z-10 flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-black/75 backdrop-blur-xs text-[10px] font-mono text-[#E6CA9E] border border-white/10">
-              <Sparkles className="w-3 h-3 text-[#C5A880] animate-spin" />
-              <span>Loading 1:1 Craft Media...</span>
-            </div>
-          </div>
-        ) : mediaError ? (
+        {mediaError ? (
           /* Error Fallback Card with Reload Media Button */
           <div className="absolute inset-0 w-full h-full flex flex-col items-center justify-center p-6 text-center text-white max-w-md mx-auto z-10 animate-fade-in">
             <div className="p-3 rounded-2xl bg-amber-500/20 text-amber-400 mb-3 border border-amber-500/30">
@@ -463,13 +489,14 @@ const CohortStorytellingPlayer: React.FC<{
             )}
             <video
               ref={videoRef}
+              key={`${currentItem.id}_slide_${safeActiveIndex}_cand${candidateIndex}_${activeVideoCandidate}`}
               src={activeVideoCandidate}
-              poster={getWorkshopEmbeddedFallback(displayThumbUrl) || displayThumbUrl || undefined}
+              poster={resolvedPosterUrl}
               playsInline
               loop
               autoPlay
-              muted={isMuted}
-              preload="auto"
+              muted={!!currentItem.isAudioRemoved || isMuted}
+              preload={isInView ? "auto" : "none"}
               onLoadedData={() => setIsMediaLoaded(true)}
               onCanPlay={() => setIsMediaLoaded(true)}
               onPlay={() => {
@@ -522,15 +549,25 @@ const CohortStorytellingPlayer: React.FC<{
               </span>
             </div>
 
-            {/* Video Sound Toggle Button */}
-            <button
-              type="button"
-              onClick={handleToggleMute}
-              className="absolute bottom-3 right-3 z-30 p-2 rounded-full bg-black/80 hover:bg-black text-white border border-white/20 transition-all cursor-pointer shadow-md"
-              title={isMuted ? 'Unmute' : 'Mute'}
-            >
-              {isMuted ? <VolumeX className="w-4 h-4 text-white/80" /> : <Volume2 className="w-4 h-4 text-[#E6CA9E]" />}
-            </button>
+            {/* Video Sound Toggle Button or Silent Demonstration Badge */}
+            {currentItem.isAudioRemoved ? (
+              <div 
+                className="absolute bottom-3 right-3 z-30 inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-black/85 backdrop-blur-md text-amber-200 border border-amber-500/40 text-[10px] font-bold shadow-md select-none"
+                title="Audio has been removed by the seller/artisan for this workshop video"
+              >
+                <VolumeX className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                <span>Silent Demonstration (Audio Removed)</span>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={handleToggleMute}
+                className="absolute bottom-3 right-3 z-30 p-2 rounded-full bg-black/80 hover:bg-black text-white border border-white/20 transition-all cursor-pointer shadow-md"
+                title={isMuted ? 'Unmute' : 'Mute'}
+              >
+                {isMuted ? <VolumeX className="w-4 h-4 text-white/80" /> : <Volume2 className="w-4 h-4 text-[#E6CA9E]" />}
+              </button>
+            )}
           </div>
         ) : (
           <div className="absolute inset-0 w-full h-full overflow-hidden bg-black">
@@ -546,29 +583,40 @@ const CohortStorytellingPlayer: React.FC<{
                 </div>
               </div>
             )}
-            <img
-              src={displayMediaUrl || displayThumbUrl}
-              alt={currentItem.title}
-              onLoad={() => setIsMediaLoaded(true)}
-              onError={async () => {
-                const fallback = getWorkshopEmbeddedFallback(currentUrl || currentItem.url || currentItem.thumbnailUrl);
-                if (fallback && currentUrl !== fallback) {
-                  setCurrentUrl(fallback);
-                  setMediaError(null);
-                  return;
-                }
-                try {
-                  const recovered = await refetchWorkshopMediaFromStorage(currentItem);
-                  if (recovered && recovered !== currentUrl) {
-                    setCurrentUrl(recovered);
-                    return;
-                  }
-                } catch {}
-                setMediaError('Photo failed to load from URL.');
-              }}
-              className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-102"
-              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-            />
+            {(() => {
+              const activeImgSrc = (currentUrl && currentUrl.startsWith('data:image')) 
+                ? currentUrl 
+                : (displayMediaUrl || currentUrl || displayThumbUrl || getWorkshopEmbeddedFallback(currentItem.thumbnailUrl) || getWorkshopEmbeddedFallback(currentItem.url) || '');
+              return (
+                <img
+                  src={activeImgSrc}
+                  alt={currentItem.title}
+                  onLoad={() => {
+                    setIsMediaLoaded(true);
+                    setMediaError(null);
+                  }}
+                  onError={async () => {
+                    const fallback = getWorkshopEmbeddedFallback(currentItem.thumbnailUrl) || getWorkshopEmbeddedFallback(currentItem.url);
+                    if (fallback && currentUrl !== fallback) {
+                      setCurrentUrl(fallback);
+                      setMediaError(null);
+                      return;
+                    }
+                    try {
+                      const recovered = await refetchWorkshopMediaFromStorage(currentItem);
+                      if (recovered && recovered !== currentUrl) {
+                        setCurrentUrl(recovered);
+                        setMediaError(null);
+                        return;
+                      }
+                    } catch {}
+                    setMediaError('Photo failed to load from URL.');
+                  }}
+                  className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-102"
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
+              );
+            })()}
           </div>
         )}
 
@@ -592,7 +640,7 @@ const CohortStorytellingPlayer: React.FC<{
               </span>
 
               <span className="inline-flex items-center px-2 py-1 rounded-full text-[10px] font-mono font-bold bg-[#C5A880] text-[#1C1B1A]">
-                {activeIndex + 1} / {items.length}
+                {safeActiveIndex + 1} / {items.length}
               </span>
             </div>
 
@@ -625,9 +673,40 @@ const CohortStorytellingPlayer: React.FC<{
           </>
         )}
 
-        {/* Seller Inline Controls: Replace, Edit, Delete */}
+        {/* Seller Inline Controls: Audio Toggle, Replace, Edit, Delete */}
         {isSellerMode && !isSelectionMode && (
           <div className="absolute top-3 right-20 z-30 flex items-center gap-1">
+            {/* Quick Audio Toggle Button (Choice to remove or revert audio at will) */}
+            {isVideo && (
+              <button
+                type="button"
+                onClick={handleToggleAudioRemoved}
+                disabled={isTogglingAudio}
+                className={`p-1.5 rounded-lg border transition-all cursor-pointer shadow-xs flex items-center gap-1 ${
+                  currentItem.isAudioRemoved
+                    ? 'bg-amber-500/30 hover:bg-amber-500/40 text-amber-300 border-amber-500/60 ring-1 ring-amber-500/40'
+                    : 'bg-black/80 hover:bg-black text-white border-white/20'
+                }`}
+                title={
+                  currentItem.isAudioRemoved
+                    ? 'Audio track is removed (silent): Click to revert & restore audio'
+                    : 'Click to remove audio from this workshop video (make silent)'
+                }
+              >
+                {currentItem.isAudioRemoved ? (
+                  <>
+                    <VolumeX className="w-3.5 h-3.5 text-amber-400" />
+                    <span className="text-[10px] font-bold text-amber-300 hidden sm:inline">Restore Audio</span>
+                  </>
+                ) : (
+                  <>
+                    <Volume2 className="w-3.5 h-3.5 text-emerald-400" />
+                    <span className="text-[10px] font-bold text-white/90 hidden sm:inline">Remove Audio</span>
+                  </>
+                )}
+              </button>
+            )}
+
             {/* Quick Reload Media Button */}
             <button
               type="button"
@@ -712,7 +791,7 @@ const CohortStorytellingPlayer: React.FC<{
       <div className="mt-1.5 pt-1.5 border-t border-white/10 flex items-center justify-between gap-1.5">
         <div className="flex items-center gap-1 overflow-x-auto py-0.5 scrollbar-none max-w-full">
           {items.map((item, idx) => {
-            const isThumbActive = idx === activeIndex;
+            const isThumbActive = idx === safeActiveIndex;
             const isThumbVideo = item.type === 'video' || isVideoMedia(item.url, item.title);
             const isThumbSelected = selectedIds.includes(item.id);
             const rawThumbSrc = getWorkshopEmbeddedFallback(item.thumbnailUrl || item.url) || item.thumbnailUrl || item.url || '';

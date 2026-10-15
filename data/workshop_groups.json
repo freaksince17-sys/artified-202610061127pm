@@ -1,65 +1,68 @@
 [
   {
-    "id": "group_1791479437124",
+    "id": "ws-macrame",
     "groupKey": "macrame",
     "title": "Macrame Wall Art & Planters Workshop",
-    "badge": "Workshop • Macrame & Fiber Art",
-    "tagline": "Cotton Cord Tensioning • Planters & Wall Art",
-    "date": "Starting Next Saturday • 11:00 AM",
+    "badge": "Workshop • Fiber & Knotting Art",
+    "tagline": "Cotton Cord Tensioning • Planters & Wall Hangings",
+    "date": "Every Saturday • 11:00 AM - 2:00 PM",
+    "batchDate": "Sat, Oct 24, 2026",
     "location": "Kathmandu Studio, Nepal",
     "instructor": "Sahina Shrestha",
     "attendeesCount": 15,
-    "description": "Intensive hands-on training focusing on raw cotton cord knotting, symmetrical tension, wooden hoop attachments, and botanical hanger architecture under Sahina Shrestha’s guided mentorship in Kathmandu.",
+    "description": "Master the art of raw cotton cord knotting, symmetrical tension, wooden hoop mounting, and botanical planter framing in our Kathmandu atelier under Sahina Shrestha’s guided mentorship.",
     "whatsappMessage": "Namaste Sahina! I would like to join the Macrame Wall Art & Planters Workshop in Kathmandu.",
     "keyTechniques": [
       "Square Knots & Spiral Weaves",
-      "Lark's Head Mounting",
-      "Botanical Planter Framing"
+      "Lark’s Head Ring Mounting",
+      "Botanical Planter Load Balancing"
     ],
     "folder": "Macrame",
     "createdAt": "2026-10-09T10:07:32.160Z",
-    "updatedAt": "2026-10-09T10:07:32.160Z"
+    "updatedAt": "2026-10-10T10:00:00.000Z"
   },
   {
-    "id": "group_pipecleaner_sunflower",
-    "groupKey": "pipecleaner-sunflower",
+    "id": "ws-sunflower",
+    "groupKey": "sunflower",
     "title": "Pipecleaner Sunflower Crafting Workshop",
-    "badge": "Workshop • Botanical Wire & Fiber Art",
-    "tagline": "Petal Sculpting • Pipe Cleaner Floral Architecture",
-    "date": "Every Sunday • 2:00 PM",
+    "badge": "Workshop • Floral Crafting & Wire Sculpting",
+    "tagline": "Vibrant Chenille Stems • Petal Shaping & Center Weaving",
+    "date": "Bi-Weekly Sundays • 1:00 PM - 4:00 PM",
+    "batchDate": "Sun, Nov 01, 2026",
     "location": "Kathmandu Studio, Nepal",
     "instructor": "Sahina Shrestha",
     "attendeesCount": 12,
-    "description": "Interactive botanical wire crafting and tactile petal formation masterclass. Learn color blending, multi-layer sunflower petal architecture, and everlasting floral arrangements using vibrant pipe cleaners in Kathmandu.",
+    "description": "Craft realistic, everlasting sunflower blooms using flexible pipecleaner chenille stems, core wiring, layered petal arrangements, and custom stem wrap techniques with Sahina Shrestha in Kathmandu.",
     "whatsappMessage": "Namaste Sahina! I would like to join the Pipecleaner Sunflower Crafting Workshop in Kathmandu.",
     "keyTechniques": [
-      "Wire Stem Shaping & Tensioning",
-      "Layered Petal Gradient Blending",
-      "Everlasting Floral Assembly"
+      "Chenille Stem Petal Loop Shaping",
+      "Layered Center Disc Weaving",
+      "Flexible Wire Stem Support & Leaf Mounting"
     ],
     "folder": "Pipecleaner Sunflower",
-    "createdAt": "2026-10-09T16:00:00.000Z",
-    "updatedAt": "2026-10-09T16:00:00.000Z"
+    "createdAt": "2026-10-09T10:07:32.160Z",
+    "updatedAt": "2026-10-10T10:00:00.000Z"
   },
   {
-    "id": "group_pearls",
-    "groupKey": "pearls",
-    "title": "Handcrafted Baroque Pearl Bag Workshop",
-    "badge": "Workshop • Pearl Weaving & Structured Bags",
-    "tagline": "Grid Framing • Baroque Pearl Beading Architecture",
-    "date": "Bi-Weekly Cohorts • 1:00 PM",
+    "id": "ws-pearl-bag",
+    "groupKey": "pearl-bag",
+    "title": "Bridal Pearl Bag & Bead Weaving Workshop",
+    "badge": "Workshop • Couture Bridal Accessories",
+    "tagline": "3D Pearl Lattice Weaving • Structured Clutch Framing",
+    "date": "Alternate Fridays • 2:00 PM - 5:30 PM",
+    "batchDate": "Fri, Nov 06, 2026",
     "location": "Kathmandu Studio, Nepal",
     "instructor": "Sahina Shrestha",
     "attendeesCount": 10,
-    "description": "Masterclass dedicated to luxury freshwater pearl bag craftsmanship. Learn structural illusion knotting, reinforced grid framing, beaded strap integration, and inner lining tailoring under Sahina Shrestha's mentorship.",
-    "whatsappMessage": "Namaste Sahina! I would like to join the Handcrafted Baroque Pearl Bag Workshop in Kathmandu.",
+    "description": "Learn intricate 3D pearl lattice beading, structured bridal clutch framing, ergonomic artisan handle assembly, and satin interior finishing in our hands-on couture masterclass.",
+    "whatsappMessage": "Namaste Sahina! I would like to join the Bridal Pearl Bag & Bead Weaving Workshop in Kathmandu.",
     "keyTechniques": [
-      "Baroque Pearl Weaving Grids",
-      "Structural Reinforcement & Framing",
-      "Integrated Pearl Handle Architecture"
+      "4-Bead Cross-Weave Grid",
+      "Reinforced Monofilament Internal Locking",
+      "Bridal Handle Arch Geometry & Lining"
     ],
     "folder": "Pearls",
-    "createdAt": "2026-10-09T16:00:00.000Z",
-    "updatedAt": "2026-10-09T16:00:00.000Z"
+    "createdAt": "2026-10-09T10:07:32.160Z",
+    "updatedAt": "2026-10-10T10:00:00.000Z"
   }
 ]
