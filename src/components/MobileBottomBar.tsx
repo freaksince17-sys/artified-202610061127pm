@@ -5,8 +5,7 @@ import {
   Truck, 
   Video, 
   Instagram, 
-  Award,
-  User
+  Award
 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 
@@ -14,7 +13,6 @@ export const MobileBottomBar: React.FC = () => {
   const { 
     setActiveNavTab,
     setSelectedCategory,
-    openMeetArtisanModal,
     openTracker
   } = useCart();
 
@@ -73,27 +71,7 @@ export const MobileBottomBar: React.FC = () => {
           <span className="text-[9px] font-bold tracking-wider uppercase mt-0.5">Creator</span>
         </button>
 
-        {/* 3. TikTok */}
-        <button
-          type="button"
-          onClick={handleTikTok}
-          className="flex flex-col items-center justify-center min-w-[48px] min-h-[44px] text-[#5E5955] dark:text-[#A8A096] hover:text-black dark:hover:text-white cursor-pointer"
-        >
-          <Video className="w-4 h-4 text-[#010101] dark:text-[#F5F2EB]" />
-          <span className="text-[9px] font-bold tracking-wider uppercase mt-0.5">TikTok</span>
-        </button>
-
-        {/* 4. Instagram */}
-        <button
-          type="button"
-          onClick={handleInstagram}
-          className="flex flex-col items-center justify-center min-w-[48px] min-h-[44px] text-[#5E5955] dark:text-[#A8A096] hover:text-[#E1306C] cursor-pointer"
-        >
-          <Instagram className="w-4 h-4 text-[#E1306C]" />
-          <span className="text-[9px] font-bold tracking-wider uppercase mt-0.5">Instagram</span>
-        </button>
-
-        {/* 5. Workshop (instead of Our Crafts) */}
+        {/* 3. Workshops */}
         <button
           type="button"
           onClick={handleWorkshop}
@@ -103,14 +81,24 @@ export const MobileBottomBar: React.FC = () => {
           <span className="text-[9px] font-bold tracking-wider uppercase mt-0.5">Workshops</span>
         </button>
 
-        {/* 6. Track */}
+        {/* 4. TikTok */}
         <button
           type="button"
-          onClick={handleTrack}
-          className="flex flex-col items-center justify-center min-w-[48px] min-h-[44px] text-[#5E5955] dark:text-[#A8A096] hover:text-[#D4AF37] cursor-pointer"
+          onClick={handleTikTok}
+          className="flex flex-col items-center justify-center min-w-[48px] min-h-[44px] text-[#5E5955] dark:text-[#A8A096] hover:text-black dark:hover:text-white cursor-pointer"
         >
-          <Truck className="w-4 h-4 text-[#D4AF37]" />
-          <span className="text-[9px] font-bold tracking-wider uppercase mt-0.5">Track</span>
+          <Video className="w-4 h-4 text-[#010101] dark:text-[#F5F2EB]" />
+          <span className="text-[9px] font-bold tracking-wider uppercase mt-0.5">TikTok</span>
+        </button>
+
+        {/* 5. Instagram */}
+        <button
+          type="button"
+          onClick={handleInstagram}
+          className="flex flex-col items-center justify-center min-w-[48px] min-h-[44px] text-[#5E5955] dark:text-[#A8A096] hover:text-[#E1306C] cursor-pointer"
+        >
+          <Instagram className="w-4 h-4 text-[#E1306C]" />
+          <span className="text-[9px] font-bold tracking-wider uppercase mt-0.5">Instagram</span>
         </button>
 
       </div>

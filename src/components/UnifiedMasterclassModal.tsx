@@ -159,13 +159,13 @@ const UnifiedMasterclassModalInner: React.FC<UnifiedMasterclassModalProps> = ({
 
   // Form State: Workshop Details
   const [title, setTitle] = useState('');
-  const [badge, setBadge] = useState('Workshop • Special Batch');
-  const [date, setDate] = useState('Starting Next Saturday • 11:00 AM');
-  const [batchDate, setBatchDate] = useState('Sat, Oct 24, 2026');
+  const [badge, setBadge] = useState('');
+  const [date, setDate] = useState('Once Every Month');
+  const [batchDate, setBatchDate] = useState('');
   const [location, setLocation] = useState('Kathmandu, Nepal');
   const [instructor, setInstructor] = useState('Sahina Shrestha');
   const [attendeesCount, setAttendeesCount] = useState<number>(15);
-  const [tagline, setTagline] = useState('Hands-on Practical Craft Training');
+  const [tagline, setTagline] = useState('');
   const [description, setDescription] = useState('');
   const [whatsappMessage, setWhatsappMessage] = useState('');
 
@@ -234,13 +234,13 @@ const UnifiedMasterclassModalInner: React.FC<UnifiedMasterclassModalProps> = ({
     if (isCreatingNew) {
       const batchNum = availableGroups.length + 1;
       setTitle(`Workshop Batch #${batchNum < 10 ? '0' + batchNum : batchNum}`);
-      setBadge(`Workshop • Batch #${batchNum < 10 ? '0' + batchNum : batchNum}`);
-      setDate('Starting Next Saturday • 11:00 AM');
-      setBatchDate('Sat, Oct 24, 2026');
+      setBadge('');
+      setDate('Once Every Month');
+      setBatchDate('');
       setLocation('Kathmandu, Nepal');
       setInstructor('Sahina Shrestha');
       setAttendeesCount(15);
-      setTagline('Hands-On Practical Craft Training');
+      setTagline('');
       setDescription('');
       setWhatsappMessage('Namaste Sahina! I would like to join your workshop batch in Kathmandu.');
       setConfirmDeleteGroup(false);
@@ -251,13 +251,13 @@ const UnifiedMasterclassModalInner: React.FC<UnifiedMasterclassModalProps> = ({
     const current = availableGroups.find((g) => (g.groupKey || g.id) === activeGroupId || g.id === activeGroupId);
     if (current) {
       setTitle(current.title || '');
-      setBadge(current.badge || 'Workshop Batch');
-      setDate(current.date || 'Starting Next Saturday • 11:00 AM');
-      setBatchDate(current.batchDate || current.nextBatchDate || 'Sat, Oct 24, 2026');
+      setBadge('');
+      setDate(current.date || 'Once Every Month');
+      setBatchDate('');
       setLocation(current.location || 'Kathmandu, Nepal');
       setInstructor(current.instructor || 'Sahina Shrestha');
       setAttendeesCount(current.attendeesCount || 15);
-      setTagline(current.tagline || '');
+      setTagline('');
       setDescription(current.description || '');
       setWhatsappMessage(current.whatsappMessage || '');
       setConfirmDeleteGroup(false);
@@ -1158,39 +1158,13 @@ const UnifiedMasterclassModalInner: React.FC<UnifiedMasterclassModalProps> = ({
 
               <div>
                 <label className="block text-xs font-bold text-[#5E5955] dark:text-[#C4BCB5] mb-1">
-                  Workshop Badge
-                </label>
-                <input
-                  type="text"
-                  value={badge}
-                  onChange={(e) => setBadge(e.target.value)}
-                  placeholder="e.g. Workshop • Macrame & Fiber Art"
-                  className="w-full px-3 py-2 rounded-xl bg-[#FAF8F5] dark:bg-[#201E1C] border border-[#E8DFD8] dark:border-white/10 text-xs text-[#1C1B1A] dark:text-white focus:outline-none focus:border-[#C5A880]"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-[#5E5955] dark:text-[#C4BCB5] mb-1">
-                  Upcoming Start Batch Date *
-                </label>
-                <input
-                  type="text"
-                  value={batchDate}
-                  onChange={(e) => setBatchDate(e.target.value)}
-                  placeholder="e.g. Sat, Oct 24, 2026"
-                  className="w-full px-3 py-2 rounded-xl bg-[#FAF8F5] dark:bg-[#201E1C] border border-[#E8DFD8] dark:border-white/10 text-xs text-[#1C1B1A] dark:text-white focus:outline-none focus:border-[#C5A880]"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-[#5E5955] dark:text-[#C4BCB5] mb-1">
                   Date & Schedule
                 </label>
                 <input
                   type="text"
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
-                  placeholder="e.g. Starting Next Saturday • 11:00 AM"
+                  placeholder="Once Every Month"
                   className="w-full px-3 py-2 rounded-xl bg-[#FAF8F5] dark:bg-[#201E1C] border border-[#E8DFD8] dark:border-white/10 text-xs text-[#1C1B1A] dark:text-white focus:outline-none focus:border-[#C5A880]"
                 />
               </div>
@@ -1217,19 +1191,6 @@ const UnifiedMasterclassModalInner: React.FC<UnifiedMasterclassModalProps> = ({
                   value={instructor}
                   onChange={(e) => setInstructor(e.target.value)}
                   placeholder="Sahina Shrestha"
-                  className="w-full px-3 py-2 rounded-xl bg-[#FAF8F5] dark:bg-[#201E1C] border border-[#E8DFD8] dark:border-white/10 text-xs text-[#1C1B1A] dark:text-white focus:outline-none focus:border-[#C5A880]"
-                />
-              </div>
-
-              <div className="sm:col-span-2">
-                <label className="block text-xs font-bold text-[#5E5955] dark:text-[#C4BCB5] mb-1">
-                  Tagline / Subtitle
-                </label>
-                <input
-                  type="text"
-                  value={tagline}
-                  onChange={(e) => setTagline(e.target.value)}
-                  placeholder="Cotton Cord Tensioning • Planters & Wall Art"
                   className="w-full px-3 py-2 rounded-xl bg-[#FAF8F5] dark:bg-[#201E1C] border border-[#E8DFD8] dark:border-white/10 text-xs text-[#1C1B1A] dark:text-white focus:outline-none focus:border-[#C5A880]"
                 />
               </div>

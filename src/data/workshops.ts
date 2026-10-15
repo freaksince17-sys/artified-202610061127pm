@@ -187,8 +187,8 @@ export function isLegacyFakeMacrameVideo(item: { id?: string; url?: string; type
   return !isMediaRelatedToGroup(item, 'macrame');
 }
 
-const CUSTOM_GROUPS_STORAGE_KEY = 'artified_custom_workshop_groups_v35';
-const CUSTOM_MEDIA_STORAGE_KEY = 'artified_custom_workshop_media_v35';
+const CUSTOM_GROUPS_STORAGE_KEY = 'artified_custom_workshop_groups_v36';
+const CUSTOM_MEDIA_STORAGE_KEY = 'artified_custom_workshop_media_v36';
 
 // Purge any contaminated legacy cache keys on initial import
 if (typeof window !== 'undefined') {
@@ -350,10 +350,7 @@ export async function fetchWorkshopGroups(): Promise<Omit<WorkshopGroup, 'items'
   );
   defaultActive.forEach((g) => mergedMap.set(g.groupKey, g));
 
-  // 2. Local custom
-  localCustom.forEach((g) => mergedMap.set(g.groupKey, g));
-
-  // 2b. Server JSON groups
+  // 2. Server JSON groups
   try {
     const sRes = await fetch('/api/workshop-groups');
     if (sRes.ok) {
@@ -384,6 +381,9 @@ export async function fetchWorkshopGroups(): Promise<Omit<WorkshopGroup, 'items'
   } catch (err) {
     console.warn('Notice: Firestore workshop_groups fallback to persistent local cache:', err);
   }
+
+  // 4. Local custom (takes absolute precedence so user manual edits never revert)
+  localCustom.forEach((g) => mergedMap.set(g.groupKey, g));
 
   const allGroups = Array.from(mergedMap.values());
   saveCustomWorkshopGroupsToStorage(allGroups.filter((g) => !['macrame', 'wastepipe-sunflower', 'pearl-bag'].includes(g.groupKey)));
@@ -417,10 +417,11 @@ export async function saveWorkshopGroup(group: WorkshopGroup): Promise<void> {
   });
   saveCustomWorkshopGroupsToStorage(existingLocal);
 
-  // Save to Firestore
+  // Save to Firestore in background (non-blocking with 1500ms timeout race)
   const docRef = doc(db, 'workshop_groups', group.id);
   const now = new Date().toISOString();
-  await safeSetDoc(docRef, {
+  
+  const cloudSavePromise = safeSetDoc(docRef, {
     id: group.id,
     groupKey: group.groupKey,
     title: group.title,
@@ -435,7 +436,14 @@ export async function saveWorkshopGroup(group: WorkshopGroup): Promise<void> {
     whatsappMessage: group.whatsappMessage,
     updatedAt: now,
     createdAt: now
-  }, { merge: true });
+  }, { merge: true }).catch((err) => {
+    console.warn('Background Firestore group save notice:', err);
+  });
+
+  await Promise.race([
+    cloudSavePromise,
+    new Promise((resolve) => setTimeout(resolve, 1500))
+  ]);
 }
 
 export const DELETED_GROUP_IDS_STORAGE_KEY = 'artified_deleted_workshop_group_ids_v12';

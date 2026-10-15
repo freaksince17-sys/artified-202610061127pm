@@ -317,6 +317,9 @@ export interface WorkshopGroup {
   keyTechniques: string[];
   items: WorkshopMediaItem[];
   whatsappMessage?: string;
+  folder?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface WorkshopEventSummary {

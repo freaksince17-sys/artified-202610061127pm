@@ -35,6 +35,13 @@ import {
   Square
 } from 'lucide-react';
 import { WorkshopMediaItem } from '../types';
+import SAVED_WORKSHOP_MEDIA from '../data/workshop_media.json';
+import { enforceStrictWorkshopMediaLimits, saveWorkshopGroup } from '../data/workshops';
+import { 
+  fetchWorkshopMediaMetadataFromFirestore, 
+  fetchWorkshopGroupMetadataFromFirestore, 
+  syncWorkshopGroupMetadataToFirestore 
+} from '../services/workshopMetadataService';
 import { db, storage } from '../firebase';
 import { 
   collection, 
@@ -55,8 +62,6 @@ export interface WorkshopClassDef {
   id: string;
   key: string;
   title: string;
-  badge: string;
-  tagline: string;
   schedule: string;
   location: string;
   instructor: string;
@@ -71,9 +76,7 @@ export const CANONICAL_WORKSHOPS: WorkshopClassDef[] = [
     id: 'ws-macrame',
     key: 'macrame',
     title: 'Macrame Wall Art & Planters Workshop',
-    badge: 'UPCOMING WORKSHOP BATCH',
-    tagline: 'Cotton Cord Tensioning • Planters & Wall Hangings',
-    schedule: 'Every Saturday • 11:00 AM - 2:00 PM',
+    schedule: 'Once Every Month',
     location: 'Kathmandu Studio, Nepal',
     instructor: 'Sahina Shrestha',
     capacity: 15,
@@ -88,28 +91,24 @@ export const CANONICAL_WORKSHOPS: WorkshopClassDef[] = [
   {
     id: 'ws-sunflower',
     key: 'sunflower',
-    title: 'Pipecleaner Sunflower Crafting Workshop',
-    badge: 'UPCOMING WORKSHOP BATCH',
-    tagline: 'Vibrant Chenille Stems • Petal Shaping & Center Weaving',
-    schedule: 'Bi-Weekly Sundays • 1:00 PM - 4:00 PM',
+    title: 'Waste Pipe to Sunflower Eco-Art Workshop',
+    schedule: 'Once Every Month',
     location: 'Kathmandu Studio, Nepal',
     instructor: 'Sahina Shrestha',
     capacity: 12,
-    description: 'Craft realistic, everlasting sunflower blooms using flexible pipecleaner chenille stems, core wiring, layered petal arrangements, and custom stem wrap techniques with Sahina Shrestha in Kathmandu.',
-    whatsappMessage: 'Namaste Sahina! I would like to reserve a seat for the Pipecleaner Sunflower Crafting Workshop in Kathmandu.',
+    description: 'Transform discarded plastic waste pipes into vibrant, enduring sunflower masterpieces! In this upcycled eco-art masterclass led by Sahina Shrestha in Kathmandu, learn precision heat-shaping, core wiring, textured petal painting, and structural botanical assembly to turn everyday trash into stunning sustainable floral sculpture.',
+    whatsappMessage: 'Namaste Sahina! I would like to reserve a seat for the Waste Pipe to Sunflower Eco-Art Workshop in Kathmandu.',
     techniques: [
-      'Chenille Stem Petal Loop Shaping',
-      'Layered Center Disc Weaving',
-      'Flexible Wire Stem Support & Leaf Mounting'
+      'Upcycled Plastic Pipe Heat-Shaping',
+      'Chenille Stem Petal Loop Sculpting',
+      'Structured Floral Core Assembly'
     ]
   },
   {
     id: 'ws-pearl-bag',
     key: 'pearl-bag',
     title: 'Bridal Pearl Bag & Bead Weaving Workshop',
-    badge: 'UPCOMING WORKSHOP BATCH',
-    tagline: '3D Pearl Lattice Weaving • Structured Clutch Framing',
-    schedule: 'Alternate Fridays • 2:00 PM - 5:30 PM',
+    schedule: 'Once Every Month',
     location: 'Kathmandu Studio, Nepal',
     instructor: 'Sahina Shrestha',
     capacity: 10,
@@ -124,9 +123,9 @@ export const CANONICAL_WORKSHOPS: WorkshopClassDef[] = [
 ];
 
 // Persistent keys
-const CLASSES_STORAGE_KEY = 'artified_workshop_classes_list_v35';
-const LOCAL_MEDIA_KEY = 'artified_three_workshops_media_v35';
-const TOMBSTONE_DELETED_KEY = 'artified_deleted_media_ids_v35';
+const CLASSES_STORAGE_KEY = 'artified_workshop_classes_list_v36';
+const LOCAL_MEDIA_KEY = 'artified_three_workshops_media_v36';
+const TOMBSTONE_DELETED_KEY = 'artified_deleted_media_ids_v36';
 
 function getTombstones(): string[] {
   try {
@@ -150,11 +149,16 @@ function addTombstone(id: string) {
 function getStoredLocalMedia(): WorkshopMediaItem[] {
   try {
     const raw = localStorage.getItem(LOCAL_MEDIA_KEY);
-    const parsed: WorkshopMediaItem[] = raw ? JSON.parse(raw) : [];
     const tombstones = new Set(getTombstones());
-    return parsed.filter(item => item && item.id && !tombstones.has(item.id));
+    let parsed: WorkshopMediaItem[] = [];
+    if (raw) {
+      parsed = JSON.parse(raw);
+    } else {
+      parsed = (SAVED_WORKSHOP_MEDIA as unknown) as WorkshopMediaItem[];
+    }
+    return enforceStrictWorkshopMediaLimits(parsed.filter(item => item && item.id && !tombstones.has(item.id)));
   } catch {
-    return [];
+    return enforceStrictWorkshopMediaLimits((SAVED_WORKSHOP_MEDIA as unknown) as WorkshopMediaItem[]);
   }
 }
 
@@ -203,29 +207,24 @@ const HoverVideoCard: React.FC<{
   const [isPlaying, setIsPlaying] = useState(false);
   const [isAudioMuted, setIsAudioMuted] = useState(true);
   const [candidateIndex, setCandidateIndex] = useState(0);
+  const [isLoaded, setIsLoaded] = useState(false);
 
   const candidates = React.useMemo(() => getVideoAlternativeUrls(video.url), [video.url]);
   const activeVideoUrl = candidates[candidateIndex] || video.url;
 
-  // Auto-play video seamlessly on mount without requiring hover
-  useEffect(() => {
-    setCandidateIndex(0);
+  const handleMouseEnter = () => {
     if (videoRef.current) {
-      videoRef.current.muted = true;
-      const playPromise = videoRef.current.play();
-      if (playPromise !== undefined) {
-        playPromise
-          .then(() => setIsPlaying(true))
-          .catch(() => {
-            // Autoplay with sound restricted, retry muted
-            if (videoRef.current) {
-              videoRef.current.muted = true;
-              videoRef.current.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
-            }
-          });
-      }
+      videoRef.current.currentTime = 0;
+      videoRef.current.play().then(() => setIsPlaying(true)).catch(() => {});
     }
-  }, [video.url, activeVideoUrl]);
+  };
+
+  const handleMouseLeave = () => {
+    if (videoRef.current) {
+      videoRef.current.pause();
+      setIsPlaying(false);
+    }
+  };
 
   const handleVideoError = () => {
     if (candidateIndex + 1 < candidates.length) {
@@ -262,21 +261,28 @@ const HoverVideoCard: React.FC<{
     >
       <div 
         className="relative w-full aspect-square bg-black overflow-hidden cursor-pointer"
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
         onClick={() => onOpenTheater ? onOpenTheater(video) : handleTogglePlay}
       >
+        {!isLoaded && (
+          <div className="absolute inset-0 bg-[#25221F] animate-pulse overflow-hidden z-0">
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent animate-shimmer" />
+          </div>
+        )}
         <video
           ref={videoRef}
           src={activeVideoUrl}
           poster={video.thumbnailUrl && video.thumbnailUrl !== video.url ? video.thumbnailUrl : undefined}
           muted={isAudioMuted}
-          autoPlay
           loop
           playsInline
-          preload="auto"
+          preload="metadata"
+          onLoadedData={() => setIsLoaded(true)}
           onError={handleVideoError}
-          onPlay={() => setIsPlaying(true)}
+          onPlay={() => { setIsPlaying(true); setIsLoaded(true); }}
           onPause={() => setIsPlaying(false)}
-          className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-102"
+          className={`absolute inset-0 w-full h-full object-cover transition-all duration-700 group-hover:scale-102 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}
           style={{ width: '100%', height: '100%', objectFit: 'cover' }}
         />
 
@@ -391,17 +397,25 @@ const PhotoGridCard: React.FC<{
   isAiGenerating?: boolean;
   onOpenPhoto?: (photo: WorkshopMediaItem) => void;
 }> = ({ photo, isSeller, onDelete, onEdit, onGenerateAI, isAiGenerating, onOpenPhoto }) => {
+  const [isLoaded, setIsLoaded] = useState(false);
+
   return (
     <div className="group relative flex flex-col bg-[#1A1918] rounded-2xl border border-[#2D2A26] overflow-hidden shadow-xs hover:shadow-lg transition-all duration-300">
       <div 
         className="relative w-full aspect-square bg-black/40 overflow-hidden cursor-pointer"
         onClick={() => onOpenPhoto && onOpenPhoto(photo)}
       >
+        {!isLoaded && (
+          <div className="absolute inset-0 bg-[#25221F] animate-pulse overflow-hidden z-0">
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent animate-shimmer" />
+          </div>
+        )}
         <img
-          src={photo.url}
+          src={photo.thumbnailUrl || photo.url}
           alt={photo.title || 'Artified Workshop Photo'}
           loading="lazy"
-          className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-104"
+          onLoad={() => setIsLoaded(true)}
+          className={`absolute inset-0 w-full h-full object-cover transition-all duration-700 group-hover:scale-104 ${isLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-105'}`}
           style={{ width: '100%', height: '100%', objectFit: 'cover' }}
         />
         <div className="absolute top-2.5 left-2.5 z-10">
@@ -471,14 +485,13 @@ export const ArtifiedThreeWorkshopsPage: React.FC = () => {
   
   // Workshop classes (macrame, sunflower, pearl-bag)
   const [classesList, setClassesList] = useState<WorkshopClassDef[]>(() => getStoredClasses());
-  const [mediaList, setMediaList] = useState<WorkshopMediaItem[]>([]);
+  const [mediaList, setMediaList] = useState<WorkshopMediaItem[]>(() => getStoredLocalMedia());
 
   // UNIFIED EDIT FLOW (IMAGE 1 STYLE MODAL)
   const [editingWorkshop, setEditingWorkshop] = useState<WorkshopClassDef | null>(null);
   const [modalTitle, setModalTitle] = useState('');
-  const [modalSubtitle, setModalSubtitle] = useState('');
   const [modalDescription, setModalDescription] = useState('');
-  const [modalSchedule, setModalSchedule] = useState('');
+  const [modalSchedule, setModalSchedule] = useState('Once Every Month');
   const [modalLocation, setModalLocation] = useState('');
   const [modalInstructor, setModalInstructor] = useState('');
   const [modalCapacity, setModalCapacity] = useState(15);
@@ -514,17 +527,50 @@ export const ArtifiedThreeWorkshopsPage: React.FC = () => {
 
   // 1. Initial Load & Firestore Realtime Sync
   useEffect(() => {
-    const local = getStoredLocalMedia();
-    setMediaList(local);
+    // Fetch directly from Firestore metadata service on mount to prevent data reversion
+    fetchWorkshopMediaMetadataFromFirestore().then((cloudItems) => {
+      if (cloudItems && cloudItems.length > 0) {
+        const enforced = enforceStrictWorkshopMediaLimits(cloudItems);
+        setMediaList(enforced);
+        saveStoredLocalMedia(enforced);
+      } else {
+        const local = getStoredLocalMedia();
+        setMediaList(local);
+      }
+    }).catch(() => {
+      const local = getStoredLocalMedia();
+      setMediaList(local);
+    });
+
+    fetchWorkshopGroupMetadataFromFirestore().then((cloudGroups) => {
+      if (cloudGroups && cloudGroups.length > 0) {
+        const localRaw = localStorage.getItem(CLASSES_STORAGE_KEY);
+        if (!localRaw) {
+          setClassesList(prev => prev.map(cls => {
+            const found = cloudGroups.find(g => g.groupKey === cls.key || g.id === cls.id);
+            if (found) {
+              return {
+                ...cls,
+                title: found.title || cls.title,
+                description: found.description || cls.description,
+                schedule: found.date || cls.schedule,
+                location: found.location || cls.location,
+                instructor: found.instructor || cls.instructor,
+                capacity: found.attendeesCount || cls.capacity,
+                whatsappMessage: found.whatsappMessage || cls.whatsappMessage,
+                techniques: found.keyTechniques || cls.techniques
+              };
+            }
+            return cls;
+          }));
+        }
+      }
+    }).catch(() => {});
 
     const colRef = collection(db, 'workshop_gallery');
     const unsubscribe = onSnapshot(colRef, (snapshot) => {
       const tombstones = new Set(getTombstones());
       const cloudMap = new Map<string, WorkshopMediaItem>();
-
-      local.forEach(item => {
-        if (!tombstones.has(item.id)) cloudMap.set(item.id, item);
-      });
 
       snapshot.forEach(docSnap => {
         const id = docSnap.id;
@@ -534,9 +580,11 @@ export const ArtifiedThreeWorkshopsPage: React.FC = () => {
         }
       });
 
-      const updated = Array.from(cloudMap.values());
-      setMediaList(updated);
-      saveStoredLocalMedia(updated);
+      if (cloudMap.size > 0) {
+        const updated = enforceStrictWorkshopMediaLimits(Array.from(cloudMap.values()));
+        setMediaList(updated);
+        saveStoredLocalMedia(updated);
+      }
     }, (err) => {
       console.warn('Firestore snapshot notice, persisting offline cache:', err);
     });
@@ -806,7 +854,7 @@ export const ArtifiedThreeWorkshopsPage: React.FC = () => {
             craftTechnique: aiInitial.craftTechnique || editingWorkshop.techniques[0] || 'Handcrafted Technique',
             location: editingWorkshop.location,
             instructor: editingWorkshop.instructor,
-            tags: [editingWorkshop.title, editingWorkshop.badge, cleanBaseName, isVideo ? 'Workshop Video' : 'Workshop Photo'],
+            tags: [editingWorkshop.title, cleanBaseName, isVideo ? 'Workshop Video' : 'Workshop Photo'],
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
           };
@@ -867,9 +915,8 @@ export const ArtifiedThreeWorkshopsPage: React.FC = () => {
   const handleOpenEditWorkshop = (cls: WorkshopClassDef) => {
     setEditingWorkshop(cls);
     setModalTitle(cls.title);
-    setModalSubtitle(cls.tagline);
     setModalDescription(cls.description);
-    setModalSchedule(cls.schedule);
+    setModalSchedule(cls.schedule || 'Once Every Month');
     setModalLocation(cls.location);
     setModalInstructor(cls.instructor);
     setModalCapacity(cls.capacity);
@@ -883,9 +930,8 @@ export const ArtifiedThreeWorkshopsPage: React.FC = () => {
     const updatedCls: WorkshopClassDef = {
       ...editingWorkshop,
       title: modalTitle.trim() || editingWorkshop.title,
-      tagline: modalSubtitle.trim() || editingWorkshop.tagline,
       description: modalDescription.trim() || editingWorkshop.description,
-      schedule: modalSchedule.trim() || editingWorkshop.schedule,
+      schedule: modalSchedule.trim() || 'Once Every Month',
       location: modalLocation.trim() || editingWorkshop.location,
       instructor: modalInstructor.trim() || editingWorkshop.instructor,
       capacity: Number(modalCapacity) || editingWorkshop.capacity,
@@ -896,6 +942,24 @@ export const ArtifiedThreeWorkshopsPage: React.FC = () => {
     setClassesList(nextClasses);
     saveStoredClasses(nextClasses);
     setEditingWorkshop(updatedCls);
+
+    // Persist permanently to custom workshop groups and Firestore
+    saveWorkshopGroup({
+      id: updatedCls.id,
+      groupKey: updatedCls.key,
+      title: updatedCls.title,
+      badge: '',
+      tagline: '',
+      date: updatedCls.schedule,
+      location: updatedCls.location,
+      instructor: updatedCls.instructor,
+      attendeesCount: updatedCls.capacity,
+      description: updatedCls.description,
+      keyTechniques: updatedCls.techniques,
+      whatsappMessage: updatedCls.whatsappMessage,
+      folder: updatedCls.key === 'macrame' ? 'Macrame' : updatedCls.key === 'sunflower' ? 'Pipecleaner Sunflower' : 'Pearls',
+      items: []
+    }).catch(err => console.warn('Failed to save group to storage/firestore:', err));
 
     setFeedback({
       type: 'success',
@@ -1122,21 +1186,10 @@ export const ArtifiedThreeWorkshopsPage: React.FC = () => {
                       </span>
                     </div>
 
-                    {/* UPCOMING WORKSHOP BATCH Badge */}
-                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest bg-[#C5A880]/20 text-[#E6CA9E] border border-[#C5A880]/40">
-                      <Award className="w-3 h-3 text-[#C5A880]" />
-                      <span>{cls.badge || 'UPCOMING WORKSHOP BATCH'}</span>
-                    </div>
-
                     {/* Workshop Heading */}
                     <h3 className="font-serif text-2xl sm:text-3xl font-bold tracking-tight text-white leading-tight">
                       {cls.title}
                     </h3>
-
-                    {/* Tagline / Subtitle */}
-                    <p className="text-xs sm:text-sm font-medium text-[#C5A880]">
-                      {cls.tagline}
-                    </p>
 
                     {/* Workshop Description */}
                     <p className="text-xs sm:text-sm text-[#A8A29D] leading-relaxed font-normal">
@@ -1411,18 +1464,7 @@ export const ArtifiedThreeWorkshopsPage: React.FC = () => {
                     />
                   </div>
 
-                  <div className="sm:col-span-2">
-                    <label className="block text-xs font-bold text-[#A8A29D] uppercase tracking-wider mb-1">
-                      Subtitle / Tagline
-                    </label>
-                    <input
-                      type="text"
-                      value={modalSubtitle}
-                      onChange={(e) => setModalSubtitle(e.target.value)}
-                      placeholder="e.g. Cotton Cord Tensioning • Planters & Wall Hangings"
-                      className="w-full px-3.5 py-2 rounded-xl bg-[#201E1C] border border-white/10 text-xs sm:text-sm text-white focus:outline-none focus:border-[#C5A880]"
-                    />
-                  </div>
+
 
                   <div className="sm:col-span-2">
                     <label className="block text-xs font-bold text-[#A8A29D] uppercase tracking-wider mb-1">

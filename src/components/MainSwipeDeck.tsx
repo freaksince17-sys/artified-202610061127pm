@@ -1,14 +1,11 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { 
   Home, 
-  Instagram, 
-  BookOpen, 
   Truck,
   ClipboardCheck,
-  Feather,
+  Award,
   Sparkles,
-  Camera,
-  Award
+  Instagram
 } from 'lucide-react';
 import { useCart, AppNavTab } from '../context/CartContext';
 import { ProductGrid } from './ProductGrid';
@@ -16,7 +13,6 @@ import { MeetArtisanSection } from './MeetArtisanSection';
 import { WorkshopGallery } from './WorkshopGallery';
 import { TikTokShowcase } from './TikTokShowcase';
 import { InstagramShowcase } from './InstagramShowcase';
-import { CraftStoryAndJournal } from './CraftStoryAndJournal';
 import { OrderTrackerSection } from './OrderTrackerSection';
 import { OrderProgressManagerSection } from './OrderProgressManagerSection';
 
@@ -38,7 +34,6 @@ export const TABS_SEQUENCE: TabMeta[] = [
   { id: 'workshops', label: 'Workshops', icon: Award },
   { id: 'tiktok', label: 'Follow on TikTok', icon: TikTokIcon },
   { id: 'journal', label: 'Follow on Instagram', icon: Instagram },
-  { id: 'craft', label: 'Our Story & Journal', icon: Feather },
   { id: 'track', label: 'Track Order', icon: Truck },
   { id: 'orders', label: 'Order Progress', icon: ClipboardCheck },
 ];
@@ -64,9 +59,6 @@ export const MainSwipeDeck: React.FC = () => {
     if (!isSellerMode && activeNavTab === 'orders') {
       setActiveNavTab('track');
     }
-    if (activeNavTab === 'craft-journal') {
-      setActiveNavTab('craft');
-    }
   }, [isSellerMode, activeNavTab, setActiveNavTab]);
 
   const activeIndex = currentTabs.findIndex((t) => t.id === activeNavTab);
@@ -86,9 +78,6 @@ export const MainSwipeDeck: React.FC = () => {
     const nextIdx = (safeIndex + 1) % currentTabs.length;
     setActiveNavTab(currentTabs[nextIdx].id);
   };
-
-  const prevTabLabel = currentTabs[(safeIndex - 1 + currentTabs.length) % currentTabs.length].label;
-  const nextTabLabel = currentTabs[(safeIndex + 1) % currentTabs.length].label;
 
   // Keyboard navigation when no modal is open
   useEffect(() => {
@@ -127,7 +116,6 @@ export const MainSwipeDeck: React.FC = () => {
         {activeNavTab === 'workshops' && <WorkshopGallery />}
         {activeNavTab === 'tiktok' && <TikTokShowcase />}
         {activeNavTab === 'journal' && <InstagramShowcase />}
-        {(activeNavTab === 'craft' || activeNavTab === 'craft-journal') && <CraftStoryAndJournal />}
         {activeNavTab === 'track' && <OrderTrackerSection />}
         {isSellerMode && activeNavTab === 'orders' && <OrderProgressManagerSection />}
       </main>

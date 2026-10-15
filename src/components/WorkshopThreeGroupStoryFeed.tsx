@@ -1182,32 +1182,11 @@ const WorkshopGroupCardItem: React.FC<{
             {group.description || 'Hands-on practical workshop led by Sahina Shrestha in Kathmandu, Nepal. Master authentic artisan techniques with premium raw materials.'}
           </p>
 
-          {/* Upcoming Start Batch Date Banner (Identifies Active Registrations) */}
-          <div className="p-3 sm:p-3.5 rounded-2xl bg-[#C5A880]/10 dark:bg-[#C5A880]/15 border border-[#C5A880]/30 flex flex-wrap items-center justify-between gap-2.5 shadow-2xs">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-[#C5A880] text-[#1C1B1A] flex items-center justify-center shrink-0 font-bold shadow-2xs">
-                <Calendar className="w-4 h-4 text-[#1C1B1A]" />
-              </div>
-              <div>
-                <span className="block text-[10px] font-bold uppercase tracking-wider text-[#8C5D36] dark:text-[#E6CA9E]">
-                  Upcoming Start Batch Date
-                </span>
-                <span className="font-serif text-sm font-bold text-[#1C1B1A] dark:text-white">
-                  {group.batchDate || group.nextBatchDate || 'Sat, Oct 24, 2026'}
-                </span>
-              </div>
-            </div>
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-[#25D366]/20 text-[#128C7E] dark:text-[#25D366] border border-[#25D366]/30">
-              <span className="w-2 h-2 rounded-full bg-[#25D366] animate-pulse" />
-              <span>Active Registration</span>
-            </span>
-          </div>
-
           {/* Date, Location & Seats Metas */}
           <div className="grid grid-cols-3 gap-2 py-2.5 border-t border-[#F0EBE5] dark:border-[#262422] text-xs text-[#7A746E] dark:text-[#A8A29D]">
-            <div className="flex items-center gap-1.5 truncate" title={`Start Batch: ${group.batchDate || group.date || 'Oct 24, 2026'}`}>
+            <div className="flex items-center gap-1.5 truncate" title={`Schedule: ${group.date || 'Once Every Month'}`}>
               <Calendar className="w-3.5 h-3.5 text-[#C5A880] shrink-0" />
-              <span className="truncate font-medium">{group.batchDate || group.date?.split('•')[0] || 'Oct 24, 2026'}</span>
+              <span className="truncate font-medium">{group.date || 'Once Every Month'}</span>
             </div>
             <div className="flex items-center gap-1.5 truncate" title={group.location || 'Kathmandu Studio'}>
               <MapPin className="w-3.5 h-3.5 text-[#C5A880] shrink-0" />

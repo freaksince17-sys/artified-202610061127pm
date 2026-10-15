@@ -44,7 +44,18 @@ import { collection, onSnapshot } from 'firebase/firestore';
 
 export const WorkshopGallery: React.FC = () => {
   const { isSellerMode } = useCart();
-  const [mediaItems, setMediaItems] = useState<WorkshopMediaItem[]>([]);
+  const [mediaItems, setMediaItems] = useState<WorkshopMediaItem[]>(() => {
+    const deletedIds = getDeletedWorkshopMediaIds();
+    const local = getCustomWorkshopMediaFromStorage().filter((m) => !deletedIds.includes(m.id) && isMediaRelatedToGroup(m, m.groupId));
+    const mergedMap = new Map<string, WorkshopMediaItem>();
+    DEFAULT_WORKSHOP_MEDIA.filter((item) => !deletedIds.includes(item.id) && isMediaRelatedToGroup(item, item.groupId)).forEach((item) => {
+      mergedMap.set(getCanonicalMediaKey(item) || item.id, item);
+    });
+    local.forEach((item) => {
+      mergedMap.set(getCanonicalMediaKey(item) || item.id, item);
+    });
+    return deduplicateMediaItems(Array.from(mergedMap.values())).map(sanitizeWorkshopMediaItem);
+  });
 
   const [groupMetas, setGroupMetas] = useState<Omit<WorkshopGroup, 'items'>[]>(() => {
     const deletedIds = getDeletedWorkshopGroupIds();

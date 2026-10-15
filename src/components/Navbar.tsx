@@ -241,23 +241,22 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigateSection }) => {
               {t('navCreations')}
             </button>
 
-            {/* Meet the Founder and Creator (Sahina Shrestha) */}
+            {/* Meet the Founder & Creator */}
             <button
               type="button"
               onClick={() => {
                 setActiveNavTab('artisan');
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
-              aria-label="Meet founder and creator Sahina Shrestha and read her story"
+              aria-label="Meet the Founder and Creator"
               className={`hover:text-[#1C1B1A] dark:hover:text-[#FAF8F5] transition-colors flex items-center gap-1.5 pb-1 border-b-2 cursor-pointer ${
                 activeNavTab === 'artisan'
                   ? 'border-[#C5A880] text-[#1C1B1A] dark:text-[#FAF8F5] font-semibold'
-                  : 'border-transparent text-[#8C5D36] dark:text-[#C5A880] hover:border-[#D4AF37]'
+                  : 'border-transparent text-[#5E5955] dark:text-[#A69E96]'
               }`}
-              title="Meet founder and creator Sahina Shrestha"
             >
-              <Sparkles className="w-3.5 h-3.5 text-[#D4AF37]" />
-              <span>{t('navMeetArtisan')}</span>
+              <Sparkles className="w-3.5 h-3.5 text-[#C5A880]" />
+              <span>Meet the Founder & Creator</span>
             </button>
 
             {/* Workshops & Training Gallery */}
@@ -299,14 +298,14 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigateSection }) => {
               <span>{t('navTikTok')}</span>
             </button>
 
-            {/* Tab 2: Instagram Journal */}
+            {/* Follow on Instagram */}
             <button
               type="button"
               onClick={() => {
                 setActiveNavTab('journal');
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
-              aria-label="View Instagram Craft Journal"
+              aria-label="Follow on Instagram"
               className={`hover:text-[#1C1B1A] dark:hover:text-[#FAF8F5] transition-colors flex items-center gap-1.5 pb-1 border-b-2 cursor-pointer ${
                 activeNavTab === 'journal'
                   ? 'border-[#C5A880] text-[#1C1B1A] dark:text-[#FAF8F5] font-semibold'
@@ -314,26 +313,10 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigateSection }) => {
               }`}
             >
               <Instagram className="w-3.5 h-3.5 text-[#E1306C]" />
-              <span>{t('navJournal')}</span>
+              <span>Follow on Instagram</span>
             </button>
 
-            {/* Tab 3: Our Story & Journal (Merged) */}
-            <button
-              type="button"
-              onClick={() => {
-                setActiveNavTab('craft');
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-              aria-label="Read our craft story, heritage, and journal articles"
-              className={`hover:text-[#1C1B1A] dark:hover:text-[#FAF8F5] transition-colors flex items-center gap-1.5 pb-1 border-b-2 cursor-pointer ${
-                activeNavTab === 'craft' || activeNavTab === 'craft-journal'
-                  ? 'border-[#C5A880] text-[#1C1B1A] dark:text-[#FAF8F5] font-semibold'
-                  : 'border-transparent text-[#5E5955] dark:text-[#A69E96]'
-              }`}
-            >
-              <Feather className="w-3.5 h-3.5 text-[#C5A880]" />
-              <span>{language === 'ne' ? 'हाम्रो कथा र जर्नल' : 'Our Story & Journal'}</span>
-            </button>
+
 
             {/* Tab 5: Track Order */}
             <button
@@ -455,24 +438,26 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigateSection }) => {
                   <ChevronRight className="w-4 h-4 text-[#8C847E]" />
                 </button>
 
-                {/* Meet the Founder and Creator (Sahina Shrestha) */}
+                {/* Meet the Founder & Creator */}
                 <button
                   onClick={() => {
                     setActiveNavTab('artisan');
                     setMobileMenuOpen(false);
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                   }}
-                  aria-label="Meet founder and creator Sahina Shrestha"
+                  aria-label="Meet the Founder and Creator"
                   className={`flex items-center justify-between py-2.5 text-xs font-semibold tracking-wider uppercase border-b border-[#F0EBE5] dark:border-[#262422] ${
-                    activeNavTab === 'artisan' ? 'text-[#C5A880] font-bold' : 'text-[#8C5D36] dark:text-[#E6CA9E]'
+                    activeNavTab === 'artisan' ? 'text-[#C5A880] font-bold' : 'text-[#4A4541] dark:text-[#A69E96]'
                   }`}
                 >
                   <span className="flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-[#D4AF37]" />
-                    <span>{t('navMeetArtisan')} (Sahina Shrestha)</span>
+                    <Sparkles className="w-4 h-4 text-[#C5A880]" />
+                    <span>Meet the Founder & Creator</span>
                   </span>
                   <ChevronRight className="w-4 h-4 text-[#8C847E]" />
                 </button>
+
+
 
                 {/* Workshops & Training Gallery */}
                 <button
@@ -530,21 +515,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigateSection }) => {
                   <ExternalLink className="w-4 h-4 text-[#8C847E]" />
                 </a>
 
-                {/* 3. Our Craft & Story */}
-                <button
-                  onClick={() => {
-                    setActiveNavTab('craft');
-                    setMobileMenuOpen(false);
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
-                  aria-label="Read our craft story and atelier heritage"
-                  className={`flex items-center justify-between py-2.5 text-xs font-medium tracking-wider uppercase border-b border-[#F0EBE5] dark:border-[#262422] ${
-                    activeNavTab === 'craft' ? 'text-[#C5A880] font-semibold' : 'text-[#4A4541] dark:text-[#A69E96]'
-                  }`}
-                >
-                  <span>{language === 'ne' ? 'हाम्रो कथा र जर्नल' : 'Our Story & Journal'}</span>
-                  <ChevronRight className="w-4 h-4 text-[#8C847E]" />
-                </button>
+
 
                 {/* 4. Track Order */}
                 <button

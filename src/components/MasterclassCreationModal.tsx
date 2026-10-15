@@ -76,10 +76,10 @@ export const MasterclassCreationModal: React.FC<MasterclassCreationModalProps> =
 }) => {
   // Workshop core info state
   const [title, setTitle] = useState('Macrame Wall Art & Planters Workshop');
-  const [badge, setBadge] = useState('Workshop • Macrame & Fiber Art');
-  const [tagline, setTagline] = useState('Cotton Cord Tensioning • Planters & Wall Art');
-  const [batchDate, setBatchDate] = useState('Sat, Oct 24, 2026');
-  const [date, setDate] = useState('Starting Next Saturday • 11:00 AM');
+  const [badge, setBadge] = useState('');
+  const [tagline, setTagline] = useState('');
+  const [batchDate, setBatchDate] = useState('');
+  const [date, setDate] = useState('Once Every Month');
   const [location, setLocation] = useState('Kathmandu, Nepal');
   const [instructor, setInstructor] = useState('Sahina Shrestha');
   const [attendeesCount, setAttendeesCount] = useState<number>(15);
@@ -957,39 +957,13 @@ export const MasterclassCreationModal: React.FC<MasterclassCreationModalProps> =
 
                   <div>
                     <label className="block text-xs font-bold text-[#5E5955] dark:text-[#C4BCB5] mb-1">
-                      Workshop Badge
-                    </label>
-                    <input
-                      type="text"
-                      value={badge}
-                      onChange={(e) => setBadge(e.target.value)}
-                      placeholder="e.g. Workshop • Macrame & Fiber Art"
-                      className="w-full px-3 py-2 rounded-xl bg-[#FAF8F5] dark:bg-[#201E1C] border border-[#E8DFD8] dark:border-white/10 text-xs text-[#1C1B1A] dark:text-white focus:outline-none focus:border-[#C5A880]"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-[#5E5955] dark:text-[#C4BCB5] mb-1">
-                      Upcoming Batch Start Date
-                    </label>
-                    <input
-                      type="text"
-                      value={batchDate}
-                      onChange={(e) => setBatchDate(e.target.value)}
-                      placeholder="e.g. Sat, Oct 24, 2026"
-                      className="w-full px-3 py-2 rounded-xl bg-[#FAF8F5] dark:bg-[#201E1C] border border-[#E8DFD8] dark:border-white/10 text-xs text-[#1C1B1A] dark:text-white focus:outline-none focus:border-[#C5A880]"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-[#5E5955] dark:text-[#C4BCB5] mb-1">
                       Date & Schedule
                     </label>
                     <input
                       type="text"
                       value={date}
                       onChange={(e) => setDate(e.target.value)}
-                      placeholder="e.g. Starting Next Saturday • 11:00 AM"
+                      placeholder="Once Every Month"
                       className="w-full px-3 py-2 rounded-xl bg-[#FAF8F5] dark:bg-[#201E1C] border border-[#E8DFD8] dark:border-white/10 text-xs text-[#1C1B1A] dark:text-white focus:outline-none focus:border-[#C5A880]"
                     />
                   </div>
@@ -1016,19 +990,6 @@ export const MasterclassCreationModal: React.FC<MasterclassCreationModalProps> =
                       value={instructor}
                       onChange={(e) => setInstructor(e.target.value)}
                       placeholder="Sahina Shrestha"
-                      className="w-full px-3 py-2 rounded-xl bg-[#FAF8F5] dark:bg-[#201E1C] border border-[#E8DFD8] dark:border-white/10 text-xs text-[#1C1B1A] dark:text-white focus:outline-none focus:border-[#C5A880]"
-                    />
-                  </div>
-
-                  <div className="sm:col-span-2">
-                    <label className="block text-xs font-bold text-[#5E5955] dark:text-[#C4BCB5] mb-1">
-                      Tagline / Subtitle
-                    </label>
-                    <input
-                      type="text"
-                      value={tagline}
-                      onChange={(e) => setTagline(e.target.value)}
-                      placeholder="Cotton Cord Tensioning • Planters & Wall Art"
                       className="w-full px-3 py-2 rounded-xl bg-[#FAF8F5] dark:bg-[#201E1C] border border-[#E8DFD8] dark:border-white/10 text-xs text-[#1C1B1A] dark:text-white focus:outline-none focus:border-[#C5A880]"
                     />
                   </div>

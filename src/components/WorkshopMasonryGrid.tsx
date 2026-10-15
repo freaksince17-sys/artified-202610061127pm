@@ -124,6 +124,59 @@ const MasonryVideoHoverCard: React.FC<{
   );
 };
 
+const MasonryPhotoCard: React.FC<{
+  item: WorkshopMediaItem;
+  aspectClass: string;
+}> = ({ item, aspectClass }) => {
+  return (
+    <div className={`relative w-full overflow-hidden bg-[#201E1C] ${aspectClass}`}>
+      <img
+        src={item.thumbnailUrl || item.url}
+        alt={item.title}
+        loading="lazy"
+        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+      />
+
+      {/* Gradient Shadow Overlay */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-60 group-hover:opacity-80 transition-opacity pointer-events-none" />
+
+      {/* Top Badges */}
+      <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between z-10 pointer-events-none">
+        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-black/70 backdrop-blur-md text-white border border-white/20">
+          <Camera className="w-3 h-3 text-[#E6CA9E]" />
+          <span>PHOTO</span>
+        </span>
+
+        {item.featured && (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-[#C5A880] text-[#1C1B1A] shadow-xs">
+            <Sparkles className="w-2.5 h-2.5" />
+            <span>Highlight</span>
+          </span>
+        )}
+      </div>
+
+      {/* Fullscreen Expand Icon on Hover */}
+      <div className="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 transition-opacity z-25 pointer-events-none">
+        <span className="p-1.5 rounded-full bg-black/60 text-white backdrop-blur-xs flex items-center justify-center hover:bg-black/90">
+          <Maximize2 className="w-3.5 h-3.5" />
+        </span>
+      </div>
+
+      {/* Bottom Overlay Text on Thumbnail */}
+      <div className="absolute bottom-2.5 left-2.5 right-2.5 z-10 pointer-events-none">
+        <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+          <span className="inline-block px-2 py-0.5 rounded-md text-[10px] font-semibold bg-white/20 backdrop-blur-md text-white">
+            {item.craftTechnique}
+          </span>
+        </div>
+        <h4 className="text-white font-serif text-sm font-bold line-clamp-2 drop-shadow-xs leading-snug">
+          {item.title}
+        </h4>
+      </div>
+    </div>
+  );
+};
+
 export const WorkshopMasonryGrid: React.FC<WorkshopMasonryGridProps> = ({
   items,
   onSelectItem,
@@ -187,51 +240,7 @@ export const WorkshopMasonryGrid: React.FC<WorkshopMasonryGridProps> = ({
               {isVideo ? (
                 <MasonryVideoHoverCard item={item} aspectClass={aspectClass} />
               ) : (
-                <div className={`relative w-full overflow-hidden bg-[#201E1C] ${aspectClass}`}>
-                  <img
-                    src={item.thumbnailUrl || item.url}
-                    alt={item.title}
-                    loading="lazy"
-                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                  />
-
-                  {/* Gradient Shadow Overlay */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-60 group-hover:opacity-80 transition-opacity" />
-
-                  {/* Top Badges */}
-                  <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between z-10">
-                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-black/70 backdrop-blur-md text-white border border-white/20">
-                      <Camera className="w-3 h-3 text-[#E6CA9E]" />
-                      <span>PHOTO</span>
-                    </span>
-
-                    {item.featured && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-[#C5A880] text-[#1C1B1A] shadow-xs">
-                        <Sparkles className="w-2.5 h-2.5" />
-                        <span>Highlight</span>
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Fullscreen Expand Icon on Hover */}
-                  <div className="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 transition-opacity z-20">
-                    <span className="p-1.5 rounded-full bg-black/60 text-white backdrop-blur-xs flex items-center justify-center hover:bg-black/90">
-                      <Maximize2 className="w-3.5 h-3.5" />
-                    </span>
-                  </div>
-
-                  {/* Bottom Overlay Text on Thumbnail */}
-                  <div className="absolute bottom-2.5 left-2.5 right-2.5 z-10 pointer-events-none">
-                    <div className="flex items-center gap-1.5 mb-1 flex-wrap">
-                      <span className="inline-block px-2 py-0.5 rounded-md text-[10px] font-semibold bg-white/20 backdrop-blur-md text-white">
-                        {item.craftTechnique}
-                      </span>
-                    </div>
-                    <h4 className="text-white font-serif text-sm font-bold line-clamp-2 drop-shadow-xs leading-snug">
-                      {item.title}
-                    </h4>
-                  </div>
-                </div>
+                <MasonryPhotoCard item={item} aspectClass={aspectClass} />
               )}
 
               {/* Card Footer Info */}
