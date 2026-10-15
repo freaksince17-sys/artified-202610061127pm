@@ -491,7 +491,7 @@ export const ArtifiedThreeWorkshopsPage: React.FC = () => {
   const [editingWorkshop, setEditingWorkshop] = useState<WorkshopClassDef | null>(null);
   const [modalTitle, setModalTitle] = useState('');
   const [modalDescription, setModalDescription] = useState('');
-  const [modalSchedule, setModalSchedule] = useState('Once Every Month');
+
   const [modalLocation, setModalLocation] = useState('');
   const [modalInstructor, setModalInstructor] = useState('');
   const [modalCapacity, setModalCapacity] = useState(15);
@@ -542,30 +542,9 @@ export const ArtifiedThreeWorkshopsPage: React.FC = () => {
       setMediaList(local);
     });
 
-    fetchWorkshopGroupMetadataFromFirestore().then((cloudGroups) => {
-      if (cloudGroups && cloudGroups.length > 0) {
-        const localRaw = localStorage.getItem(CLASSES_STORAGE_KEY);
-        if (!localRaw) {
-          setClassesList(prev => prev.map(cls => {
-            const found = cloudGroups.find(g => g.groupKey === cls.key || g.id === cls.id);
-            if (found) {
-              return {
-                ...cls,
-                title: found.title || cls.title,
-                description: found.description || cls.description,
-                schedule: found.date || cls.schedule,
-                location: found.location || cls.location,
-                instructor: found.instructor || cls.instructor,
-                capacity: found.attendeesCount || cls.capacity,
-                whatsappMessage: found.whatsappMessage || cls.whatsappMessage,
-                techniques: found.keyTechniques || cls.techniques
-              };
-            }
-            return cls;
-          }));
-        }
-      }
-    }).catch(() => {});
+    // Firestore sync is handled by onSnapshot below for gallery items,
+    // and workshop groups are persisted via saveWorkshopGroup and fetched via fetchWorkshopGroups in workshops.ts
+
 
     const colRef = collection(db, 'workshop_gallery');
     const unsubscribe = onSnapshot(colRef, (snapshot) => {
@@ -916,7 +895,7 @@ export const ArtifiedThreeWorkshopsPage: React.FC = () => {
     setEditingWorkshop(cls);
     setModalTitle(cls.title);
     setModalDescription(cls.description);
-    setModalSchedule(cls.schedule || 'Once Every Month');
+
     setModalLocation(cls.location);
     setModalInstructor(cls.instructor);
     setModalCapacity(cls.capacity);
@@ -931,7 +910,7 @@ export const ArtifiedThreeWorkshopsPage: React.FC = () => {
       ...editingWorkshop,
       title: modalTitle.trim() || editingWorkshop.title,
       description: modalDescription.trim() || editingWorkshop.description,
-      schedule: modalSchedule.trim() || 'Once Every Month',
+      schedule: 'Once Every Month',
       location: modalLocation.trim() || editingWorkshop.location,
       instructor: modalInstructor.trim() || editingWorkshop.instructor,
       capacity: Number(modalCapacity) || editingWorkshop.capacity,
@@ -1483,13 +1462,9 @@ export const ArtifiedThreeWorkshopsPage: React.FC = () => {
                     <label className="block text-xs font-bold text-[#A8A29D] uppercase tracking-wider mb-1">
                       Schedule & Frequency
                     </label>
-                    <input
-                      type="text"
-                      value={modalSchedule}
-                      onChange={(e) => setModalSchedule(e.target.value)}
-                      placeholder="Every Saturday • 11:00 AM - 2:00 PM"
-                      className="w-full px-3.5 py-2 rounded-xl bg-[#201E1C] border border-white/10 text-xs text-white focus:outline-none focus:border-[#C5A880]"
-                    />
+                    <div className="w-full px-3.5 py-2 rounded-xl bg-[#201E1C] border border-white/10 text-xs text-[#C5A880]">
+                      Once Every Month
+                    </div>
                   </div>
 
                   <div>

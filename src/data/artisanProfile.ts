@@ -101,9 +101,7 @@ export function getArtisanProfile(): ArtisanProfileData {
       const parsed = JSON.parse(raw);
       if (parsed && typeof parsed === 'object') {
         let avatarUrl = parsed.avatarUrl;
-        if (!avatarUrl || avatarUrl.includes('unsplash.com')) {
-          avatarUrl = DEFAULT_ARTISAN_PROFILE.avatarUrl;
-        }
+
 
         return {
           ...DEFAULT_ARTISAN_PROFILE,
