@@ -1,8 +1,43 @@
 import { TrackedOrderData, OrderDetails, OrderProductionPhase, TrackingMilestone } from '../types';
 import { recordOrderStatusChange } from '../utils/orderNotificationManager';
-import { saveOrderToFirestore } from '../services/orderTrackingService';
-import { CAVIAR_PEARL_BAG_IMAGE, getRealProductImage } from '../utils/productImages';
+import {
+  saveOrderToFirestore,
+  deleteOrderFromFirestore,
+  purgeAllOrdersFromFirestore,
+  CURRENT_ORDER_GENERATION,
+  CURRENT_PURGE_EPOCH
+} from '../services/orderTrackingService';
+import { getRealProductImage } from '../utils/productImages';
 import SAVED_TRACKED_ORDERS from './tracked_orders.json';
+
+/**
+ * Permanently purged legacy Order IDs (canonical compact uppercase without '#' or '-')
+ */
+const PERMANENTLY_PURGED_CANONICAL_IDS = new Set<string>([
+  'ART20264846',
+  'ART20265526',
+  'ART20268842',
+  'ART20265521',
+  'ART20263190',
+  'ART20263829'
+]);
+
+/**
+ * In-memory set of deleted canonical Order IDs synced from Firestore `store_settings/deleted_orders`
+ */
+const CLOUD_DELETED_CANONICAL_IDS = new Set<string>();
+
+export function registerCloudDeletedOrderIds(ids: string[]): void {
+  if (!Array.isArray(ids)) return;
+  for (const raw of ids) {
+    if (typeof raw === 'string' && raw.trim()) {
+      const canonical = getCanonicalOrderKey(raw);
+      if (canonical) {
+        CLOUD_DELETED_CANONICAL_IDS.add(canonical);
+      }
+    }
+  }
+}
 
 /**
  * Builds the 4 exact milestones requested:
@@ -20,7 +55,6 @@ export function buildMilestonesForPhase(
   const isDelivered = phase === 'delivered';
   const isOut = phase === 'out_for_delivery' || isDelivered;
   const isCrafting = phase === 'handcrafting_and_packaging' || isOut;
-  const isConfirmed = true;
 
   return [
     {
@@ -38,7 +72,7 @@ export function buildMilestonesForPhase(
       description: 'Handcrafted with precision by Sahina Shrestha & team, inspected for quality, and packaged in luxury dust pouch.',
       timestamp: isCrafting ? (phase === 'handcrafting_and_packaging' ? 'In Progress Now' : 'Completed') : 'Upcoming',
       location: 'Craft Bench, Kathmandu, Nepal',
-      completed: (phase === 'out_for_delivery' || isDelivered),
+      completed: phase === 'out_for_delivery' || isDelivered,
       current: phase === 'handcrafting_and_packaging',
     },
     {
@@ -75,42 +109,10 @@ export function getProgressPercentage(phase?: OrderProductionPhase): number {
   }
 }
 
-const savedOrders = (SAVED_TRACKED_ORDERS as Record<string, Partial<TrackedOrderData>>) || {};
-const initialOrder5526 = savedOrders['ART-2026-5526'] || {};
-const activePhase5526: OrderProductionPhase = (initialOrder5526.currentPhase as OrderProductionPhase) || 'out_for_delivery';
-
-export const DEMO_TRACKED_ORDERS: Record<string, TrackedOrderData> = {
-  'ART-2026-5526': {
-    orderId: 'ART-2026-5526',
-    customerName: initialOrder5526.customerName || 'Lamar Anzelov',
-    phone: initialOrder5526.phone || '9703726980',
-    deliveryAddress: initialOrder5526.deliveryAddress || '175/25, Kathmandu Valley',
-    deliveryZoneName: initialOrder5526.deliveryZoneName || 'Inside Ring Road (Kathmandu / Lalitpur)',
-    paymentMethodText: initialOrder5526.paymentMethodText || 'Direct Order / Cash on Delivery',
-    paymentStatus: initialOrder5526.paymentStatus || 'Paid & Verified',
-    items: [
-      {
-        title: 'Caviar Pearl Bag',
-        image: CAVIAR_PEARL_BAG_IMAGE,
-        quantity: 1,
-        price: 2499,
-        customization: 'Handcrafted by Sahina Shrestha'
-      }
-    ],
-    total: initialOrder5526.total || 2499,
-    orderPlacedDate: initialOrder5526.orderPlacedDate || 'Recent Order',
-    estimatedDeliveryDate: initialOrder5526.estimatedDeliveryDate || '1-2 business days',
-    currentPhase: activePhase5526,
-    progressPercentage: getProgressPercentage(activePhase5526),
-    artisanName: 'Sahina Shrestha',
-    artisanRole: 'Founder and Creator',
-    studioLocation: 'Artified Workshop, Kathmandu, Nepal',
-    liveCraftNotes: initialOrder5526.liveCraftNotes || 'Your Caviar Pearl Bag was meticulously hand-woven and inspected at our Kathmandu workshop. It has been handed over to our express courier for delivery to your doorstep.',
-    courierPartner: initialOrder5526.courierPartner || 'Kathmandu Valley Express Courier',
-    consignmentCode: initialOrder5526.consignmentCode || 'KTM-EXP-5526',
-    milestones: buildMilestonesForPhase(activePhase5526, 'Recent Order', '1-2 business days', '175/25, Inside Ring Road')
-  }
-};
+/**
+ * Empty demo orders map (all legacy demo orders have been purged).
+ */
+export const DEMO_TRACKED_ORDERS: Record<string, TrackedOrderData> = {};
 
 /**
  * Normalizes item images to authentic product photos
@@ -129,44 +131,124 @@ export function sanitizeOrderItems(order: TrackedOrderData): TrackedOrderData {
  * Normalizes input order id (e.g. "#art-2026-8842" -> "ART-2026-8842")
  */
 export function normalizeOrderId(id: string): string {
-  return id.replace(/[#\s]/g, '').toUpperCase();
+  return (id || '').replace(/[#\s]/g, '').toUpperCase();
 }
 
 /**
- * Persists an updated tracked order to browser storage.
+ * Canonical order key that strips '#', whitespace, and hyphens '-'
+ * so "ART-2026-4846", "art 2026 4846", and "#ART20264846" all resolve to "ART20264846".
+ */
+export function getCanonicalOrderKey(id: string): string {
+  return normalizeOrderId(id).replace(/[^A-Z0-9]/g, '');
+}
+
+/**
+ * Generates all possible string representations of an Order ID (with/without '#' and hyphens)
+ */
+export function getOrderIdVariants(rawId: string): string[] {
+  const clean = normalizeOrderId(rawId);
+  const compact = getCanonicalOrderKey(rawId);
+  const variants = new Set<string>([clean, compact, `#${clean}`, `#${compact}`]);
+
+  const matchCompact = compact.match(/^([A-Z]+)(\d{4})(\d+)$/);
+  if (matchCompact) {
+    const hyphenated = `${matchCompact[1]}-${matchCompact[2]}-${matchCompact[3]}`;
+    variants.add(hyphenated);
+    variants.add(`#${hyphenated}`);
+  }
+  return Array.from(variants).filter(Boolean);
+}
+
+/**
+ * Checks whether an Order ID or Order object has been deleted or belongs to a purged generation.
+ */
+export function isOrderDeletedOrPurged(orderIdInput: string, orderObj?: any): boolean {
+  const canonical = getCanonicalOrderKey(orderIdInput);
+  if (!canonical) return true;
+
+  if (PERMANENTLY_PURGED_CANONICAL_IDS.has(canonical) || CLOUD_DELETED_CANONICAL_IDS.has(canonical)) {
+    return true;
+  }
+
+  try {
+    const rawDeleted = localStorage.getItem('artified_deleted_orders');
+    if (rawDeleted) {
+      const deletedList: string[] = JSON.parse(rawDeleted);
+      const isMatch = deletedList.some((d) => getCanonicalOrderKey(d) === canonical);
+      if (isMatch) return true;
+    }
+  } catch {}
+
+  if (orderObj) {
+    if (orderObj.deleted === true) {
+      return true;
+    }
+    const customer = (orderObj.customerName || '').trim();
+    if (
+      customer === 'Valued Artified Customer' ||
+      customer === 'Lamar Anzelov' ||
+      customer === '1st customer'
+    ) {
+      return true;
+    }
+    // Strictly require current order generation AND current purge epoch on all order records
+    if (
+      orderObj.generation !== CURRENT_ORDER_GENERATION ||
+      orderObj.purgeEpochId !== CURRENT_PURGE_EPOCH
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Persists an updated tracked order to browser storage, server disk, and Firestore.
  */
 export function saveTrackedOrder(order: TrackedOrderData): void {
   try {
+    const norm = normalizeOrderId(order.orderId);
+    const canonical = getCanonicalOrderKey(order.orderId);
+
+    // If seller or customer creates a new order, ensure it's not blocked in artified_deleted_orders
+    CLOUD_DELETED_CANONICAL_IDS.delete(canonical);
+    try {
+      const rawDeleted = localStorage.getItem('artified_deleted_orders');
+      if (rawDeleted) {
+        const deletedIds: string[] = JSON.parse(rawDeleted);
+        const filteredDeleted = deletedIds.filter((d) => getCanonicalOrderKey(d) !== canonical);
+        localStorage.setItem('artified_deleted_orders', JSON.stringify(filteredDeleted));
+      }
+    } catch {}
+
+    const stampedOrder: TrackedOrderData & { generation: number; purgeEpochId: string } = {
+      ...order,
+      generation: CURRENT_ORDER_GENERATION,
+      purgeEpochId: CURRENT_PURGE_EPOCH
+    };
+
     const raw = localStorage.getItem('artified_tracked_orders');
     const map: Record<string, TrackedOrderData> = raw ? JSON.parse(raw) : {};
-    const norm = normalizeOrderId(order.orderId);
-    map[norm] = order;
+    map[norm] = stampedOrder;
     localStorage.setItem('artified_tracked_orders', JSON.stringify(map));
-
-    // Also update in-memory DEMO_TRACKED_ORDERS so it never reverts
-    if (DEMO_TRACKED_ORDERS[norm]) {
-      DEMO_TRACKED_ORDERS[norm] = {
-        ...DEMO_TRACKED_ORDERS[norm],
-        ...order
-      };
-    }
 
     // Sync to server disk
     try {
       fetch('/api/tracked-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(order)
+        body: JSON.stringify(stampedOrder)
       }).catch(() => {});
     } catch {}
 
     // Real-time Firestore sync
-    saveOrderToFirestore(order).catch((err) => {
+    saveOrderToFirestore(stampedOrder).catch((err) => {
       console.warn('Notice: Firestore order tracking save:', err);
     });
 
-    recordOrderStatusChange(order.orderId, order.currentPhase, order.customerName);
-    window.dispatchEvent(new CustomEvent('artified_order_updated', { detail: order }));
+    recordOrderStatusChange(stampedOrder.orderId, stampedOrder.currentPhase, stampedOrder.customerName);
+    window.dispatchEvent(new CustomEvent('artified_order_updated', { detail: stampedOrder }));
   } catch (e) {
     console.warn('Failed to save tracked order to localStorage', e);
   }
@@ -185,8 +267,12 @@ export function updateOrderPhase(
     estimatedDeliveryDate?: string;
   }
 ): TrackedOrderData {
-  const current = getTrackedOrder(orderIdInput) || generateDynamicTrackedOrder(orderIdInput);
-  const targetPhase: OrderProductionPhase = phase || current.currentPhase || 'out_for_delivery';
+  const current = getTrackedOrder(orderIdInput);
+  if (!current) {
+    throw new Error(`Order ${orderIdInput} not found or has been deleted.`);
+  }
+
+  const targetPhase: OrderProductionPhase = phase || current.currentPhase || 'confirmed';
   const updated: TrackedOrderData = {
     ...current,
     currentPhase: targetPhase,
@@ -203,20 +289,13 @@ export function updateOrderPhase(
     )
   };
 
-  const norm = normalizeOrderId(orderIdInput);
-  if (DEMO_TRACKED_ORDERS[norm]) {
-    DEMO_TRACKED_ORDERS[norm] = {
-      ...DEMO_TRACKED_ORDERS[norm],
-      ...updated
-    };
-  }
-
   saveTrackedOrder(updated);
   return updated;
 }
 
 /**
- * Synchronizes tracked orders from server disk into in-memory state and localStorage.
+ * Synchronizes tracked orders from server disk into in-memory state and localStorage,
+ * ignoring any purged or deleted orders.
  */
 export function syncTrackedOrdersFromServer(ordersMap: Record<string, TrackedOrderData>): void {
   if (!ordersMap || typeof ordersMap !== 'object') return;
@@ -226,7 +305,12 @@ export function syncTrackedOrdersFromServer(ordersMap: Record<string, TrackedOrd
     const localMap: Record<string, TrackedOrderData> = raw ? JSON.parse(raw) : {};
 
     Object.entries(ordersMap).forEach(([rawKey, serverOrder]) => {
+      if (!serverOrder || typeof serverOrder !== 'object') return;
       const norm = normalizeOrderId(serverOrder.orderId || rawKey);
+      if (isOrderDeletedOrPurged(norm, serverOrder)) {
+        return;
+      }
+
       const enrichedOrder: TrackedOrderData = {
         ...serverOrder,
         orderId: norm,
@@ -234,7 +318,7 @@ export function syncTrackedOrdersFromServer(ordersMap: Record<string, TrackedOrd
         milestones: serverOrder.milestones && serverOrder.milestones.length > 0
           ? serverOrder.milestones
           : buildMilestonesForPhase(
-              serverOrder.currentPhase || 'out_for_delivery',
+              serverOrder.currentPhase || 'confirmed',
               serverOrder.orderPlacedDate || 'Recent Order',
               serverOrder.estimatedDeliveryDate || '1-2 business days',
               serverOrder.deliveryAddress || 'Kathmandu Valley'
@@ -242,14 +326,6 @@ export function syncTrackedOrdersFromServer(ordersMap: Record<string, TrackedOrd
       };
 
       localMap[norm] = enrichedOrder;
-
-      if (DEMO_TRACKED_ORDERS[norm]) {
-        DEMO_TRACKED_ORDERS[norm] = {
-          ...DEMO_TRACKED_ORDERS[norm],
-          ...enrichedOrder
-        };
-      }
-
       window.dispatchEvent(new CustomEvent('artified_order_updated', { detail: enrichedOrder }));
     });
 
@@ -260,76 +336,92 @@ export function syncTrackedOrdersFromServer(ordersMap: Record<string, TrackedOrd
 }
 
 /**
- * Fetches order tracking data from updated local storage records,
- * pre-configured demo records, or locally placed orders.
+ * Fetches order tracking data from valid local storage records.
+ * Returns null if the order was deleted or purged.
  */
 export function getTrackedOrder(orderIdInput: string): TrackedOrderData | null {
   if (!orderIdInput.trim()) return null;
 
-  const normalized = normalizeOrderId(orderIdInput);
+  const canonical = getCanonicalOrderKey(orderIdInput);
+  if (isOrderDeletedOrPurged(orderIdInput)) {
+    return null;
+  }
 
   // 1. Check seller-saved / modified tracking records first
   try {
     const raw = localStorage.getItem('artified_tracked_orders');
     if (raw) {
       const map: Record<string, TrackedOrderData> = JSON.parse(raw);
-      if (map[normalized]) {
-        return sanitizeOrderItems(map[normalized]);
+      for (const [key, order] of Object.entries(map)) {
+        if (getCanonicalOrderKey(key) === canonical || getCanonicalOrderKey(order.orderId) === canonical) {
+          if (!isOrderDeletedOrPurged(order.orderId, order)) {
+            return sanitizeOrderItems(order);
+          }
+        }
       }
     }
-  } catch {
-    // ignore
-  }
+  } catch {}
 
-  // 2. Check pre-configured demo orders
-  if (DEMO_TRACKED_ORDERS[normalized]) {
-    return sanitizeOrderItems(DEMO_TRACKED_ORDERS[normalized]);
-  }
-
-  // 3. Check locally placed orders in browser storage
+  // 2. Check locally placed orders in browser storage
   try {
     const savedOrdersRaw = localStorage.getItem('artified_orders');
     if (savedOrdersRaw) {
-      const orders: OrderDetails[] = JSON.parse(savedOrdersRaw);
-      const matched = orders.find((o) => normalizeOrderId(o.orderId) === normalized);
+      const orders: (OrderDetails & { generation?: number; purgeEpochId?: string })[] = JSON.parse(savedOrdersRaw);
+      const matched = orders.find(
+        (o) =>
+          getCanonicalOrderKey(o.orderId) === canonical &&
+          !isOrderDeletedOrPurged(o.orderId, o)
+      );
       if (matched) {
         return sanitizeOrderItems(buildTrackedOrderFromOrderDetails(matched));
       }
     }
-  } catch {
-    // ignore parsing errors
-  }
-
-  // 4. If user entered a realistic ART- format, generate realistic tracking
-  if (normalized.startsWith('ART-') || normalized.startsWith('ART')) {
-    return sanitizeOrderItems(generateDynamicTrackedOrder(normalized));
-  }
+  } catch {}
 
   return null;
 }
 
 /**
- * Returns all active orders for the seller to manage in one central place:
- * Merges demo orders, customer placed orders, and seller-created orders.
+ * Returns all active orders for the seller to manage in one central place.
+ * Excludes all purged and deleted orders.
  */
 export function getAllOrdersForSeller(): TrackedOrderData[] {
   const result: Record<string, TrackedOrderData> = {};
-  const legacyDefaultIds = ['ART-2026-8842', 'ART-2026-5521', 'ART-2026-3190'];
 
-  // 1. Add demo orders (only ART-2026-5526)
-  Object.values(DEMO_TRACKED_ORDERS).forEach((order) => {
-    result[normalizeOrderId(order.orderId)] = order;
-  });
+  // 1. Add saved tracked orders from tracked_orders.json if valid generation & epoch
+  if (SAVED_TRACKED_ORDERS && typeof SAVED_TRACKED_ORDERS === 'object') {
+    Object.entries(SAVED_TRACKED_ORDERS).forEach(([rawKey, order]) => {
+      if (order && typeof order === 'object') {
+        const tOrder = order as TrackedOrderData & { generation?: number; purgeEpochId?: string };
+        const norm = normalizeOrderId(tOrder.orderId || rawKey);
+        const canonical = getCanonicalOrderKey(norm);
+        if (!isOrderDeletedOrPurged(norm, tOrder) && !result[canonical]) {
+          result[canonical] = {
+            ...tOrder,
+            orderId: norm,
+            progressPercentage: getProgressPercentage(tOrder.currentPhase || 'confirmed'),
+            milestones: tOrder.milestones || buildMilestonesForPhase(
+              tOrder.currentPhase || 'confirmed',
+              tOrder.orderPlacedDate || 'Recent Order',
+              tOrder.estimatedDeliveryDate || '1-2 business days',
+              tOrder.deliveryAddress || 'Kathmandu Valley'
+            )
+          };
+        }
+      }
+    });
+  }
 
-  // 2. Add customer checkout orders from localStorage
+  // 2. Add customer checkout orders from localStorage (artified_orders)
   try {
     const raw = localStorage.getItem('artified_orders');
     if (raw) {
-      const customerOrders: OrderDetails[] = JSON.parse(raw);
+      const customerOrders: (OrderDetails & { generation?: number; purgeEpochId?: string })[] = JSON.parse(raw);
       customerOrders.forEach((o) => {
         const norm = normalizeOrderId(o.orderId);
-        if (!legacyDefaultIds.includes(norm) && !result[norm]) {
-          result[norm] = buildTrackedOrderFromOrderDetails(o);
+        const canonical = getCanonicalOrderKey(norm);
+        if (!isOrderDeletedOrPurged(norm, o)) {
+          result[canonical] = buildTrackedOrderFromOrderDetails(o);
         }
       });
     }
@@ -337,26 +429,16 @@ export function getAllOrdersForSeller(): TrackedOrderData[] {
     console.warn('Error reading customer orders for seller', e);
   }
 
-  // 3. Overlay any seller-updated tracked orders
+  // 3. Overlay any seller-updated tracked orders (artified_tracked_orders)
   try {
     const rawTracked = localStorage.getItem('artified_tracked_orders');
     if (rawTracked) {
-      const trackedMap: Record<string, TrackedOrderData> = JSON.parse(rawTracked);
-      // Clean legacy defaults from localStorage
-      let hasLegacy = false;
-      legacyDefaultIds.forEach((id) => {
-        if (trackedMap[id]) {
-          delete trackedMap[id];
-          hasLegacy = true;
-        }
-      });
-      if (hasLegacy) {
-        localStorage.setItem('artified_tracked_orders', JSON.stringify(trackedMap));
-      }
-
-      Object.entries(trackedMap).forEach(([norm, order]) => {
-        if (!legacyDefaultIds.includes(norm)) {
-          result[norm] = order;
+      const trackedMap: Record<string, TrackedOrderData & { generation?: number; purgeEpochId?: string }> = JSON.parse(rawTracked);
+      Object.entries(trackedMap).forEach(([rawKey, order]) => {
+        const norm = normalizeOrderId(order.orderId || rawKey);
+        const canonical = getCanonicalOrderKey(norm);
+        if (!isOrderDeletedOrPurged(norm, order)) {
+          result[canonical] = order;
         }
       });
     }
@@ -403,38 +485,143 @@ export function buildTrackedOrderFromOrderDetails(order: OrderDetails): TrackedO
       order.createdAt || 'Today',
       order.deliveryZone.estimatedDays,
       order.deliveryZone.name
-    )
+    ),
+    ...({
+      generation: CURRENT_ORDER_GENERATION,
+      purgeEpochId: CURRENT_PURGE_EPOCH
+    } as any)
   };
 }
 
-function generateDynamicTrackedOrder(orderId: string): TrackedOrderData {
-  const phase: OrderProductionPhase = 'handcrafting_and_packaging';
-  return {
-    orderId: orderId.startsWith('#') ? orderId : `#${orderId}`,
-    customerName: 'Valued Artified Customer',
-    phone: '98XXXXXXXX',
-    deliveryAddress: 'Kathmandu Valley, Nepal',
-    deliveryZoneName: 'Kathmandu Valley',
-    paymentMethodText: 'Verified Order Booking',
-    paymentStatus: 'Confirmed & Paid',
-    items: [
-      {
-        title: 'Handcrafted Pearl Creation',
-        image: CAVIAR_PEARL_BAG_IMAGE,
-        quantity: 1,
-        price: 4200,
-        customization: 'Handmade slow-fashion piece'
+/**
+ * Deletes an order from seller tracked orders, local storage records, server disk, and Firestore.
+ */
+export function deleteTrackedOrder(orderIdInput: string): void {
+  try {
+    const norm = normalizeOrderId(orderIdInput);
+    const canonical = getCanonicalOrderKey(orderIdInput);
+    const variants = getOrderIdVariants(orderIdInput);
+
+    registerCloudDeletedOrderIds(variants);
+
+    // 0. Add all variants to deleted IDs list so it never reappears
+    let deletedIds: string[] = [];
+    try {
+      const rawDeleted = localStorage.getItem('artified_deleted_orders');
+      if (rawDeleted) {
+        deletedIds = JSON.parse(rawDeleted);
       }
-    ],
-    total: 4300,
-    orderPlacedDate: 'Recently Placed',
-    estimatedDeliveryDate: '1 to 2 days',
-    currentPhase: phase,
-    progressPercentage: getProgressPercentage(phase),
-    artisanName: 'Sahina Shrestha',
-    artisanRole: 'Founder and Creator',
-    studioLocation: 'Artified Workshop, Kathmandu, Nepal',
-    liveCraftNotes: 'Handcrafting underway in Kathmandu workshop by Sahina Shrestha. Each bead is manually anchored to ensure structural longevity.',
-    milestones: buildMilestonesForPhase(phase, 'Recently Placed', '1 to 2 days', 'Kathmandu Valley')
-  };
+    } catch {}
+    for (const v of variants) {
+      if (!deletedIds.includes(v)) {
+        deletedIds.push(v);
+      }
+    }
+    localStorage.setItem('artified_deleted_orders', JSON.stringify(deletedIds));
+
+    // 1. Remove from artified_tracked_orders
+    const rawTracked = localStorage.getItem('artified_tracked_orders');
+    if (rawTracked) {
+      const map: Record<string, TrackedOrderData> = JSON.parse(rawTracked);
+      for (const k of Object.keys(map)) {
+        if (getCanonicalOrderKey(k) === canonical || getCanonicalOrderKey(map[k]?.orderId || '') === canonical) {
+          delete map[k];
+        }
+      }
+      localStorage.setItem('artified_tracked_orders', JSON.stringify(map));
+    }
+
+    // 2. Remove from artified_orders (customer placed orders)
+    const rawOrders = localStorage.getItem('artified_orders');
+    if (rawOrders) {
+      const orders: OrderDetails[] = JSON.parse(rawOrders);
+      const filtered = orders.filter((o) => getCanonicalOrderKey(o.orderId) !== canonical);
+      localStorage.setItem('artified_orders', JSON.stringify(filtered));
+    }
+
+    // 3. Notify server disk endpoint
+    try {
+      fetch(`/api/tracked-order/${encodeURIComponent(norm)}`, {
+        method: 'DELETE'
+      }).catch(() => {});
+    } catch {}
+
+    // 4. Delete from Firestore (`orders`, `tracked_orders`, `order_status_logs`, `users/.../tracked_orders`)
+    deleteOrderFromFirestore(orderIdInput).catch(() => {});
+
+    window.dispatchEvent(new CustomEvent('artified_order_updated', { detail: { orderId: norm, deleted: true } }));
+  } catch (e) {
+    console.warn('Failed to delete tracked order', e);
+  }
 }
+
+/**
+ * Purges all orders placed on this website across localStorage, server disk, and Firestore.
+ */
+export function deleteAllOrders(): void {
+  try {
+    // Collect any order IDs currently in localStorage so they are permanently added to deletedIds
+    const allKnownDeleted = new Set<string>(Array.from(PERMANENTLY_PURGED_CANONICAL_IDS));
+    try {
+      const prevDeleted = localStorage.getItem('artified_deleted_orders');
+      if (prevDeleted) {
+        JSON.parse(prevDeleted).forEach((id: string) => allKnownDeleted.add(id));
+      }
+    } catch {}
+    try {
+      const rawOrders = localStorage.getItem('artified_orders');
+      if (rawOrders) {
+        JSON.parse(rawOrders).forEach((o: any) => {
+          if (o?.orderId) {
+            getOrderIdVariants(o.orderId).forEach((v) => allKnownDeleted.add(v));
+          }
+        });
+      }
+    } catch {}
+    try {
+      const rawTracked = localStorage.getItem('artified_tracked_orders');
+      if (rawTracked) {
+        Object.values(JSON.parse(rawTracked)).forEach((o: any) => {
+          if (o?.orderId) {
+            getOrderIdVariants(o.orderId).forEach((v) => allKnownDeleted.add(v));
+          }
+        });
+      }
+    } catch {}
+
+    const deletedArray = Array.from(allKnownDeleted);
+    registerCloudDeletedOrderIds(deletedArray);
+
+    localStorage.removeItem('artified_all_orders_deleted');
+    localStorage.removeItem('artified_orders');
+    localStorage.removeItem('artified_tracked_orders');
+    localStorage.removeItem('artified_order_notifications');
+    localStorage.removeItem('artified_order_last_phases');
+    localStorage.setItem('artified_deleted_orders', JSON.stringify(deletedArray));
+
+    try {
+      fetch('/api/tracked-orders', { method: 'DELETE' }).catch(() => {});
+    } catch {}
+
+    purgeAllOrdersFromFirestore(true).catch(() => {});
+
+    window.dispatchEvent(new CustomEvent('artified_order_updated', { detail: { deletedAll: true } }));
+  } catch (e) {
+    console.warn('Failed to delete all orders', e);
+  }
+}
+
+// Run one-time total purge for generation v6 so all historical orders are wiped cleanly
+try {
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('artified_all_orders_deleted');
+    const purgeKey = `artified_purge_gen_${CURRENT_ORDER_GENERATION}_${CURRENT_PURGE_EPOCH}`;
+    if (localStorage.getItem(purgeKey) !== 'done') {
+      localStorage.setItem(purgeKey, 'done');
+      deleteAllOrders();
+    } else {
+      // Always ensure legacy Firestore orders are purged in background
+      purgeAllOrdersFromFirestore(false).catch(() => {});
+    }
+  }
+} catch {}

@@ -76,12 +76,23 @@ export const OrderTrackerModal: React.FC = () => {
   // Listen for order updates and status alerts from localStorage
   useEffect(() => {
     const handleUpdate = (e: Event) => {
-      const customEvent = e as CustomEvent<TrackedOrderData>;
+      const customEvent = e as CustomEvent<any>;
       if (customEvent.detail) {
-        const updatedNorm = normalizeOrderId(customEvent.detail.orderId);
+        if (customEvent.detail.deletedAll) {
+          setTrackedOrder(null);
+          setTrackingOrderId('');
+          return;
+        }
+        const updatedNorm = normalizeOrderId(customEvent.detail.orderId || '');
         const currentNorm = trackedOrder ? normalizeOrderId(trackedOrder.orderId) : (inputOrderId ? normalizeOrderId(inputOrderId) : '');
         if (currentNorm && updatedNorm === currentNorm) {
-          setTrackedOrder(customEvent.detail);
+          if (customEvent.detail.deleted) {
+            setTrackedOrder(null);
+            setTrackingOrderId('');
+            setErrorMsg(`We couldn't locate an order with ID "${inputOrderId || currentNorm}". Please verify your order number or consult our WhatsApp support.`);
+          } else if (customEvent.detail.items) {
+            setTrackedOrder(customEvent.detail);
+          }
         }
       }
     };
@@ -623,7 +634,7 @@ export const OrderTrackerModal: React.FC = () => {
           setIsManagerModalOpen(false);
           if (trackedOrder) {
             const refreshed = getTrackedOrder(trackedOrder.orderId);
-            if (refreshed) setTrackedOrder(refreshed);
+            setTrackedOrder(refreshed || null);
           }
         }}
         initialOrderId={trackedOrder?.orderId}

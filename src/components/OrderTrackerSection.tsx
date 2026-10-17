@@ -49,12 +49,23 @@ export const OrderTrackerSection: React.FC = () => {
 
   useEffect(() => {
     const handleUpdate = (e: Event) => {
-      const customEvent = e as CustomEvent<TrackedOrderData>;
+      const customEvent = e as CustomEvent<any>;
       if (customEvent.detail) {
-        const updatedNorm = normalizeOrderId(customEvent.detail.orderId);
+        if (customEvent.detail.deletedAll) {
+          setTrackedOrder(null);
+          setTrackingOrderId('');
+          return;
+        }
+        const updatedNorm = normalizeOrderId(customEvent.detail.orderId || '');
         const currentNorm = trackedOrder ? normalizeOrderId(trackedOrder.orderId) : (inputOrderId ? normalizeOrderId(inputOrderId) : '');
         if (currentNorm && updatedNorm === currentNorm) {
-          setTrackedOrder(sanitizeOrderItems(customEvent.detail));
+          if (customEvent.detail.deleted) {
+            setTrackedOrder(null);
+            setTrackingOrderId('');
+            setErrorMsg(`We couldn't find an order for "${inputOrderId || currentNorm}". Please check the ID or contact us on WhatsApp.`);
+          } else if (customEvent.detail.items) {
+            setTrackedOrder(sanitizeOrderItems(customEvent.detail));
+          }
         }
       }
     };
@@ -396,7 +407,7 @@ export const OrderTrackerSection: React.FC = () => {
             setIsManagerModalOpen(false);
             if (trackedOrder) {
               const refreshed = getTrackedOrder(trackedOrder.orderId);
-              if (refreshed) setTrackedOrder(refreshed);
+              setTrackedOrder(refreshed ? sanitizeOrderItems(refreshed) : null);
             }
           }}
           initialOrderId={trackedOrder?.orderId}

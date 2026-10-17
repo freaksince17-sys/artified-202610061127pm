@@ -15,8 +15,7 @@ import {
   KeyRound,
   Check,
   Award,
-  Gift,
-  Scan
+  Gift
 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { SellerPaymentSettingsModal } from './SellerPaymentSettingsModal';
@@ -24,7 +23,6 @@ import { SellerChangePasswordModal } from './SellerChangePasswordModal';
 import { ArtisanProfileEditModal } from './ArtisanProfileEditModal';
 import { UnifiedMasterclassModal } from './UnifiedMasterclassModal';
 import { MasterclassCreationModal } from './MasterclassCreationModal';
-import { QRDiagnosticModal } from './QRDiagnosticModal';
 
 export const SellerToolbar: React.FC = () => {
   const { 
@@ -51,7 +49,6 @@ export const SellerToolbar: React.FC = () => {
   const [isManualSyncing, setIsManualSyncing] = useState(false);
   const [syncSuccess, setSyncSuccess] = useState(false);
   const [isPaymentSettingsOpen, setIsPaymentSettingsOpen] = useState(false);
-  const [isDiagnosticModalOpen, setIsDiagnosticModalOpen] = useState(false);
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
   const [isArtisanProfileOpen, setIsArtisanProfileOpen] = useState(false);
   const [isWorkshopModalOpen, setIsWorkshopModalOpen] = useState(false);
@@ -217,17 +214,6 @@ export const SellerToolbar: React.FC = () => {
               <span>Personal QR & Payment Setup (Free)</span>
             </button>
 
-            {/* QR Verification & Scanner Diagnostics Button */}
-            <button
-              type="button"
-              onClick={() => setIsDiagnosticModalOpen(true)}
-              className="w-full py-1.5 px-2.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 text-[11px] font-bold rounded-lg flex items-center justify-center gap-1.5 transition-colors border border-emerald-500/40 cursor-pointer"
-              title="Diagnose Firestore QR URL, test HTTP 200, and scan with jsQR / html5-qrcode"
-            >
-              <Scan className="w-3.5 h-3.5 text-emerald-400" />
-              <span>QR Verification & Scanner</span>
-            </button>
-
             <button
               type="button"
               onClick={() => setIsWebsiteExportOpen(true)}
@@ -320,12 +306,6 @@ export const SellerToolbar: React.FC = () => {
       <SellerPaymentSettingsModal
         isOpen={isPaymentSettingsOpen}
         onClose={() => setIsPaymentSettingsOpen(false)}
-      />
-
-      {/* QR Verification & Scanner Diagnostic Modal */}
-      <QRDiagnosticModal
-        isOpen={isDiagnosticModalOpen}
-        onClose={() => setIsDiagnosticModalOpen(false)}
       />
 
       {/* Seller Change Password Modal */}

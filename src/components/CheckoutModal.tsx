@@ -38,6 +38,7 @@ import {
   fetchPaymentSettingsFromServer, 
   SellerPaymentSettings 
 } from '../data/paymentSettings';
+import { buildTrackedOrderFromOrderDetails, saveTrackedOrder } from '../data/trackingData';
 
 import { PaymentQRModal } from './PaymentQRModal';
 
@@ -61,11 +62,14 @@ export const CheckoutModal: React.FC = () => {
     openAccountModal,
     recordOnlineOrderSales,
     directPurchaseItem,
-    setDirectPurchaseItem
+    setDirectPurchaseItem,
+    setTrackingOrderId
   } = useCart();
 
   // Form State
   const [step, setStep] = useState<'details' | 'payment' | 'instructions' | 'confirmation'>('details');
+  const [confirmedOrder, setConfirmedOrder] = useState<OrderDetails | null>(null);
+  const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
@@ -86,18 +90,19 @@ export const CheckoutModal: React.FC = () => {
     return () => window.removeEventListener('artified_payment_settings_updated', handleUpdate);
   }, []);
 
+  const [provisionalOrderId, setProvisionalOrderId] = useState<string>('');
+
   useEffect(() => {
     if (isCheckoutOpen) {
+      setStep('details');
+      setConfirmedOrder(null);
+      setTransactionId('');
+      setScreenshotPreview(null);
+      setErrors({});
+      setProvisionalOrderId(`ART-2026-${Math.floor(1000 + Math.random() * 9000)}`);
       fetchPaymentSettingsFromServer().then((fresh) => setPaymentSettings(fresh)).catch(() => {});
     }
-  }, [isCheckoutOpen]);
-
-  // Fixed reference order ID generated on mount so buyer can copy it during instructions step
-  const [provisionalOrderId] = useState(() => `ART-2026-${Math.floor(1000 + Math.random() * 9000)}`);
-
-  // Validation errors
-  const [errors, setErrors] = useState<{ [key: string]: string }>({});
-  const [confirmedOrder, setConfirmedOrder] = useState<OrderDetails | null>(null);
+  }, [isCheckoutOpen, directPurchaseItem]);
 
   if (!isCheckoutOpen) return null;
 
@@ -105,7 +110,8 @@ export const CheckoutModal: React.FC = () => {
   const giftFee = giftPackaging ? 150 : 0;
   
   const itemsToBuy = directPurchaseItem ? [directPurchaseItem] : cart;
-  const grandTotal = Math.max(0, itemsToBuy.reduce((sum, item) => sum + (item.product.price * item.quantity), 0) + currentDeliveryFee + giftFee - discount);
+  const itemsSubtotal = itemsToBuy.reduce((sum, item) => sum + (item.product.price * item.quantity), 0);
+  const grandTotal = Math.max(0, itemsSubtotal + currentDeliveryFee + giftFee - discount);
 
   const validateDetails = () => {
     const errs: { [key: string]: string } = {};
@@ -143,29 +149,30 @@ export const CheckoutModal: React.FC = () => {
 
     // Removed loyalty points earning logic.
 
+    const finalOrderId = `#${provisionalOrderId || `ART-2026-${Math.floor(1000 + Math.random() * 9000)}`}`;
+
     const order: OrderDetails = {
-      orderId: `#${provisionalOrderId}`,
+      orderId: finalOrderId,
       items: [...itemsToBuy],
-      customerName: fullName,
-      phone: phone,
-      email: email || undefined,
-      address: address,
-      landmark: landmark || undefined,
+      customerName: fullName.trim(),
+      phone: phone.trim(),
+      email: email.trim() || undefined,
+      address: address.trim(),
+      landmark: landmark.trim() || undefined,
       deliveryZone: selectedDeliveryZone,
       paymentMethod: paymentMethod,
       giftPackaging: giftPackaging,
       giftMessage: giftMessage.trim() || undefined,
       recipientName: recipientName.trim() || undefined,
       senderName: senderName.trim() || undefined,
-      orderNote: orderNote || undefined,
-      subtotal: subtotal,
+      orderNote: orderNote.trim() || undefined,
+      subtotal: itemsSubtotal,
       deliveryFee: currentDeliveryFee,
       giftPackagingFee: giftFee,
       discount: discount,
       total: grandTotal,
       transactionId: transactionId || undefined,
       paymentScreenshot: screenshotPreview || undefined,
-      earnedLoyaltyPoints: Math.round(grandTotal * 0.05),
       createdAt: new Date().toLocaleDateString('en-US', {
         month: 'short',
         day: 'numeric',
@@ -175,8 +182,22 @@ export const CheckoutModal: React.FC = () => {
       })
     };
 
+    // 1. Save order to customer's order history in localStorage
+    try {
+      const raw = localStorage.getItem('artified_orders');
+      const existing: OrderDetails[] = raw ? JSON.parse(raw) : [];
+      const updated = [{ ...order, generation: 5 } as any, ...existing.filter(o => o.orderId !== order.orderId)];
+      localStorage.setItem('artified_orders', JSON.stringify(updated));
+    } catch {}
+
+    // 2. Build tracked order and save to tracking storage + Firestore + Seller Studio
+    const trackedOrder = buildTrackedOrderFromOrderDetails(order);
+    saveTrackedOrder(trackedOrder);
+
+    // 3. Set Context State
     setConfirmedOrder(order);
     setCompletedOrder(order);
+    setTrackingOrderId(order.orderId);
     recordOnlineOrderSales(itemsToBuy);
     setDirectPurchaseItem(null);
     clearCart();

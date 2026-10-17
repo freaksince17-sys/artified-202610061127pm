@@ -47,10 +47,26 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
-    // Direct tracked orders collection
+    // Primary orders collection and nested status logs
+    match /orders/{orderId} {
+      allow read, write: if true;
+      match /status_logs/{logId} {
+        allow read, write: if true;
+      }
+    }
+
+    // Direct tracked orders collection and nested status logs
     match /tracked_orders/{orderId} {
       allow read: if true;
       allow write: if true;
+      match /status_logs/{logId} {
+        allow read, write: if true;
+      }
+    }
+
+    // Order status logs collection
+    match /order_status_logs/{orderId} {
+      allow read, write: if true;
     }
 
     // Customer subscriptions and wishlists

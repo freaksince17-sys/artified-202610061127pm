@@ -1786,14 +1786,43 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => window.removeEventListener('keydown', handleKey);
   }, [isSellerMode]);
 
+  useEffect(() => {
+    const handleOrderDeletedEvent = (e: Event) => {
+      const ce = e as CustomEvent<any>;
+      if (ce.detail?.deletedAll) {
+        setCompletedOrderState(null);
+        setTrackingOrderId('');
+      } else if (ce.detail?.deleted && ce.detail?.orderId) {
+        const delNorm = ce.detail.orderId.replace(/[#\s-]/g, '').toUpperCase();
+        setCompletedOrderState((prev) => {
+          if (prev && prev.orderId.replace(/[#\s-]/g, '').toUpperCase() === delNorm) {
+            return null;
+          }
+          return prev;
+        });
+        setTrackingOrderId((prev) => {
+          if (prev && prev.replace(/[#\s-]/g, '').toUpperCase() === delNorm) {
+            return '';
+          }
+          return prev;
+        });
+      }
+    };
+    window.addEventListener('artified_order_updated', handleOrderDeletedEvent);
+    return () => window.removeEventListener('artified_order_updated', handleOrderDeletedEvent);
+  }, []);
+
   const setCompletedOrder = (order: OrderDetails | null) => {
     setCompletedOrderState(order);
     if (order) {
       try {
         const existingRaw = localStorage.getItem('artified_orders');
         const existing: OrderDetails[] = existingRaw ? JSON.parse(existingRaw) : [];
-        // Prepend new order
-        const updated = [order, ...existing.filter((o) => o.orderId !== order.orderId)];
+        // Prepend new order stamped with current generation and purgeEpochId
+        const updated = [
+          { ...order, generation: 6, purgeEpochId: 'artified_clean_slate_v6' } as any,
+          ...existing.filter((o) => o.orderId !== order.orderId)
+        ];
         localStorage.setItem('artified_orders', JSON.stringify(updated));
       } catch (e) {
         console.warn('Failed to persist order to storage', e);

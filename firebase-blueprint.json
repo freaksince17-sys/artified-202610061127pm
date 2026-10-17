@@ -272,9 +272,17 @@
       "schema": "TrackedOrder",
       "description": "Secure customer sub-collection for order tracking keyed by user ID"
     },
+    "/orders/{orderId}": {
+      "schema": "TrackedOrder",
+      "description": "Primary orders collection synced with tracking records and status logs"
+    },
     "/tracked_orders/{orderId}": {
       "schema": "TrackedOrder",
       "description": "Real-time orders with shipping and crafting milestone status secured by session token and order ID"
+    },
+    "/order_status_logs/{orderId}": {
+      "schema": "TrackedOrder",
+      "description": "Order status transition logs associated with orders"
     },
     "/waitlist_subscribers/{subscriberId}": {
       "schema": "WaitlistSubscriber",

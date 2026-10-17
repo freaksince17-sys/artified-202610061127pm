@@ -7,7 +7,7 @@
  * this Cloud Function automatically triggers personalized email notifications to all waitlisted customers.
  */
 
-import { onDocumentUpdated } from "firebase-functions/v2/firestore";
+import { onDocumentUpdated, onDocumentDeleted } from "firebase-functions/v2/firestore";
 import * as admin from "firebase-admin";
 import * as nodemailer from "nodemailer";
 
@@ -308,3 +308,152 @@ export const onProductStockUpdated = onDocumentUpdated(
     }
   }
 );
+
+/**
+ * Helper to generate all possible Order ID variants (hyphenated, unhyphenated, and #-prefixed)
+ * so that associated tracking records and status logs are matched regardless of formatting.
+ */
+function getOrderIdVariants(rawId: string): string[] {
+  const clean = rawId.replace(/[#\s]/g, "").toUpperCase();
+  const compact = clean.replace(/-/g, "");
+  const variants = new Set<string>([rawId, clean, compact, `#${clean}`, `#${compact}`]);
+
+  // Convert ART2026XXXX <-> ART-2026-XXXX
+  const matchCompact = compact.match(/^([A-Z]+)(\d{4})(\d+)$/);
+  if (matchCompact) {
+    const hyphenated = `${matchCompact[1]}-${matchCompact[2]}-${matchCompact[3]}`;
+    variants.add(hyphenated);
+    variants.add(`#${hyphenated}`);
+  }
+  return Array.from(variants).filter(Boolean);
+}
+
+/**
+ * Shared cascade cleanup helper that removes all tracking records, user sub-collection records,
+ * and status logs associated with a deleted order ID.
+ */
+async function cascadeDeleteOrderRecords(rawOrderId: string): Promise<void> {
+  const variants = getOrderIdVariants(rawOrderId);
+  const batch = db.batch();
+
+  // 1. Delete direct document references in `tracked_orders`, `orders`, and `order_status_logs`
+  for (const variant of variants) {
+    const docKey = variant.replace(/^#/, "");
+    if (!docKey) continue;
+    batch.delete(db.collection("tracked_orders").doc(docKey));
+    batch.delete(db.collection("orders").doc(docKey));
+    batch.delete(db.collection("order_status_logs").doc(docKey));
+  }
+
+  // 2. Query `tracked_orders` where orderId or docId matches any variant
+  const trackedByOrderId = await db
+    .collection("tracked_orders")
+    .where("orderId", "in", variants.slice(0, 10))
+    .get();
+  trackedByOrderId.forEach((docSnap) => batch.delete(docSnap.ref));
+
+  // 3. Query `order_status_logs` where orderId matches any variant
+  const statusLogsSnap = await db
+    .collection("order_status_logs")
+    .where("orderId", "in", variants.slice(0, 10))
+    .get();
+  statusLogsSnap.forEach((docSnap) => batch.delete(docSnap.ref));
+
+  // 4. Delete any nested status_logs subcollections under orders/{id}/status_logs or tracked_orders/{id}/status_logs
+  for (const variant of variants) {
+    const docKey = variant.replace(/^#/, "");
+    if (!docKey) continue;
+
+    const orderSubLogs = await db
+      .collection("orders")
+      .doc(docKey)
+      .collection("status_logs")
+      .get();
+    orderSubLogs.forEach((d) => batch.delete(d.ref));
+
+    const trackedSubLogs = await db
+      .collection("tracked_orders")
+      .doc(docKey)
+      .collection("status_logs")
+      .get();
+    trackedSubLogs.forEach((d) => batch.delete(d.ref));
+  }
+
+  // 5. Query collectionGroup `tracked_orders` (covers `users/{sessionToken}/tracked_orders/{docId}`)
+  try {
+    const groupSnap = await db
+      .collectionGroup("tracked_orders")
+      .where("orderId", "in", variants.slice(0, 10))
+      .get();
+    groupSnap.forEach((docSnap) => batch.delete(docSnap.ref));
+  } catch (err) {
+    console.warn("[Order Delete Cascade] CollectionGroup lookup notice:", err);
+  }
+
+  // 6. Record deleted order IDs in `store_settings/deleted_orders` tombstone
+  const deletedSettingsRef = db.collection("store_settings").doc("deleted_orders");
+  batch.set(
+    deletedSettingsRef,
+    {
+      deletedIds: admin.firestore.FieldValue.arrayUnion(...variants),
+      updatedAt: new Date().toISOString(),
+    },
+    { merge: true }
+  );
+
+  await batch.commit();
+}
+
+/**
+ * Cloud Function: onOrderDeleted
+ * Triggers automatically when an order document is deleted from the Firestore `orders/{orderId}` collection.
+ * Automatically removes all associated tracking records in `tracked_orders`, user subcollections,
+ * and status logs in `order_status_logs`, preventing the deleted order from appearing in Track Order.
+ */
+export const onOrderDeleted = onDocumentDeleted(
+  "orders/{orderId}",
+  async (event) => {
+    const orderId = event.params.orderId;
+    const deletedData = event.data?.data();
+    const targetId = (deletedData?.orderId as string) || orderId;
+
+    console.log(
+      `[Order Delete Cascade] Order "${targetId}" deleted from orders collection. Removing associated tracking records and status logs...`
+    );
+
+    try {
+      await cascadeDeleteOrderRecords(targetId);
+      console.log(
+        `[Order Delete Cascade] Completed cleanup of tracking records and status logs for order "${targetId}".`
+      );
+    } catch (err) {
+      console.error(
+        `[Order Delete Cascade] Failed to clean up tracking records for order "${targetId}":`,
+        err
+      );
+    }
+  }
+);
+
+/**
+ * Cloud Function: onTrackedOrderDeleted
+ * Triggers when a document is deleted directly from `tracked_orders/{orderId}` to keep `orders` and logs in sync.
+ */
+export const onTrackedOrderDeleted = onDocumentDeleted(
+  "tracked_orders/{orderId}",
+  async (event) => {
+    const orderId = event.params.orderId;
+    const deletedData = event.data?.data();
+    const targetId = (deletedData?.orderId as string) || orderId;
+
+    try {
+      await cascadeDeleteOrderRecords(targetId);
+    } catch (err) {
+      console.error(
+        `[TrackedOrder Delete Cascade] Error cleaning up records for "${targetId}":`,
+        err
+      );
+    }
+  }
+);
+

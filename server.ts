@@ -350,6 +350,47 @@ async function startServer() {
     }
   });
 
+  // DELETE /api/tracked-order/:orderId - Remove order and all ID variants from tracked_orders.json
+  app.delete('/api/tracked-order/:orderId', (req, res) => {
+    try {
+      const rawId = req.params.orderId || '';
+      const clean = rawId.replace(/[#\s]/g, '').toUpperCase();
+      const compact = clean.replace(/-/g, '');
+      let map: Record<string, any> = {};
+      if (fs.existsSync(trackedOrdersJsonPath)) {
+        try {
+          map = JSON.parse(fs.readFileSync(trackedOrdersJsonPath, 'utf-8'));
+        } catch {}
+      }
+
+      for (const key of Object.keys(map)) {
+        const keyClean = key.replace(/[#\s]/g, '').toUpperCase();
+        const keyCompact = keyClean.replace(/-/g, '');
+        const orderObj = map[key];
+        const objClean = (orderObj?.orderId || '').replace(/[#\s]/g, '').toUpperCase();
+        const objCompact = objClean.replace(/-/g, '');
+        if (keyClean === clean || keyCompact === compact || objClean === clean || objCompact === compact) {
+          delete map[key];
+        }
+      }
+
+      fs.writeFileSync(trackedOrdersJsonPath, JSON.stringify(map, null, 2), 'utf-8');
+      return res.json({ success: true });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message || 'Failed to delete tracked order' });
+    }
+  });
+
+  // DELETE /api/tracked-orders - Purge all tracked orders from server disk
+  app.delete('/api/tracked-orders', (_req, res) => {
+    try {
+      fs.writeFileSync(trackedOrdersJsonPath, JSON.stringify({}, null, 2), 'utf-8');
+      return res.json({ success: true });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message || 'Failed to purge tracked orders' });
+    }
+  });
+
   // GET /api/tiktok-reels - Retrieve permanently saved TikTok reels
   app.get('/api/tiktok-reels', (_req, res) => {
     try {

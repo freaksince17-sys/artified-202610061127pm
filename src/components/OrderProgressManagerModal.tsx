@@ -15,7 +15,8 @@ import {
   RefreshCw, 
   ClipboardCheck,
   Clock,
-  History
+  History,
+  Trash2
 } from 'lucide-react';
 import { 
   getAllOrdersForSeller, 
@@ -23,7 +24,8 @@ import {
   saveTrackedOrder, 
   normalizeOrderId, 
   getProgressPercentage,
-  buildMilestonesForPhase 
+  buildMilestonesForPhase,
+  deleteTrackedOrder 
 } from '../data/trackingData';
 import { getRealProductImage } from '../utils/productImages';
 import { TrackedOrderData, OrderProductionPhase } from '../types';
@@ -141,6 +143,12 @@ export const OrderProgressManagerModal: React.FC<OrderProgressManagerModalProps>
       : `https://wa.me/?text=${message}`;
 
     window.open(waUrl, '_blank');
+  };
+
+  const handleDeleteOrder = (orderId: string) => {
+    deleteTrackedOrder(orderId);
+    reloadOrders();
+    showToast(`Order ${orderId} deleted successfully.`);
   };
 
   const handleCreateManualOrder = (e: React.FormEvent) => {
@@ -545,14 +553,21 @@ export const OrderProgressManagerModal: React.FC<OrderProgressManagerModalProps>
 
                     {/* 3. 4-Stage Progress Buttons (Ticked Green) */}
                     <div className="md:col-span-4 space-y-1">
-                      <div className="flex items-center justify-between text-[10px]">
-                        <span className="font-bold text-[#1C1B1A] flex items-center gap-1 uppercase tracking-wider text-[9px]">
+                      <div className="flex items-center justify-between bg-[#FAF8F5] px-2 py-1 rounded border border-[#E8DFD8]">
+                        <span className="text-[10px] font-bold text-[#1C1B1A] flex items-center gap-1">
                           <Sparkles className="w-2.5 h-2.5 text-[#D4AF37]" />
-                          <span>Timeline Stage:</span>
+                          <span>Status:</span>
                         </span>
-                        <span className="font-mono font-bold text-[#C5A880] text-[9px]">
-                          {getProgressPercentage(activePhase)}% Complete
-                        </span>
+                        <select
+                          value={activePhase}
+                          onChange={(e) => handlePhaseChange(order.orderId, e.target.value as OrderProductionPhase)}
+                          className="bg-white border border-[#E8DFD8] rounded px-1.5 py-0.5 text-[10px] font-bold text-[#1C1B1A] focus:outline-none cursor-pointer"
+                        >
+                          <option value="confirmed">1. Confirmed (Pending)</option>
+                          <option value="handcrafting_and_packaging">2. Handcrafting</option>
+                          <option value="out_for_delivery">3. Shipped (Dispatch)</option>
+                          <option value="delivered">4. Delivered</option>
+                        </select>
                       </div>
 
                       <div className="grid grid-cols-4 gap-1">
@@ -613,16 +628,25 @@ export const OrderProgressManagerModal: React.FC<OrderProgressManagerModalProps>
                       </div>
                     </div>
 
-                    {/* 4. WhatsApp Customer Button (Ticked Green) */}
-                    <div className="md:col-span-2 flex justify-end">
+                    {/* 4. WhatsApp Customer & Delete Buttons */}
+                    <div className="md:col-span-2 flex items-center justify-end gap-1.5">
                       <button
                         type="button"
                         onClick={() => handleSendWhatsApp(order)}
-                        className="w-full sm:w-auto px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] flex items-center justify-center gap-1 transition-colors shadow-2xs cursor-pointer"
+                        className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] flex items-center justify-center gap-1 transition-colors shadow-2xs cursor-pointer"
                         title="Send WhatsApp update"
                       >
                         <MessageCircle className="w-3.5 h-3.5 shrink-0" />
-                        <span>WhatsApp Customer</span>
+                        <span>WhatsApp</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteOrder(order.orderId)}
+                        className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition-colors cursor-pointer"
+                        title="Delete Order"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
 
