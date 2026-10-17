@@ -33,9 +33,9 @@ export const INITIAL_CUSTOMER_REVIEWS: CustomerReviewWithPhoto[] = [
     id: 'cr-1',
     author: 'Aayushi Khadgi',
     location: 'Kathmandu, Nepal',
-    rating: 4.8,
-    reviewTitle: 'Very pretty red bag for my cousin’s wedding',
-    comment: 'Honestly, I was not sure about ordering bags online because sometimes pearls look cheap plastic. But this Red Pearl Beaded Bag is surprisingly heavy and well made. The red pearls shine nicely under hall lights and it easily fits my mobile phone, handkerchief and compact powder. Delivery rider called before arriving. Everyone in wedding was asking where I got it from!',
+    rating: 5.0,
+    reviewTitle: 'Dherai ramro red bag for cousin wedding',
+    comment: 'Honestly online order garda thha thiyena kasto aawcha bhanera, tara yo Red Pearl Beaded Bag surprisingly heavy ra well made cha! Red pearls le light ma dherai ramro shine dincha. Mobile, handkerchief ra lipstick atyo. Delivery rider le call garera lyaeko thiyo. Marriage ma sabai le sodhe kata bata kineko bhanera!',
     productName: 'Red Pearl Beaded Bag',
     date: '2 days ago',
     verifiedPurchase: true,
@@ -48,9 +48,9 @@ export const INITIAL_CUSTOMER_REVIEWS: CustomerReviewWithPhoto[] = [
     id: 'cr-2',
     author: 'Prerana Shahi',
     location: 'Kathmandu, Nepal',
-    rating: 4.7,
-    reviewTitle: 'Fits comfortably and easy to adjust',
-    comment: 'I ordered this choker after seeing their reel on Instagram. My neck is bit thin so normal fixed chokers become loose on me, but this one has adjustable chain at back so I could fit it properly. Wore it with black sari for college farewell. Beads are smooth and did not scratch my skin. Very happy with the purchase at this price.',
+    rating: 4.5,
+    reviewTitle: 'Comfortable fit ra adjust garna sajilo',
+    comment: 'Instagram reel dekhera order gareko thie. Mero neck sanai cha so normal chokers loose huncha, tara yesma adjustable chain bhako le majale fit bhayo. Black saree snga college farewell ma lagawda pearls smooth lagyo, skin bilkul chokiyena. Dherai man poryo yo price ma!',
     productName: 'Pearl Beaded Adjustable Choker',
     date: '5 days ago',
     verifiedPurchase: true,
@@ -63,9 +63,9 @@ export const INITIAL_CUSTOMER_REVIEWS: CustomerReviewWithPhoto[] = [
     id: 'cr-3',
     author: 'Bhawana Gurung',
     location: 'Kathmandu, Nepal',
-    rating: 4.6,
-    reviewTitle: 'Safely delivered in 2 days with cute packaging',
-    comment: 'I ordered the round pearl bag for my party. The seller packed it inside solid box with lots of bubble wrap and a soft dust pouch. The round shape is very unique and sturdy. It is slightly heavy in hand because of solid beads, but look is 100% royal.',
+    rating: 5.0,
+    reviewTitle: 'Safely delivered 2 din mai with cute packaging',
+    comment: 'Party ko lagi round pearl bag order gareko thie. Solid box ma bubble wrap ra soft dust pouch bhitra lyaeko thiyo. Yo round shape ekdam unique ra sturdy cha. Solid beads le garda haat ma heavy feel huncha, look chai 100% royal lagyo!',
     productName: 'Round Pearl Bag',
     date: '1 week ago',
     verifiedPurchase: true,
@@ -78,9 +78,9 @@ export const INITIAL_CUSTOMER_REVIEWS: CustomerReviewWithPhoto[] = [
     id: 'cr-4',
     author: 'Sneha Tuladhar',
     location: 'Kathmandu, Nepal',
-    rating: 4.8,
-    reviewTitle: 'Complete set for Teej, good value for money',
-    comment: 'Bought the 5 layer necklace set with earrings for Teej puja. For Rs 899, getting both necklace and matching earrings is really good value in Kathmandu. The layers sit flat on collarbone and don’t get tangled easily. My mother in law also liked it and told me to order one for her.',
+    rating: 4.5,
+    reviewTitle: 'Complete set for Teej, ekdam value for money',
+    comment: 'Teej puja ko lagi 5 layer necklace set with earrings kineko thie. Getting both necklace ra matching earrings is really good value in Kathmandu. Layers haru flat baschha ra amlikyena. Mero sasu aama le pani dherai ramro mannu bhayo!',
     productName: '5 layer pearl necklace with earrings',
     date: '2 weeks ago',
     verifiedPurchase: true,
@@ -94,8 +94,8 @@ export const INITIAL_CUSTOMER_REVIEWS: CustomerReviewWithPhoto[] = [
     author: 'Aaradhya K.C.',
     location: 'Kathmandu, Nepal',
     rating: 4.5,
-    reviewTitle: 'Rose pendant is very cute and decent',
-    comment: 'I gifted this to my best friend on her 22nd birthday. She loves minimalist pearl jewelry. The small rose pendant between the three pearl layers looks elegant with kurtha. Only small thing is the hook clasp was slightly stiff at first, but after opening a couple of times it became smooth. She loved it a lot!',
+    reviewTitle: 'Rose pendant dherai cute ra decent cha',
+    comment: 'Best friend ko birthday ma gift deko thie. Small rose pendant with 3 pearl layers looks so elegant with kurtha! Hook clasp starting ma ali tight thiyo, 2-3 chot khole pachhi smooth bhayo. Usle dherai man paraayo yo gift.',
     productName: '3 Layer Pearl Rose Necklace',
     date: '2 weeks ago',
     verifiedPurchase: true,
@@ -108,9 +108,9 @@ export const INITIAL_CUSTOMER_REVIEWS: CustomerReviewWithPhoto[] = [
     id: 'cr-6',
     author: 'Samikshya Maharjan',
     location: 'Kathmandu, Nepal',
-    rating: 4.8,
-    reviewTitle: 'Visited their Kathmandu store, very neat work',
-    comment: 'I wanted to check bag size before paying so I visited their store in Kathmandu, Nepal. Sahina didi showed me the bag and explained how each bead is tied with strong nylon cord. Finish is clean with zero loose threads. Paid directly via Fonepay QR. Feels proud supporting local handmade brand.',
+    rating: 4.5,
+    reviewTitle: 'Kathmandu store gako thie, clean handwork',
+    comment: 'Bag size verify garna Kathmandu store mai gaeko thie. Sahina didi le bag dekhawnu bhayo ra nylon cord le kasari tie gareko samjhawnu bhayo. Finish clean cha with zero loose threads. Fonepay QR bata direct pay gare. Local handmade brand support garna paawda khushi lagyo!',
     productName: 'Caviar Pearl Bag',
     date: '3 weeks ago',
     verifiedPurchase: true,
@@ -121,11 +121,11 @@ export const INITIAL_CUSTOMER_REVIEWS: CustomerReviewWithPhoto[] = [
   },
   {
     id: 'cr-7',
-    author: 'Pooja Shakya',
+    author: 'Saanvi Malla',
     location: 'Kathmandu, Nepal',
-    rating: 4.6,
-    reviewTitle: 'Super shiny crystals and cute heart lock',
-    comment: 'Ordered two bracelets for me and my younger sister. Price is only Rs 299 each so I was not expecting high luxury, but the crystal sparkle is really nice when sunlight hits. Heart clasp is secure so it doesn’t fall off while riding scooter. Definitely buying more colors.',
+    rating: 4.0,
+    reviewTitle: 'Super shiny crystals ra cute heart lock',
+    comment: 'Aafno ra bahini ko lagi kineko thie. Crystal sparkle gham ma dherai ramro dekhincha! Heart clasp secure cha so scooter chadda pani jhardena. Highly recommended!',
     productName: 'Crystal Bead Bracelets with Heart Clasp',
     date: '1 month ago',
     verifiedPurchase: true,
@@ -138,9 +138,9 @@ export const INITIAL_CUSTOMER_REVIEWS: CustomerReviewWithPhoto[] = [
     id: 'cr-8',
     author: 'Kritika Bista',
     location: 'Kathmandu, Nepal',
-    rating: 4.7,
-    reviewTitle: 'Simple and sweet for everyday office wear',
-    comment: 'Delivered in 2 business days. The two layer choker is subtle and not too flashy, so I can wear it with formal shirts to my office and also on family dinners. Quality of pearls is good and color does not fade. Recommend to anyone looking for classic pearls.',
+    rating: 4.5,
+    reviewTitle: 'Simple ra sweet for everyday office wear',
+    comment: '2 din mai delivery bhayo. Yo two layer choker subtle ra classy cha, formal shirts ra family dinner ma majale match huncha. Quality of pearls good cha, color pani fikka hudena.',
     productName: 'Two Layer Pearl Choker',
     date: '1 month ago',
     verifiedPurchase: true,
@@ -153,9 +153,9 @@ export const INITIAL_CUSTOMER_REVIEWS: CustomerReviewWithPhoto[] = [
     id: 'cr-9',
     author: 'Barsha Pandey',
     location: 'Kathmandu, Nepal',
-    rating: 4.7,
-    reviewTitle: 'Cute gift idea for friend circle',
-    comment: 'Got the set of 4 keyrings for Rs 499. Gave three to my college friends and kept one on my tote bag. The beads are tightly strung so keys don’t pull it apart. Cute packaging too. Fast delivery in Kathmandu valley.',
+    rating: 5.0,
+    reviewTitle: 'Cute gift idea for college friend circle',
+    comment: '4 wota keyrings ko set kineko thie. College sathi haru lai de ra aafno tote bag ma euta rakhe. Beads tightly strung bhako le keys le tandena. Cute packaging ra fast delivery in Kathmandu valley!',
     productName: 'Pearl Beaded Keyring Set Of 4',
     date: '1 month ago',
     verifiedPurchase: true,
@@ -171,27 +171,20 @@ export const CustomerReviews: React.FC = () => {
   
   const [reviews, setReviews] = useState<CustomerReviewWithPhoto[]>(() => {
     try {
+      const ver = localStorage.getItem('artified_reviews_v7');
+      if (ver !== 'true') {
+        localStorage.removeItem('artified_customer_reviews_with_photos');
+        Object.keys(localStorage).forEach((k) => {
+          if (k.startsWith('artified_reviews_')) localStorage.removeItem(k);
+        });
+        localStorage.setItem('artified_reviews_v7', 'true');
+        return INITIAL_CUSTOMER_REVIEWS;
+      }
       const saved = localStorage.getItem('artified_customer_reviews_with_photos');
       if (saved) {
-        if (/chikamugal/i.test(saved)) {
-          localStorage.removeItem('artified_customer_reviews_with_photos');
-          return INITIAL_CUSTOMER_REVIEWS;
-        }
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          // If stored reviews still have old placeholder products like "The Maya Aurelia Structured Pearl Bag", migrate to real products!
-          const hasObsolete = parsed.some(r => 
-            r.productName?.includes('Maya Aurelia') || 
-            r.productName?.includes('Celestia') ||
-            r.productName?.includes('Ayla Boho')
-          );
-          if (!hasObsolete) {
-            return parsed.map(r => ({
-              ...r,
-              location: 'Kathmandu, Nepal',
-              comment: (r.comment || '').replace(/chikamugal,?\s*kathmandu/gi, 'Kathmandu, Nepal').replace(/chikamugal/gi, 'Kathmandu, Nepal')
-            }));
-          }
+          return parsed;
         }
       }
     } catch {}
@@ -739,14 +732,23 @@ export const CustomerReviews: React.FC = () => {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1.5">
                         <div className="flex items-center gap-0.5 text-amber-400">
-                          {Array.from({ length: 5 }).map((_, i) => (
-                            <Star
-                              key={i}
-                              className={`w-3.5 h-3.5 ${
-                                i < Math.floor(rev.rating) ? 'fill-amber-400 text-amber-400' : 'text-zinc-200'
-                              }`}
-                            />
-                          ))}
+                          {[1, 2, 3, 4, 5].map((s) => {
+                            const diff = (rev.rating || 4.5) - (s - 1);
+                            if (diff >= 0.75) {
+                              return <Star key={s} className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />;
+                            } else if (diff >= 0.25) {
+                              return (
+                                <div key={s} className="relative w-3.5 h-3.5 shrink-0">
+                                  <Star className="w-3.5 h-3.5 text-zinc-200" />
+                                  <div className="absolute inset-0 overflow-hidden w-1/2">
+                                    <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+                                  </div>
+                                </div>
+                              );
+                            } else {
+                              return <Star key={s} className="w-3.5 h-3.5 text-zinc-200" />;
+                            }
+                          })}
                         </div>
                         <span className="text-[11px] font-bold text-[#1C1B1A]">
                           {typeof rev.rating === 'number' ? rev.rating.toFixed(1) : '4.8'}

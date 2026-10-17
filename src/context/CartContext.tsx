@@ -2234,6 +2234,11 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         openCompareModal,
         directPurchaseItem,
         setDirectPurchaseItem,
+        giftPackagingFee: giftPackaging ? GIFT_PACKAGING_COST : 0,
+        giftPackaging,
+        setGiftPackaging,
+        giftMessage,
+        setGiftMessage,
       }}
     >
       {children}

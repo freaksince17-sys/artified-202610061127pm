@@ -114,44 +114,6 @@
     "stockCount": 8,
     "category": "pearl-bags",
     "isNewArrival": true,
-    "customReviews": [
-      {
-        "date": "3 days ago",
-        "id": "maya-aurelia-pearl-bag-rev-1",
-        "verified": true,
-        "location": "Kathmandu, Nepal",
-        "rating": 4.5,
-        "comment": "Visited their Kathmandu, Nepal store in Kathmandu to see the pearl bags in person. The beadwork on this handbag is incredibly rigid and sturdy, perfectly holds my iPhone Pro, lipstick, compact, and cards. Everyone at my cousin’s wedding reception at Soaltee asked where I got it!",
-        "author": "Shraddha Shrestha"
-      },
-      {
-        "comment": "Super fast delivery in Kathmandu valley! Also very reassuring that they offer easy exchange within 24 hrs. Handcrafted quality is 10/10. The magnetic lock snaps shut firmly and the weight feels authentic and luxurious.",
-        "location": "Kathmandu, Nepal",
-        "verified": true,
-        "id": "maya-aurelia-pearl-bag-rev-2",
-        "date": "1 week ago",
-        "author": "Pooja Shakya",
-        "rating": 4.8
-      },
-      {
-        "id": "maya-aurelia-pearl-bag-rev-3",
-        "verified": true,
-        "location": "Kathmandu, Nepal",
-        "date": "2 weeks ago",
-        "author": "Karuna Bajracharya",
-        "comment": "Dispatched from their Kathmandu, Nepal store in pristine condition. The satin lining and custom dust pouch make unboxing feel like international designer luxury. Carried it with a crimson raw silk saree.",
-        "rating": 4.4
-      },
-      {
-        "comment": "Loved the prompt WhatsApp support when I asked for same-day delivery for a family celebration. The berry pearls catch banquet lights so gracefully, and the arched handle sits comfortably on the arm.",
-        "author": "Barsha Pandey",
-        "rating": 4.8,
-        "id": "maya-aurelia-pearl-bag-rev-4",
-        "location": "Kathmandu, Nepal",
-        "date": "3 weeks ago",
-        "verified": true
-      }
-    ],
     "isBestSeller": false,
     "reviewsCount": 17,
     "subtitle": "An elegant, secure pearl beaded handbag perfect for special occasions.",
@@ -854,7 +816,7 @@
     ],
     "leadTime": "Handmade to order: 2–4 business days",
     "title": "Pearl Beaded Keyring Set Of 4",
-    "category": "pearl-bags",
+    "category": "accessories",
     "dimensions": "",
     "soldCount": 8,
     "rating": 4.4,

@@ -60,7 +60,8 @@ export const CheckoutModal: React.FC = () => {
     openTracker,
     openAccountModal,
     recordOnlineOrderSales,
-    directPurchaseItem
+    directPurchaseItem,
+    setDirectPurchaseItem
   } = useCart();
 
   // Form State
@@ -164,7 +165,7 @@ export const CheckoutModal: React.FC = () => {
       total: grandTotal,
       transactionId: transactionId || undefined,
       paymentScreenshot: screenshotPreview || undefined,
-      earnedLoyaltyPoints: pointsEarned,
+      earnedLoyaltyPoints: Math.round(grandTotal * 0.05),
       createdAt: new Date().toLocaleDateString('en-US', {
         month: 'short',
         day: 'numeric',

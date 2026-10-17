@@ -42,7 +42,7 @@ export const TESTIMONIALS: Testimonial[] = [
     author: 'Aayushi Khadgi',
     location: 'Kathmandu, Nepal',
     rating: 4.8,
-    comment: 'Honestly, I was not sure about ordering bags online because sometimes pearls look cheap plastic. But this Red Pearl Beaded Bag is surprisingly heavy and well made. The red pearls shine nicely under hall lights and it easily fits my mobile phone, handkerchief and compact powder. Delivery rider called before arriving. Everyone in wedding was asking where I got it from!',
+    comment: 'Honestly online order garda thha thiyena kasto aawcha bhanera, tara yo Red Pearl Beaded Bag surprisingly heavy ra well made cha! Red pearls le light ma dherai ramro shine dincha. Mobile, handkerchief ra lipstick atyo. Delivery rider le call garera lyaeko thiyo. Marriage ma sabai le sodhe kata bata kineko bhanera!',
     productName: 'Red Pearl Beaded Bag',
     date: '2 weeks ago',
     verifiedPurchase: true
@@ -52,7 +52,7 @@ export const TESTIMONIALS: Testimonial[] = [
     author: 'Prerana Shahi',
     location: 'Kathmandu, Nepal',
     rating: 4.7,
-    comment: 'I ordered this choker after seeing their reel on Instagram. My neck is bit thin so normal fixed chokers become loose on me, but this one has adjustable chain at back so I could fit it properly. Wore it with black sari for college farewell. Beads are smooth and did not scratch my skin. Very happy with the purchase at this price.',
+    comment: 'Instagram reel dekhera order gareko thie. Mero neck sanai cha so normal chokers loose huncha, tara yesma adjustable chain bhako le majale fit bhayo. Black saree snga college farewell ma lagawda pearls smooth lagyo, skin bilkul chokiyena. Dherai man poryo yo price ma!',
     productName: 'Pearl Beaded Adjustable Choker',
     date: '1 month ago',
     verifiedPurchase: true
@@ -62,7 +62,7 @@ export const TESTIMONIALS: Testimonial[] = [
     author: 'Bhawana Gurung',
     location: 'Kathmandu, Nepal',
     rating: 4.6,
-    comment: 'I ordered the round pearl bag for my celebration. The seller packed it inside solid box with lots of bubble wrap and a soft pouch. The round shape is very unique and sturdy. It is slightly heavy in hand because of solid beads, but look is 100% royal.',
+    comment: 'Party ko lagi round pearl bag order gareko thie. Solid box ma bubble wrap ra soft dust pouch bhitra lyaeko thiyo. Yo round shape ekdam unique ra sturdy cha. Solid beads le garda haat ma heavy feel huncha, look chai 100% royal lagyo!',
     productName: 'Round Pearl Bag',
     date: '3 weeks ago',
     verifiedPurchase: true

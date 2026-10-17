@@ -381,17 +381,24 @@ export const ProductDetailModal: React.FC = () => {
 
         {/* Modal Dialog Card */}
         <div className="bg-[#FAF8F5] w-full rounded-2xl shadow-2xl border border-[#E8DFD8] overflow-hidden flex flex-col max-h-[92vh]">
-          {/* Top Header with Title, Counter, and Actions in ONE SINGLE LINE */}
-          <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 border-b border-[#E8DFD8] bg-white sticky top-0 z-20 gap-2">
+          {/* Top Header with Brand, Product Title in Center, Counter, and Actions */}
+          <div className="flex items-center justify-between px-3.5 sm:px-6 py-3.5 border-b border-[#E8DFD8] bg-white sticky top-0 z-20 gap-2">
             {/* Left: Brand and Category Label */}
-            <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
-              <span className="text-[10px] sm:text-[11px] font-bold tracking-[0.2em] uppercase text-[#8C7A6B] truncate">
-                Artified_np Handmade Piece
+            <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 shrink-0">
+              <span className="text-[10px] sm:text-[11px] font-bold tracking-[0.12em] sm:tracking-[0.2em] uppercase text-[#8C7A6B] truncate">
+                Artified_np
               </span>
               <span className="text-[#C5A880] shrink-0">•</span>
-              <span className="text-xs text-[#736C65] font-medium capitalize truncate">
+              <span className="text-xs text-[#736C65] font-medium capitalize truncate hidden md:inline">
                 {selectedCategory === 'all' ? product.category.replace('-', ' ') : selectedCategory.replace('-', ' ')}
               </span>
+            </div>
+
+            {/* Center: Sticky Product Name (Visible when scrolling) */}
+            <div className="flex-1 text-center min-w-0 px-1 sm:px-3">
+              <h3 className="text-xs sm:text-sm font-serif font-bold text-[#1C1B1A] truncate" title={product.title}>
+                {product.title}
+              </h3>
             </div>
 
             {/* Right Action buttons and Counter */}
@@ -1039,15 +1046,29 @@ export const ProductDetailModal: React.FC = () => {
                 >
                   <div>
                     <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-1 text-amber-400">
-                        {[1, 2, 3, 4, 5].map((s) => (
-                          <Star
-                            key={s}
-                            className={`w-3.5 h-3.5 ${
-                              s <= Math.round(rev.rating) ? 'fill-amber-400' : 'text-zinc-200'
-                            }`}
-                          />
-                        ))}
+                      <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-0.5 text-amber-400">
+                          {[1, 2, 3, 4, 5].map((s) => {
+                            const diff = (rev.rating || 4.5) - (s - 1);
+                            if (diff >= 0.75) {
+                              return <Star key={s} className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />;
+                            } else if (diff >= 0.25) {
+                              return (
+                                <div key={s} className="relative w-3.5 h-3.5 shrink-0">
+                                  <Star className="w-3.5 h-3.5 text-zinc-200" />
+                                  <div className="absolute inset-0 overflow-hidden w-1/2">
+                                    <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+                                  </div>
+                                </div>
+                              );
+                            } else {
+                              return <Star key={s} className="w-3.5 h-3.5 text-zinc-200" />;
+                            }
+                          })}
+                        </div>
+                        <span className="text-[11px] font-bold text-[#1C1B1A]">
+                          {typeof rev.rating === 'number' ? rev.rating.toFixed(1) : '4.5'}
+                        </span>
                       </div>
                       <span className="text-[10px] text-[#A69E96]">{rev.date}</span>
                     </div>
