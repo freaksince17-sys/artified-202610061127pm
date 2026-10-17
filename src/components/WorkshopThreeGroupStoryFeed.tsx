@@ -1168,7 +1168,7 @@ const WorkshopGroupCardItem: React.FC<{
           </div>
 
           {/* Workshop Headline Overview Description */}
-          <p className="text-xs text-[#5E5955] dark:text-[#C4BCB5] leading-relaxed">
+          <p className="text-xs sm:text-sm text-[#5E5955] dark:text-[#C4BCB5] leading-relaxed whitespace-pre-line">
             {group.description || 'Hands-on practical workshop led by Sahina Shrestha in Kathmandu, Nepal. Master authentic artisan techniques with premium raw materials.'}
           </p>
 
