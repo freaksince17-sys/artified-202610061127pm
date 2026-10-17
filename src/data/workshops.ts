@@ -679,9 +679,17 @@ export function buildWorkshopGroups(
     ? customGroupMetas
     : WORKSHOP_GROUPS_METADATA;
 
-  const activeMetas = rawMetas.filter(
-    (g) => !deletedGroupIds.includes(g.id) && !deletedGroupIds.includes(g.groupKey)
-  );
+  const getOrder = (k: string) => {
+    const key = (k || '').toLowerCase();
+    if (key.includes('macrame')) return 1;
+    if (key.includes('pearl')) return 2;
+    if (key.includes('sunflower') || key.includes('pipe')) return 3;
+    return 99;
+  };
+
+  const activeMetas = rawMetas
+    .filter((g) => !deletedGroupIds.includes(g.id) && !deletedGroupIds.includes(g.groupKey))
+    .sort((a, b) => getOrder(a.groupKey) - getOrder(b.groupKey));
 
   const cleanMediaItems = deduplicateMediaItems(mediaItems)
     .map(sanitizeWorkshopMediaItem)
