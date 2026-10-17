@@ -20,7 +20,7 @@ const TRANSLATIONS: Record<Language, Record<string, string>> = {
 
     // Announcement Bar
     announcementStore: 'Store: Kathmandu, Nepal',
-    announcementText: 'Handcrafted in Kathmandu, Nepal • Easy exchange within 24 hrs • Code TIKTOK10 for 10% off',
+    announcementText: 'Handcrafted in Kathmandu, Nepal • Easy exchange within 24 hrs',
     referFriendGet: 'Refer a Friend • Get Rs. 250',
 
     // Navigation Tabs
@@ -108,7 +108,7 @@ const TRANSLATIONS: Record<Language, Record<string, string>> = {
 
     // Announcement Bar
     announcementStore: 'पसल: काठमाडौं, नेपाल',
-    announcementText: 'काठमाडौं, नेपालबाट हस्तनिर्मित • २४ घण्टाभित्र सजिलो साटफेर • कोड TIKTOK10 प्रयोग गरी १०% छुट!',
+    announcementText: 'काठमाडौं, नेपालबाट हस्तनिर्मित • २४ घण्टाभित्र सजिलो साटफेर',
     referFriendGet: 'साथीलाई सिफारिस गर्नुहोस् • रु. २५० पाउनुहोस्',
 
     // Navigation Tabs
