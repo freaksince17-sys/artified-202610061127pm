@@ -272,28 +272,28 @@ export const SellerToolbar: React.FC = () => {
               </span>
             </button>
 
-            {/* On-Demand Manual Cloud Sync Button */}
+            {/* On-Demand Save to Repository Button */}
             <button
               type="button"
               onClick={handleManualSync}
               disabled={isManualSyncing}
               className="w-full py-1.5 px-2.5 bg-[#D4AF37] text-[#1C1B1A] hover:bg-[#c29f2e] rounded-lg text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-2xs disabled:opacity-75"
-              title="Click to manually sync all store data to live Cloud"
+              title="Save all store data to repository files (visible on live site after pushing to GitHub)"
             >
               {isManualSyncing ? (
                 <>
                   <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                  <span>Syncing Store Data...</span>
+                  <span>Saving to Repository...</span>
                 </>
               ) : syncSuccess ? (
                 <>
                   <Check className="w-3.5 h-3.5 text-emerald-950 font-bold" />
-                  <span>Synced Successfully!</span>
+                  <span>Saved! Push to GitHub to Deploy</span>
                 </>
               ) : (
                 <>
                   <RefreshCw className="w-3.5 h-3.5" />
-                  <span>Sync Store Data to Cloud</span>
+                  <span>Save Store Data to Repo</span>
                 </>
               )}
             </button>

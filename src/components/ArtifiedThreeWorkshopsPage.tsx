@@ -47,8 +47,7 @@ import {
   collection, 
   doc, 
   deleteDoc, 
-  setDoc, 
-  onSnapshot 
+  setDoc 
 } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { autoGenerateMediaCaption } from '../utils/workshopAIGenerator';
@@ -75,13 +74,13 @@ export const CANONICAL_WORKSHOPS: WorkshopClassDef[] = [
   {
     id: 'ws-macrame',
     key: 'macrame',
-    title: 'Macrame Wall Art & Planters Workshop',
-    schedule: 'Once Every Month',
+    title: 'Macrame  Workshop',
+    schedule: 'Every Month',
     location: 'Kathmandu Studio, Nepal',
     instructor: 'Sahina Shrestha',
     capacity: 15,
-    description: 'Master the art of raw cotton cord knotting, symmetrical tension, wooden hoop mounting, and botanical planter framing in our Kathmandu atelier under Sahina Shrestha\'s guided mentorship.',
-    whatsappMessage: 'Namaste Sahina! I would like to reserve a seat for the Macrame Wall Art & Planters Workshop in Kathmandu.',
+    description: 'Discover the therapeutic art of knotting in this hands-on Macramé Workshop hosted by Artified Nepal, designed to unlock your inner creativity. In this engaging 3-hour session, absolute beginners will learn foundational knotting techniques and step-by-step pattern creation under expert guidance. The registration fee covers all premium crafting materials—including high-quality cotton cords and wooden dowels—allowing you to relax, connect with fellow creatives, and take home your very own handmade boho-chic masterpiece ready to decorate your space.',
+    whatsappMessage: 'Namaste Sahina! I would like to join the Macrame Wall Art & Planters Workshop in Kathmandu.',
     techniques: [
       'Square Knots & Continuous Spiral Weaves',
       'Lark\'s Head Dowel & Ring Mounting',
@@ -92,7 +91,7 @@ export const CANONICAL_WORKSHOPS: WorkshopClassDef[] = [
     id: 'ws-sunflower',
     key: 'sunflower',
     title: 'Waste Pipe to Sunflower Eco-Art Workshop',
-    schedule: 'Once Every Month',
+    schedule: 'Every Month',
     location: 'Kathmandu Studio, Nepal',
     instructor: 'Sahina Shrestha',
     capacity: 12,
@@ -108,12 +107,12 @@ export const CANONICAL_WORKSHOPS: WorkshopClassDef[] = [
     id: 'ws-pearl-bag',
     key: 'pearl-bag',
     title: 'Bridal Pearl Bag & Bead Weaving Workshop',
-    schedule: 'Once Every Month',
+    schedule: 'Every Month',
     location: 'Kathmandu Studio, Nepal',
     instructor: 'Sahina Shrestha',
     capacity: 10,
     description: 'Learn intricate 3D pearl lattice beading, structured bridal clutch framing, ergonomic artisan handle assembly, and satin interior finishing in our hands-on couture masterclass.',
-    whatsappMessage: 'Namaste Sahina! I would like to reserve a seat for the Bridal Pearl Bag & Bead Weaving Workshop in Kathmandu.',
+    whatsappMessage: 'Namaste Sahina! I would like to join the Bridal Pearl Bag & Bead Weaving Workshop in Kathmandu.',
     techniques: [
       '4-Bead Cross-Weave High-Tension Grid',
       'Reinforced Monofilament Internal Locking',
@@ -418,12 +417,6 @@ const PhotoGridCard: React.FC<{
           className={`absolute inset-0 w-full h-full object-cover transition-all duration-700 group-hover:scale-104 ${isLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-105'}`}
           style={{ width: '100%', height: '100%', objectFit: 'cover' }}
         />
-        <div className="absolute top-2.5 left-2.5 z-10">
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider bg-black/70 text-white backdrop-blur-md">
-            <Camera className="w-2.5 h-2.5 text-[#C5A880]" />
-            <span>Photo</span>
-          </span>
-        </div>
       </div>
 
       <div className="p-3.5 flex flex-col flex-grow justify-between bg-[#1A1918]">
@@ -527,48 +520,89 @@ export const ArtifiedThreeWorkshopsPage: React.FC = () => {
 
   // 1. Initial Load & Firestore Realtime Sync
   useEffect(() => {
-    // Fetch directly from Firestore metadata service on mount to prevent data reversion
-    fetchWorkshopMediaMetadataFromFirestore().then((cloudItems) => {
-      if (cloudItems && cloudItems.length > 0) {
-        const enforced = enforceStrictWorkshopMediaLimits(cloudItems);
-        setMediaList(enforced);
-        saveStoredLocalMedia(enforced);
-      } else {
+    // A. Fetch workshop groups metadata from server and Firestore
+    const applyRemoteGroups = (remoteGroups: any[]) => {
+      if (!Array.isArray(remoteGroups) || remoteGroups.length === 0) return;
+      setClassesList((prev) => {
+        const updated = prev.map((cls) => {
+          const match = remoteGroups.find(
+            (rg: any) => rg && (rg.groupKey === cls.key || rg.id === cls.id || rg.id === `ws-${cls.key}`)
+          );
+          if (match) {
+            return {
+              ...cls,
+              title: match.title || cls.title,
+              description: match.description || cls.description,
+              location: match.location || cls.location,
+              instructor: match.instructor || cls.instructor,
+              capacity: match.attendeesCount || cls.capacity,
+              schedule: match.date || cls.schedule || 'Every Month',
+              whatsappMessage: match.whatsappMessage || cls.whatsappMessage,
+              techniques: (match.keyTechniques && match.keyTechniques.length > 0) ? match.keyTechniques : cls.techniques
+            };
+          }
+          return cls;
+        });
+        saveStoredClasses(updated);
+        return updated;
+      });
+    };
+
+    // 1. Hydrate from server disk JSON
+    fetch('/api/workshop-groups')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.success && Array.isArray(data.groups) && data.groups.length > 0) {
+          applyRemoteGroups(data.groups);
+        }
+      })
+      .catch(() => {});
+
+    // 2. Listen for local broadcast updates
+    const handleLocalGroupUpdate = (e: Event) => {
+      const ce = e as CustomEvent;
+      if (ce.detail) {
+        if (Array.isArray(ce.detail)) {
+          applyRemoteGroups(ce.detail);
+        } else {
+          applyRemoteGroups([ce.detail]);
+        }
+      }
+    };
+    window.addEventListener('artified_workshop_groups_updated', handleLocalGroupUpdate);
+
+    // 3. Hydrate workshop media items from repository & server disk
+    fetch('/api/workshop-media')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.success && Array.isArray(data.items) && data.items.length > 0) {
+          const enforced = enforceStrictWorkshopMediaLimits(data.items);
+          setMediaList(enforced);
+          saveStoredLocalMedia(enforced);
+        } else {
+          const local = getStoredLocalMedia();
+          setMediaList(local);
+        }
+      })
+      .catch(() => {
         const local = getStoredLocalMedia();
         setMediaList(local);
-      }
-    }).catch(() => {
-      const local = getStoredLocalMedia();
-      setMediaList(local);
-    });
-
-    // Firestore sync is handled by onSnapshot below for gallery items,
-    // and workshop groups are persisted via saveWorkshopGroup and fetched via fetchWorkshopGroups in workshops.ts
-
-
-    const colRef = collection(db, 'workshop_gallery');
-    const unsubscribe = onSnapshot(colRef, (snapshot) => {
-      const tombstones = new Set(getTombstones());
-      const cloudMap = new Map<string, WorkshopMediaItem>();
-
-      snapshot.forEach(docSnap => {
-        const id = docSnap.id;
-        if (!tombstones.has(id)) {
-          const data = docSnap.data() as WorkshopMediaItem;
-          cloudMap.set(id, { ...data, id });
-        }
       });
 
-      if (cloudMap.size > 0) {
-        const updated = enforceStrictWorkshopMediaLimits(Array.from(cloudMap.values()));
-        setMediaList(updated);
-        saveStoredLocalMedia(updated);
+    const handleLocalMediaUpdate = (e: Event) => {
+      const ce = e as CustomEvent;
+      if (ce.detail && Array.isArray(ce.detail)) {
+        const enforced = enforceStrictWorkshopMediaLimits(ce.detail);
+        setMediaList(enforced);
+        saveStoredLocalMedia(enforced);
       }
-    }, (err) => {
-      console.warn('Firestore snapshot notice, persisting offline cache:', err);
-    });
+    };
+    window.addEventListener('artified_workshop_media_updated', handleLocalMediaUpdate);
 
-    return () => unsubscribe();
+    return () => {
+      window.removeEventListener('artified_workshop_groups_updated', handleLocalGroupUpdate);
+      window.removeEventListener('artified_workshop_media_updated', handleLocalMediaUpdate);
+    };
   }, []);
 
   // Helper to get media for a specific workshop
@@ -910,7 +944,7 @@ export const ArtifiedThreeWorkshopsPage: React.FC = () => {
       ...editingWorkshop,
       title: modalTitle.trim() || editingWorkshop.title,
       description: modalDescription.trim() || editingWorkshop.description,
-      schedule: 'Once Every Month',
+      schedule: 'Every Month',
       location: modalLocation.trim() || editingWorkshop.location,
       instructor: modalInstructor.trim() || editingWorkshop.instructor,
       capacity: Number(modalCapacity) || editingWorkshop.capacity,
@@ -922,14 +956,14 @@ export const ArtifiedThreeWorkshopsPage: React.FC = () => {
     saveStoredClasses(nextClasses);
     setEditingWorkshop(updatedCls);
 
-    // Persist permanently to custom workshop groups and Firestore
-    saveWorkshopGroup({
+    // Persist permanently to custom workshop groups and repository
+    const groupPayload = {
       id: updatedCls.id,
       groupKey: updatedCls.key,
       title: updatedCls.title,
       badge: '',
       tagline: '',
-      date: updatedCls.schedule,
+      date: 'Every Month',
       location: updatedCls.location,
       instructor: updatedCls.instructor,
       attendeesCount: updatedCls.capacity,
@@ -937,8 +971,23 @@ export const ArtifiedThreeWorkshopsPage: React.FC = () => {
       keyTechniques: updatedCls.techniques,
       whatsappMessage: updatedCls.whatsappMessage,
       folder: updatedCls.key === 'macrame' ? 'Macrame' : updatedCls.key === 'sunflower' ? 'Pipecleaner Sunflower' : 'Pearls',
-      items: []
-    }).catch(err => console.warn('Failed to save group to storage/firestore:', err));
+      items: [],
+      updatedAt: new Date().toISOString()
+    };
+
+    // Direct Server API write (updates src/data/workshop_groups.json on disk)
+    fetch('/api/workshop-groups').then(r => r.json()).then(data => {
+      const current = (data?.success && Array.isArray(data.groups)) ? data.groups : [];
+      const updated = current.filter((g: any) => g.id !== updatedCls.id && g.groupKey !== updatedCls.key);
+      updated.push(groupPayload);
+      fetch('/api/workshop-groups', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updated)
+      }).catch(() => {});
+    }).catch(() => {});
+
+    window.dispatchEvent(new CustomEvent('artified_workshop_groups_updated', { detail: nextClasses }));
 
     setFeedback({
       type: 'success',
@@ -1463,7 +1512,7 @@ export const ArtifiedThreeWorkshopsPage: React.FC = () => {
                       Schedule & Frequency
                     </label>
                     <div className="w-full px-3.5 py-2 rounded-xl bg-[#201E1C] border border-white/10 text-xs text-[#C5A880]">
-                      Once Every Month
+                      Every Month
                     </div>
                   </div>
 

@@ -1,5 +1,3 @@
-import { db } from '../firebase';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
 import SAVED_ARTISAN_PROFILE from './artisan_profile.json';
 
 export interface ArtisanPillar {
@@ -101,17 +99,19 @@ export function getArtisanProfile(): ArtisanProfileData {
       const parsed = JSON.parse(raw);
       if (parsed && typeof parsed === 'object') {
         let avatarUrl = parsed.avatarUrl;
-
+        if (!avatarUrl || avatarUrl === '/artisan_avatar.png') {
+          avatarUrl = DEFAULT_ARTISAN_PROFILE.avatarUrl;
+        }
 
         return {
           ...DEFAULT_ARTISAN_PROFILE,
           ...parsed,
           artisanRole: 'Founder & Creator',
           atelierLocation: 'Kathmandu, Nepal',
-          headline: 'Meet the Founder & Creator: Sahina Shrestha',
-          subheadline: 'From Childhood Passion to Creative Journey',
-          quote: DEFAULT_ARTISAN_PROFILE.quote,
-          whyArtified: DEFAULT_ARTISAN_PROFILE.whyArtified,
+          headline: parsed.headline || 'Meet the Founder & Creator: Sahina Shrestha',
+          subheadline: parsed.subheadline || 'From Childhood Passion to Creative Journey',
+          quote: parsed.quote || DEFAULT_ARTISAN_PROFILE.quote,
+          whyArtified: parsed.whyArtified || DEFAULT_ARTISAN_PROFILE.whyArtified,
           avatarUrl,
         };
       }
@@ -155,20 +155,6 @@ export async function saveArtisanProfile(data: ArtisanProfileData): Promise<void
     } catch (serverErr) {
       console.warn('Notice: Server API save error:', serverErr);
     }
-
-    // Step 3: Explicitly persist to Firestore
-    try {
-      const firestorePayload: ArtisanProfileData = {
-        ...enrichedData,
-        avatarUrl: enrichedData.avatarUrl || DEFAULT_ARTISAN_PROFILE.avatarUrl
-      };
-      const activeProfileRef = doc(db, 'activeProfile', 'sahina_shrestha');
-      const mirrorRef = doc(db, 'store_settings', 'artisan_profile');
-      await setDoc(activeProfileRef, firestorePayload, { merge: true });
-      await setDoc(mirrorRef, firestorePayload, { merge: true });
-    } catch (fsErr) {
-      console.warn('Notice: Firestore save error:', fsErr);
-    }
   } catch (e) {
     console.warn('Notice: Error saving artisan profile:', e);
   } finally {
@@ -180,105 +166,33 @@ export async function fetchArtisanProfileFromServer(): Promise<ArtisanProfileDat
   const currentLocal = getArtisanProfile();
   
   // Return local storage state immediately so UI never blocks or lags
-  // Fetch remote updates from server JSON disk and Firestore non-intrusively in background
+  // Fetch remote updates from server JSON disk in background (repository-authoritative)
   setTimeout(async () => {
     if (isProfileSavingInFlight) return;
     try {
-      let serverData: any = null;
-      let activeProfileData: any = null;
-      let mirrorData: any = null;
-
-      // 1. Fetch permanently saved profile from server disk
-      try {
-        const resp = await fetch('/api/artisan-profile');
-        if (resp.ok) {
-          serverData = await resp.json();
+      // Fetch permanently saved profile from server disk API
+      const resp = await fetch('/api/artisan-profile');
+      if (resp.ok) {
+        const serverData = await resp.json();
+        if (serverData && typeof serverData === 'object' && serverData.artisanName) {
+          const merged: ArtisanProfileData = {
+            ...DEFAULT_ARTISAN_PROFILE,
+            ...serverData,
+            avatarUrl: (serverData.avatarUrl && serverData.avatarUrl.length > 50)
+              ? serverData.avatarUrl
+              : ((currentLocal.avatarUrl && currentLocal.avatarUrl.length > 50) ? currentLocal.avatarUrl : DEFAULT_ARTISAN_PROFILE.avatarUrl),
+            artisanRole: 'Founder & Creator',
+            atelierLocation: 'Kathmandu, Nepal'
+          };
+          try {
+            localStorage.setItem(ARTISAN_STORAGE_KEY, JSON.stringify(merged));
+          } catch {}
+          window.dispatchEvent(new CustomEvent('artified_artisan_updated', { detail: merged }));
         }
-      } catch (err) {}
-
-      // 2. Fetch from Firestore
-      try {
-        const snap = await getDoc(doc(db, 'activeProfile', 'sahina_shrestha'));
-        if (snap.exists()) {
-          activeProfileData = snap.data();
-        }
-      } catch (err) {}
-
-      try {
-        const snap2 = await getDoc(doc(db, 'store_settings', 'artisan_profile'));
-        if (snap2.exists()) {
-          mirrorData = snap2.data();
-        }
-      } catch (err) {}
-
-      // Prefer candidate with latest update or custom edits
-      const candidates = [serverData, activeProfileData, mirrorData].filter(Boolean);
-      if (candidates.length === 0) return;
-
-      let authoritative = candidates[0];
-      for (const cand of candidates) {
-        const candTs = cand?.avatarUpdatedAt ? new Date(cand.avatarUpdatedAt).getTime() : 0;
-        const authTs = authoritative?.avatarUpdatedAt ? new Date(authoritative.avatarUpdatedAt).getTime() : 0;
-        if (candTs > authTs) {
-          authoritative = cand;
-        }
-      }
-
-      // Clean out corporate or unsplash photo if present in remote record
-      if (authoritative?.avatarUrl && (authoritative.avatarUrl.includes('photo-') || authoritative.avatarUrl.includes('unsplash.com'))) {
-        authoritative.avatarUrl = '/artisan_avatar.png';
-      }
-
-      // Check timestamps:
-      const localUpdated = currentLocal?.avatarUpdatedAt ? new Date(currentLocal.avatarUpdatedAt).getTime() : 0;
-      const remoteUpdated = authoritative?.avatarUpdatedAt ? new Date(authoritative.avatarUpdatedAt).getTime() : 0;
-
-      // Detect if local is default
-      const defaultTs = new Date('2026-10-02T00:00:00.000Z').getTime();
-      const localIsDefault = !currentLocal?.avatarUpdatedAt || localUpdated <= defaultTs;
-
-      let merged: ArtisanProfileData;
-      if (remoteUpdated > localUpdated || (localIsDefault && remoteUpdated > defaultTs)) {
-        // Remote is newer or local is uninitialized default: adopt remote permanently with strict sanitization
-        merged = {
-          ...DEFAULT_ARTISAN_PROFILE,
-          ...authoritative,
-          avatarUrl: authoritative.avatarUrl || currentLocal.avatarUrl || DEFAULT_ARTISAN_PROFILE.avatarUrl,
-          headline: 'Meet the Founder & Creator: Sahina Shrestha',
-          subheadline: 'From Childhood Passion to Creative Journey',
-          atelierLocation: 'Kathmandu, Nepal',
-          artisanRole: 'Founder & Creator',
-          stat1Value: '',
-          stat1Label: '',
-          stat2Value: '',
-          stat2Label: '',
-          quote: DEFAULT_ARTISAN_PROFILE.quote,
-          whyArtified: DEFAULT_ARTISAN_PROFILE.whyArtified
-        };
-        try {
-          localStorage.setItem(ARTISAN_STORAGE_KEY, JSON.stringify(merged));
-        } catch {}
-        window.dispatchEvent(new CustomEvent('artified_artisan_updated', { detail: merged }));
-
-        // Sync sanitized back to Firestore & server
-        try {
-          setDoc(doc(db, 'activeProfile', 'sahina_shrestha'), merged, { merge: true }).catch(() => {});
-          setDoc(doc(db, 'store_settings', 'artisan_profile'), merged, { merge: true }).catch(() => {});
-        } catch {}
-      } else if (localUpdated > remoteUpdated && localUpdated > defaultTs) {
-        // Local is newer: sync local to server disk API and Firestore
-        try {
-          fetch('/api/artisan-profile', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(currentLocal)
-          }).catch(() => {});
-          setDoc(doc(db, 'activeProfile', 'sahina_shrestha'), currentLocal, { merge: true }).catch(() => {});
-          setDoc(doc(db, 'store_settings', 'artisan_profile'), currentLocal, { merge: true }).catch(() => {});
-        } catch {}
       }
     } catch (e) {}
   }, 50);
 
   return currentLocal;
 }
+

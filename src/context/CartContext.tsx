@@ -802,26 +802,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       })
       .catch(() => {});
 
-    // 4. Hydrate Instagram Settings from Firestore and server disk
-    try {
-      const igDocRef = doc(db, 'store_settings', 'instagram');
-      getDoc(igDocRef).then((snap) => {
-        if (snap.exists()) {
-          const data = snap.data();
-          if (data?.handle) setInstagramHandle(data.handle);
-          if (data?.profileUrl) setInstagramProfileUrl(data.profileUrl);
-        }
-      }).catch(() => {});
-
-      onSnapshot(igDocRef, (snap) => {
-        if (snap.exists()) {
-          const data = snap.data();
-          if (data?.handle) setInstagramHandle(data.handle);
-          if (data?.profileUrl) setInstagramProfileUrl(data.profileUrl);
-        }
-      }, () => {});
-    } catch {}
-
+    // 4. Hydrate Instagram Settings from server disk & localStorage
     fetch('/api/instagram-settings')
       .then((res) => res.json())
       .then((settings) => {
@@ -842,19 +823,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       })
       .catch(() => {});
 
-    // 5. Hydrate Craft Story from Firestore and server disk
-    try {
-      const storyDocRef = doc(db, 'store_settings', 'craft_story');
-      getDoc(storyDocRef).then((snap) => {
-        if (snap.exists()) {
-          const data = snap.data();
-          if (data && data.title) {
-            setCraftStory((prev) => ({ ...prev, ...data }));
-          }
-        }
-      }).catch(() => {});
-    } catch {}
-
+    // 5. Hydrate Craft Story from server disk & localStorage
     fetch('/api/craft-story')
       .then((res) => res.json())
       .then((story) => {
@@ -867,23 +836,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       })
       .catch(() => {});
 
-    // 6. Hydrate Artisan Profile from Firestore & server disk
-    try {
-      const artisanDocRef = doc(db, 'activeProfile', 'sahina_shrestha');
-      onSnapshot(artisanDocRef, (snap) => {
-        if (snap.exists()) {
-          const remoteData = snap.data() as ArtisanProfileData;
-          if (remoteData && remoteData.artisanName) {
-            setArtisanProfile((prev) => ({
-              ...prev,
-              ...remoteData,
-              avatarUrl: remoteData.avatarUrl || prev.avatarUrl
-            }));
-          }
-        }
-      }, () => {});
-    } catch {}
-
+    // 6. Hydrate Artisan Profile from repository & server disk
     fetchArtisanProfileFromServer().then((profile) => {
       if (profile) setArtisanProfile(profile);
     }).catch(() => {});
@@ -1302,351 +1255,107 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     testConnection();
   }, []);
 
-  // 2. Real-time Firestore synchronization listener
+  // 2. Repository-driven content hydration (strictly decoupled from production live site)
   useEffect(() => {
-    const productsCol = collection(db, 'products');
+    setSyncStatusText('🟢 Catalog Ready (Repository & Local Database)');
+    setIsDataSyncing(false);
 
-    const unsubscribe = onSnapshot(
-      productsCol,
-      async (snapshot) => {
-        if (!snapshot.empty) {
-          const cloudProducts: Product[] = [];
-          snapshot.forEach((docSnap: any) => {
-            cloudProducts.push(sanitizeProduct(docSnap.data() as Product));
-          });
-
-          // Safeguard: only replace local/server products if cloud has at least as many pieces
-          if (cloudProducts.length >= products.length || cloudProducts.length >= 30) {
-            const sorted = [...cloudProducts].map(sanitizeProduct).sort((a, b) => {
-              const idxA = PRODUCTS.findIndex((p) => p.id === a.id);
-              const idxB = PRODUCTS.findIndex((p) => p.id === b.id);
-              if (idxA !== -1 && idxB !== -1) return idxA - idxB;
-              if (idxA !== -1) return -1;
-              if (idxB !== -1) return 1;
-              return a.title.localeCompare(b.title);
-            });
-
-            setProducts(sorted);
-            try {
-              localStorage.setItem('artified_products_custom', JSON.stringify(sorted));
-            } catch {}
-          }
-          setIsCloudSynced(true);
-          setIsDataSyncing(false);
-          setSyncStatusText('🟢 Live Cloud Synced across all devices');
-        } else {
-          // If Firestore is empty or quota-limited, use local/server catalog
-          setSyncStatusText('🟢 Catalog Ready (Server & Local Storage)');
-          let seedList: Product[] = PRODUCTS;
+    // Hydrate products from server JSON disk (src/data/products.json)
+    fetch('/api/products')
+      .then((res) => res.json())
+      .then((items) => {
+        if (Array.isArray(items) && items.length > 0) {
+          setProducts(items.map(sanitizeProduct));
           try {
-            const localRaw = localStorage.getItem('artified_products_custom');
-            if (localRaw) {
-              const parsed = JSON.parse(localRaw);
-              if (Array.isArray(parsed) && parsed.length > 0) {
-                seedList = parsed;
-              }
-            }
-          } catch {}
-          setProducts(seedList);
-          setIsCloudSynced(false);
-        }
-      },
-      (error) => {
-        console.warn('Firestore onSnapshot products notice (using local & server catalog due to cloud quota):', error);
-        setSyncStatusText('🟢 Catalog Ready (Server & Local Storage)');
-        setIsCloudSynced(false);
-
-        // Fall back gracefully to server products, local cache, or default products
-        fetch('/api/products')
-          .then((res) => res.json())
-          .then((items) => {
-            if (Array.isArray(items) && items.length > 0) {
-              setProducts(items);
-              try {
-                localStorage.setItem('artified_products_custom', JSON.stringify(items));
-              } catch {}
-            }
-          })
-          .catch(() => {
-            try {
-              const localRaw = localStorage.getItem('artified_products_custom');
-              if (localRaw) {
-                const parsed = JSON.parse(localRaw);
-                if (Array.isArray(parsed) && parsed.length > 0) {
-                  setProducts(parsed);
-                  return;
-                }
-              }
-            } catch {}
-            setProducts(PRODUCTS);
-          });
-      }
-    );
-
-    return () => unsubscribe();
-  }, []);
-
-  // 3. Real-time TikTok Reels Firestore sync
-  useEffect(() => {
-    const reelsCol = collection(db, 'tiktok_reels');
-    const unsubscribe = onSnapshot(
-      reelsCol,
-      async (snapshot) => {
-        const cloudReels: TikTokReel[] = [];
-        snapshot.forEach((docSnap: any) => {
-          cloudReels.push(docSnap.data() as TikTokReel);
-        });
-        if (cloudReels.length > 0) {
-          setReels(cloudReels);
-          try {
-            localStorage.setItem('artified_tiktok_reels', JSON.stringify(cloudReels));
+            localStorage.setItem('artified_products_custom', JSON.stringify(items));
           } catch {}
         }
-      },
-      (err) => {
-        console.warn('TikTok reels onSnapshot notice (persisting via local & server database):', err);
-        fetch('/api/tiktok-reels')
-          .then((res) => res.json())
-          .then((items) => {
-            if (Array.isArray(items) && items.length > 0) {
-              setReels(items);
-              try {
-                localStorage.setItem('artified_tiktok_reels', JSON.stringify(items));
-              } catch {}
-            }
-          })
-          .catch(() => {});
-      }
-    );
-
-    return () => unsubscribe();
-  }, []);
-
-  // 4. Real-time Craft Story Firestore sync
-  useEffect(() => {
-    const craftDocRef = doc(db, 'store_settings', 'craft_story');
-    const unsubscribe = onSnapshot(
-      craftDocRef,
-      (snapshot) => {
-        if (snapshot.exists()) {
-          const data = snapshot.data() as CraftStoryData;
-          setCraftStory((prev) => ({ ...prev, ...data }));
-          try {
-            localStorage.setItem('artified_craft_story', JSON.stringify({ ...DEFAULT_CRAFT_STORY, ...data }));
-          } catch {}
-        }
-      },
-      (err) => {
-        console.warn('Craft story onSnapshot error:', err);
-      }
-    );
-
-    return () => unsubscribe();
-  }, []);
-
-  // 5. Real-time Instagram Journal Firestore sync with locked-state reconciliation
-  useEffect(() => {
-    const igCol = collection(db, 'instagram_journal');
-    const unsubscribe = onSnapshot(
-      igCol,
-      async (snapshot) => {
-        const deletedIds: string[] = (() => {
-          try {
-            return JSON.parse(localStorage.getItem('artified_instagram_deleted_ids') || '["ig-1791099498584"]');
-          } catch {
-            return ['ig-1791099498584'];
-          }
-        })();
-
-        if (!snapshot.empty) {
-          const cloudItems: InstagramJournalItem[] = [];
-          snapshot.forEach((docSnap: any) => {
-            const data = docSnap.data() as InstagramJournalItem;
-            if (data.id === 'ig-1791099498584' || docSnap.id === 'ig-1791099498584') {
-              // Asynchronously clean up from Firestore
-              deleteDoc(doc(db, 'instagram_journal', docSnap.id)).catch(() => {});
+      })
+      .catch(() => {
+        try {
+          const localRaw = localStorage.getItem('artified_products_custom');
+          if (localRaw) {
+            const parsed = JSON.parse(localRaw);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              setProducts(parsed.map(sanitizeProduct));
               return;
             }
-            if (!deletedIds.includes(data.id) && !deletedIds.includes(docSnap.id)) {
-              cloudItems.push(data);
-            }
-          });
-          
-          if (cloudItems.length > 0) {
-            // Read local saved items to reconcile
-            let localItems: InstagramJournalItem[] = [];
-            try {
-              const localSaved = localStorage.getItem('artified_instagram_journal_items');
-              if (localSaved) {
-                const parsed = JSON.parse(localSaved);
-                if (Array.isArray(parsed)) {
-                  localItems = parsed.filter((it: any) => it.id !== 'ig-1791099498584' && !deletedIds.includes(it.id));
-                }
-              }
-            } catch {}
-
-            // Reconcile: user customized/locked metadata takes absolute precedence
-            const reconciledMap = new Map<string, InstagramJournalItem>();
-            
-            // 1. Add cloud items first
-            cloudItems.forEach((cItem) => {
-              if (cItem.id !== 'ig-1791099498584' && !deletedIds.includes(cItem.id)) {
-                reconciledMap.set(cItem.id, cItem);
-              }
-            });
-
-            // 2. Overlay local locked/customized items so user edits are never reverted
-            localItems.forEach((lItem) => {
-              if (lItem.id !== 'ig-1791099498584' && !deletedIds.includes(lItem.id)) {
-                const existingCloud = reconciledMap.get(lItem.id);
-                if (lItem.isLocked || !existingCloud) {
-                  reconciledMap.set(lItem.id, { ...(existingCloud || {}), ...lItem });
-                } else if (lItem.postUrl && lItem.postUrl !== 'https://www.instagram.com/artified_np/') {
-                  reconciledMap.set(lItem.id, { ...existingCloud, ...lItem });
-                }
-              }
-            });
-
-            const signatureVideos = [
-              '/instagram_videos/DdjhhazvaRr.mp4',
-              '/instagram_videos/DdMRgKdP4HK.mp4',
-              '/instagram_videos/DdIUMC4BqFr.mp4',
-              '/instagram_videos/DY6OqqfPyJu.mp4'
-            ];
-            const signatureCovers = [
-              '/instagram_videos/DdjhhazvaRr_cover.jpg',
-              '/instagram_videos/DdMRgKdP4HK_cover.jpg',
-              '/instagram_videos/DdIUMC4BqFr_cover.jpg',
-              '/instagram_videos/DY6OqqfPyJu_cover.jpg'
-            ];
-
-            const reconciledList = Array.from(reconciledMap.values())
-              .filter((it) => it.id !== 'ig-1791099498584' && !deletedIds.includes(it.id))
-              .map((it, idx) => {
-                const assignedVid = signatureVideos[idx % signatureVideos.length];
-                const assignedCover = signatureCovers[idx % signatureCovers.length];
-
-                let finalVid = it.videoUrl?.trim();
-                if (!finalVid) {
-                  finalVid = assignedVid;
-                }
-
-                let finalCover = it.thumbnail?.trim();
-                if (!finalCover) {
-                  finalCover = assignedCover;
-                }
-
-                return { ...it, videoUrl: finalVid, thumbnail: finalCover };
-              });
-            if (reconciledList.length > 0) {
-              setInstagramItems(reconciledList);
-              try {
-                localStorage.setItem('artified_instagram_journal_items', JSON.stringify(reconciledList));
-                localStorage.setItem('artified_instagram_locked', 'true');
-              } catch {}
-            }
           }
-        } else {
-          // If Firestore is empty or quota-limited, use local/saved items
-          let existingLocal: InstagramJournalItem[] = [];
+        } catch {}
+        setProducts(PRODUCTS.map(sanitizeProduct));
+      });
+
+    // Hydrate TikTok reels from server JSON disk
+    fetch('/api/tiktok-reels')
+      .then((res) => res.json())
+      .then((items) => {
+        if (Array.isArray(items) && items.length > 0) {
+          setReels(items);
           try {
-            const saved = localStorage.getItem('artified_instagram_journal_items');
-            if (saved) {
-              const parsed = JSON.parse(saved);
-              if (Array.isArray(parsed) && parsed.length > 0) {
-                existingLocal = parsed.filter((it: any) => it.id !== 'ig-1791099498584' && !deletedIds.includes(it.id));
-              }
-            }
+            localStorage.setItem('artified_tiktok_reels', JSON.stringify(items));
           } catch {}
-
-          const listToSeed = existingLocal.length > 0 
-            ? existingLocal 
-            : DEFAULT_INSTAGRAM_ITEMS.filter((it) => it.id !== 'ig-1791099498584' && !deletedIds.includes(it.id));
-          setInstagramItems(listToSeed);
         }
-      },
-      (err) => {
-        console.warn('Instagram journal onSnapshot notice (persisting via local & server database):', err);
-      }
-    );
+      })
+      .catch(() => {});
 
-    return () => unsubscribe();
-  }, []);
-
-  // 6. Real-time Instagram Profile Settings Firestore sync
-  useEffect(() => {
-    const igSettingsRef = doc(db, 'store_settings', 'instagram');
-    const unsubscribe = onSnapshot(
-      igSettingsRef,
-      (snapshot) => {
-        if (snapshot.exists()) {
-          const data = snapshot.data();
-          if (data?.handle) {
-            setInstagramHandle(data.handle);
-            try { localStorage.setItem('artified_instagram_handle', data.handle); } catch {}
-          }
-          if (data?.profileUrl) {
-            setInstagramProfileUrl(data.profileUrl);
-            try { localStorage.setItem('artified_instagram_profile_url', data.profileUrl); } catch {}
-          }
+    // Hydrate Craft Story from server JSON disk
+    fetch('/api/craft-story')
+      .then((res) => res.json())
+      .then((story) => {
+        if (story && (story.title || story.videoUrl)) {
+          setCraftStory((prev) => ({ ...prev, ...story }));
+          try {
+            localStorage.setItem('artified_craft_story', JSON.stringify({ ...DEFAULT_CRAFT_STORY, ...story }));
+          } catch {}
         }
-      },
-      (err) => {
-        console.warn('Instagram settings onSnapshot error:', err);
-      }
-    );
+      })
+      .catch(() => {});
 
-    return () => unsubscribe();
-  }, []);
-
-  // 7. Real-time General Settings (bestsellerThreshold) Firestore sync
-  useEffect(() => {
-    const generalSettingsRef = doc(db, 'store_settings', 'general');
-    const unsubscribe = onSnapshot(
-      generalSettingsRef,
-      (snapshot) => {
-        if (snapshot.exists()) {
-          const data = snapshot.data();
-          if (data?.bestsellerThreshold) {
-            const num = Number(data.bestsellerThreshold);
-            if (!isNaN(num) && num > 0) {
-              setBestsellerThresholdState(num);
-              try { localStorage.setItem('artified_bestseller_threshold', String(num)); } catch {}
-            }
-          }
+    // Hydrate Instagram Journal from server JSON disk
+    fetch('/api/instagram-journal')
+      .then((res) => res.json())
+      .then((items) => {
+        if (Array.isArray(items) && items.length > 0) {
+          setInstagramItems(items);
+          try {
+            localStorage.setItem('artified_instagram_journal_items', JSON.stringify(items));
+          } catch {}
         }
-      },
-      (err) => {
-        console.warn('General settings onSnapshot error:', err);
-      }
-    );
+      })
+      .catch(() => {});
 
-    return () => unsubscribe();
+    // Hydrate Instagram Settings from server JSON disk
+    fetch('/api/instagram-settings')
+      .then((res) => res.json())
+      .then((settings) => {
+        if (settings?.handle) {
+          setInstagramHandle(settings.handle);
+          try { localStorage.setItem('artified_instagram_handle', settings.handle); } catch {}
+        }
+        if (settings?.profileUrl) {
+          setInstagramProfileUrl(settings.profileUrl);
+          try { localStorage.setItem('artified_instagram_profile_url', settings.profileUrl); } catch {}
+        }
+      })
+      .catch(() => {});
   }, []);
 
   const forceSyncAllToCloud = async () => {
-    setSyncStatusText('Pushing all local edits to cloud...');
+    setSyncStatusText('Saving all edits to repository...');
     try {
-      const batch = writeBatch(db);
-      for (const p of products) {
-        // Compress any base64 images if needed
-        const optimizedImages = await Promise.all(
-          p.images.map(async (img) => {
-            if (img.startsWith('data:image/')) {
-              return await compressImage(img, 1000, 1000, 0.82);
-            }
-            return img;
-          })
-        );
-        const cleanedProduct = { ...p, images: optimizedImages };
-        batch.set(doc(db, 'products', p.id), cleanedProduct);
-      }
-      await batch.commit();
+      await fetch('/api/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(products),
+      });
+      try {
+        localStorage.setItem('artified_products_custom', JSON.stringify(products));
+      } catch {}
       setIsCloudSynced(true);
-      setSyncStatusText('🟢 Live Cloud Synced across all devices');
+      setSyncStatusText('🟢 Changes saved to repository (push to GitHub to deploy to www.artified.com.np)');
     } catch (err) {
-      console.error('Failed to force sync to cloud', err);
-      handleFirestoreError(err, OperationType.WRITE, 'products');
+      console.error('Failed to save to repository', err);
+      setSyncStatusText('⚠️ Saved to local browser storage');
     }
   };
 
@@ -1723,12 +1432,6 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setQuickViewProduct(cleanedProduct);
     }
 
-    // 3. Write to Cloud Firestore in background without blocking UI
-    try {
-      const docRef = doc(db, 'products', cleanedProduct.id);
-      setDoc(docRef, sanitizeForFirestore(cleanedProduct)).catch(() => {});
-    } catch {}
-
     // 4. If product was previously out-of-stock and is now marked restocked, trigger waitlist notifications in Firestore
     const previous = products.find((p) => p.id === cleanedProduct.id);
     const wasOutOfStock = previous 
@@ -1769,11 +1472,6 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }).catch(() => {});
       return next;
     });
-
-    try {
-      const docRef = doc(db, 'products', cleanedProduct.id);
-      setDoc(docRef, sanitizeForFirestore(cleanedProduct)).catch(() => {});
-    } catch {}
   };
 
   const duplicateProduct = async (id: string) => {
@@ -1844,14 +1542,6 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }).catch(() => {});
       return next;
     });
-
-    try {
-      const batch = writeBatch(db);
-      updatedBatch.forEach((p) => {
-        batch.set(doc(db, 'products', p.id), sanitizeProduct(p));
-      });
-      batch.commit().catch(() => {});
-    } catch {}
   };
 
   const deleteProduct = async (id: string) => {
@@ -1873,11 +1563,6 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (quickViewProduct?.id === id) {
       setQuickViewProduct(null);
     }
-
-    try {
-      const docRef = doc(db, 'products', id);
-      deleteDoc(docRef).catch(() => {});
-    } catch {}
   };
 
   const resetProductsToDefault = async () => {
@@ -1887,14 +1572,6 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.warn('Failed to remove custom products', e);
     }
     setProducts(PRODUCTS);
-
-    try {
-      const batch = writeBatch(db);
-      PRODUCTS.forEach((p) => {
-        batch.set(doc(db, 'products', p.id), p);
-      });
-      batch.commit().catch(() => {});
-    } catch {}
   };
 
   const openProductEditor = (product?: Product | null) => {
@@ -1915,11 +1592,6 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }).catch(() => {});
       return next;
     });
-
-    try {
-      const docRef = doc(db, 'tiktok_reels', updated.id);
-      setDoc(docRef, sanitizeForFirestore(updated)).catch(() => {});
-    } catch {}
   };
 
   const addReel = async (newReel: TikTokReel) => {
@@ -1935,11 +1607,6 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }).catch(() => {});
       return next;
     });
-
-    try {
-      const docRef = doc(db, 'tiktok_reels', newReel.id);
-      setDoc(docRef, sanitizeForFirestore(newReel)).catch(() => {});
-    } catch {}
   };
 
   const deleteReel = async (id: string) => {
@@ -1955,11 +1622,6 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }).catch(() => {});
       return next;
     });
-
-    try {
-      const docRef = doc(db, 'tiktok_reels', id);
-      deleteDoc(docRef).catch(() => {});
-    } catch {}
   };
 
   const updateCraftStory = async (newData: CraftStoryData) => {
@@ -1973,11 +1635,6 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newData),
     }).catch(() => {});
-
-    try {
-      const craftDocRef = doc(db, 'store_settings', 'craft_story');
-      setDoc(craftDocRef, sanitizeForFirestore(newData), { merge: true }).catch(() => {});
-    } catch {}
   };
 
   const cleanInstagramItemForFirestore = (item: InstagramJournalItem): Record<string, any> => {
@@ -2037,11 +1694,6 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } catch {}
       return next;
     });
-
-    try {
-      const docRef = doc(db, 'instagram_journal', updated.id);
-      setDoc(docRef, sanitizeForFirestore(cleaned)).catch(() => {});
-    } catch {}
   };
 
   const addInstagramItem = async (newItem: InstagramJournalItem) => {
@@ -2060,15 +1712,10 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } catch {}
       return next;
     });
-
-    try {
-      const docRef = doc(db, 'instagram_journal', newItem.id);
-      setDoc(docRef, sanitizeForFirestore(cleaned)).catch(() => {});
-    } catch {}
   };
 
   const deleteInstagramItem = async (id: string) => {
-    // Record in deleted IDs list so it is never resurrected from any stale snapshot or network response
+    // Record in deleted IDs list so it is never resurrected
     try {
       const deletedIds: string[] = JSON.parse(localStorage.getItem('artified_instagram_deleted_ids') || '["ig-1791099498584"]');
       if (!deletedIds.includes(id)) {
@@ -2090,15 +1737,9 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } catch {}
       return next;
     });
-
-    try {
-      const docRef = doc(db, 'instagram_journal', id);
-      deleteDoc(docRef).catch(() => {});
-    } catch {}
   };
 
   const deleteAllInstagramItems = async () => {
-    const current = [...instagramItems];
     setInstagramItems([]);
     try {
       localStorage.setItem('artified_instagram_journal_items', JSON.stringify([]));
@@ -2110,15 +1751,6 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         body: JSON.stringify([])
       }).catch(() => {});
     } catch {}
-
-    try {
-      for (const item of current) {
-        const docRef = doc(db, 'instagram_journal', item.id);
-        await deleteDoc(docRef).catch(() => {});
-      }
-    } catch (err) {
-      console.warn('Notice: Firestore deleteAll skipped:', err);
-    }
   };
 
   const updateInstagramSettings = async (handle: string, profileUrl?: string) => {
@@ -2136,11 +1768,6 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ handle: cleanHandle, profileUrl: cleanUrl })
       }).catch(() => {});
-    } catch {}
-
-    try {
-      const docRef = doc(db, 'store_settings', 'instagram');
-      setDoc(docRef, { handle: cleanHandle, profileUrl: cleanUrl }, { merge: true }).catch(() => {});
     } catch {}
 
     // Synchronize with artisanProfile if it differs

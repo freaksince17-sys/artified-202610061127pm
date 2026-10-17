@@ -39,8 +39,6 @@ import { UnifiedMasterclassModal } from './UnifiedMasterclassModal';
 import { MasterclassCreationModal } from './MasterclassCreationModal';
 import { ReplaceMediaModal } from './ReplaceMediaModal';
 import { useCart } from '../context/CartContext';
-import { db } from '../firebase';
-import { collection, onSnapshot } from 'firebase/firestore';
 
 export const WorkshopGallery: React.FC = () => {
   const { isSellerMode } = useCart();
@@ -91,88 +89,25 @@ export const WorkshopGallery: React.FC = () => {
     });
   }, []);
 
-  // 1. Real-time Firestore synchronization for media items
+  // 1. Repository & local storage media update listener
   useEffect(() => {
-    const colRef = collection(db, 'workshop_gallery');
-
-    const unsubscribe = onSnapshot(
-      colRef,
-      (snapshot) => {
-        const deletedIds = getDeletedWorkshopMediaIds();
-        const local = getCustomWorkshopMediaFromStorage().filter((m) => !deletedIds.includes(m.id) && isMediaRelatedToGroup(m, m.groupId));
-        const mergedMap = new Map<string, WorkshopMediaItem>();
-
-        DEFAULT_WORKSHOP_MEDIA.filter((item) => !deletedIds.includes(item.id) && isMediaRelatedToGroup(item, item.groupId)).forEach((item) => {
-          const key = getCanonicalMediaKey(item) || item.id;
-          mergedMap.set(key, item);
-        });
-
-        local.forEach((item) => {
-          const key = getCanonicalMediaKey(item) || item.id;
-          mergedMap.set(key, item);
-        });
-
-        if (!snapshot.empty) {
-          snapshot.forEach((docSnap) => {
-            const itemId = docSnap.id;
-            const d = docSnap.data() as WorkshopMediaItem;
-            if (!deletedIds.includes(itemId) && isMediaRelatedToGroup({ ...d, id: itemId, type: d.type }, d.groupId) && (d.url || d.thumbnailUrl)) {
-              const full = { ...d, id: itemId };
-              const key = getCanonicalMediaKey(full) || itemId;
-              mergedMap.set(key, full);
-            }
-          });
-        }
-
-        const cleanList = deduplicateMediaItems(Array.from(mergedMap.values())).map(sanitizeWorkshopMediaItem);
-        setMediaItems(cleanList);
-      },
-      (error) => {
-        console.warn('Notice: workshop_gallery snapshot fallback:', error);
-      }
-    );
-
-    return () => unsubscribe();
+    const handleUpdate = () => {
+      fetchWorkshopMedia().then((items) => {
+        if (items) setMediaItems(deduplicateMediaItems(items).map(sanitizeWorkshopMediaItem));
+      });
+      fetchWorkshopGroups().then((groups) => {
+        if (groups && groups.length > 0) setGroupMetas(groups);
+      });
+    };
+    window.addEventListener('artified_workshop_media_updated', handleUpdate);
+    window.addEventListener('artified_workshop_groups_updated', handleUpdate);
+    return () => {
+      window.removeEventListener('artified_workshop_media_updated', handleUpdate);
+      window.removeEventListener('artified_workshop_groups_updated', handleUpdate);
+    };
   }, []);
 
-  // 2. Real-time Firestore synchronization for custom workshop masterclass groups
-  useEffect(() => {
-    const groupsRef = collection(db, 'workshop_groups');
 
-    const unsubscribe = onSnapshot(
-      groupsRef,
-      (snapshot) => {
-        const deletedGroupIds = getDeletedWorkshopGroupIds();
-        const local = getCustomWorkshopGroupsFromStorage().filter(
-          (g) => !deletedGroupIds.includes(g.id) && !deletedGroupIds.includes(g.groupKey)
-        );
-        const mergedMap = new Map<string, Omit<WorkshopGroup, 'items'>>();
-
-        WORKSHOP_GROUPS_METADATA.filter(
-          (g) => !deletedGroupIds.includes(g.id) && !deletedGroupIds.includes(g.groupKey)
-        ).forEach((g) => mergedMap.set(g.groupKey, g));
-
-        local.forEach((g) => mergedMap.set(g.groupKey, g));
-
-        if (!snapshot.empty) {
-          snapshot.forEach((docSnap) => {
-            const id = docSnap.id;
-            const data = docSnap.data() as Omit<WorkshopGroup, 'items'>;
-            if (!deletedGroupIds.includes(id) && !deletedGroupIds.includes(data.groupKey)) {
-              mergedMap.set(data.groupKey, { ...data, id });
-            }
-          });
-        }
-
-        setGroupMetas(Array.from(mergedMap.values()));
-      },
-      (error) => {
-        console.warn('Notice: workshop_groups snapshot listener fallback:', error);
-      }
-    );
-
-    return () => unsubscribe();
-  }, []);
 
   // Filter media items to ONLY those associated with active existing workshop groups (No orphans)
   const activeGroupKeys = useMemo(() => {

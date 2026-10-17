@@ -241,6 +241,13 @@ async function startServer() {
         return res.status(400).json({ error: 'Expected artisan profile object' });
       }
 
+      let existingProfile: any = {};
+      if (fs.existsSync(artisanProfileJsonPath)) {
+        try {
+          existingProfile = JSON.parse(fs.readFileSync(artisanProfileJsonPath, 'utf-8'));
+        } catch {}
+      }
+
       // If avatarUrl is a base64 data URL, persist to public/artisan_avatar.png
       if (incoming.avatarUrl && typeof incoming.avatarUrl === 'string' && incoming.avatarUrl.startsWith('data:image/')) {
         try {
@@ -258,20 +265,26 @@ async function startServer() {
           
           // Save backup buffer to public/artisan_avatar.png
           fs.writeFileSync(path.join(publicDir, 'artisan_avatar.png'), imgBuffer);
-          // Keep incoming.avatarUrl as self-contained data URL so it renders reliably everywhere without 404s
         } catch (imgErr) {
           console.warn('Notice: Error saving avatar image buffer to disk:', imgErr);
         }
       }
 
+      // Preserve existing avatarUrl if incoming did not specify one or if incoming is a fallback placeholder
+      const effectiveAvatarUrl = (incoming.avatarUrl && incoming.avatarUrl.length > 50)
+        ? incoming.avatarUrl
+        : (existingProfile.avatarUrl || DEFAULT_ARTISAN_PROFILE.avatarUrl);
+
       const merged = {
         ...DEFAULT_ARTISAN_PROFILE,
+        ...existingProfile,
         ...incoming,
+        avatarUrl: effectiveAvatarUrl,
         avatarUpdatedAt: incoming.avatarUpdatedAt || new Date().toISOString(),
-        pillar1: { ...DEFAULT_ARTISAN_PROFILE.pillar1, ...(incoming.pillar1 || {}) },
-        pillar2: { ...DEFAULT_ARTISAN_PROFILE.pillar2, ...(incoming.pillar2 || {}) },
-        pillar3: { ...DEFAULT_ARTISAN_PROFILE.pillar3, ...(incoming.pillar3 || {}) },
-        pillar4: { ...DEFAULT_ARTISAN_PROFILE.pillar4, ...(incoming.pillar4 || {}) },
+        pillar1: { ...DEFAULT_ARTISAN_PROFILE.pillar1, ...(existingProfile.pillar1 || {}), ...(incoming.pillar1 || {}) },
+        pillar2: { ...DEFAULT_ARTISAN_PROFILE.pillar2, ...(existingProfile.pillar2 || {}), ...(incoming.pillar2 || {}) },
+        pillar3: { ...DEFAULT_ARTISAN_PROFILE.pillar3, ...(existingProfile.pillar3 || {}), ...(incoming.pillar3 || {}) },
+        pillar4: { ...DEFAULT_ARTISAN_PROFILE.pillar4, ...(existingProfile.pillar4 || {}), ...(incoming.pillar4 || {}) },
       };
       fs.writeFileSync(artisanProfileJsonPath, JSON.stringify(merged, null, 2), 'utf-8');
       return res.json({ success: true, profile: merged });

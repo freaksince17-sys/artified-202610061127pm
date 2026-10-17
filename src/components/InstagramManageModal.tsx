@@ -34,8 +34,7 @@ import {
 import {
   safeSetDoc as setDoc,
   safeUpdateDoc as updateDoc,
-  safeDeleteDoc as deleteDoc,
-  safeOnSnapshot as onSnapshot
+  safeDeleteDoc as deleteDoc
 } from '../utils/safeFirestore';
 import { useCart } from '../context/CartContext';
 import { InstagramJournalItem } from '../types';
@@ -401,69 +400,7 @@ export const InstagramManageModal: React.FC = () => {
     }
   };
 
-  // Listener-based real-time onSnapshot sync with Firestore to prevent stale or default content from overwriting the view
-  useEffect(() => {
-    if (!isInstagramManagerOpen) return;
 
-    // 1. Real-time listener for Instagram handle and profile URL settings
-    const settingsDocRef = doc(db, 'store_settings', 'instagram');
-    const unsubscribeSettings = onSnapshot(
-      settingsDocRef,
-      (snapshot) => {
-        if (snapshot.exists()) {
-          const sData = snapshot.data();
-          if (sData?.handle) {
-            setGlobalHandleInput(sData.handle);
-            setHandle((prev) => prev || sData.handle);
-          }
-          if (sData?.profileUrl) {
-            setGlobalUrlInput(sData.profileUrl);
-          }
-        }
-      },
-      (error) => {
-        console.warn('Instagram settings onSnapshot listener notice:', error);
-      }
-    );
-
-    // 2. Real-time listener for Instagram journal entries collection
-    const journalColRef = collection(db, 'instagram_journal');
-    const unsubscribeJournal = onSnapshot(
-      journalColRef,
-      (snapshot) => {
-        if (!snapshot.empty) {
-          const items: InstagramJournalItem[] = [];
-          const nowTs = Date.now();
-          snapshot.forEach((d: any) => {
-            const data = d.data() as InstagramJournalItem;
-            if (data && (data.id || d.id)) {
-              const uniqueVersion = `${nowTs}_${d.id}`;
-              const bustedThumbnail = getCacheBustedThumbnailUrl(data.thumbnail, uniqueVersion);
-              items.push({
-                ...data,
-                id: data.id || d.id,
-                thumbnail: bustedThumbnail
-              });
-            }
-          });
-          if (items.length > 0) {
-            // Synchronize real-time updates to local storage mirror
-            try {
-              localStorage.setItem('artified_instagram_journal_items', JSON.stringify(items));
-            } catch {}
-          }
-        }
-      },
-      (error) => {
-        console.warn('Instagram journal onSnapshot listener notice:', error);
-      }
-    );
-
-    return () => {
-      unsubscribeSettings();
-      unsubscribeJournal();
-    };
-  }, [isInstagramManagerOpen]);
 
   // When opening for edit
   useEffect(() => {
@@ -667,16 +604,6 @@ export const InstagramManageModal: React.FC = () => {
       // STEP 1: Apply immediate deletion to CartContext & local state
       await deleteAllInstagramItems();
 
-      // STEP 2: Non-blocking Firestore cleanup
-      const journalColRef = collection(db, 'instagram_journal');
-      getDocs(journalColRef).then((snap) => {
-        if (snap && !snap.empty) {
-          snap.docs.forEach((docSnap) => {
-            deleteDoc(docSnap.ref).catch(() => {});
-          });
-        }
-      }).catch(() => {});
-
       setShowDeleteAllConfirm(false);
       setEditingInstagramItem(null);
       setActiveTab('list');
@@ -695,10 +622,6 @@ export const InstagramManageModal: React.FC = () => {
     try {
       // STEP 1: Apply immediate deletion to CartContext & local state
       await deleteInstagramItem(id);
-
-      // STEP 2: Non-blocking Firestore deletion
-      const docRef = doc(db, 'instagram_journal', id);
-      deleteDoc(docRef).catch(() => {});
 
       setDeleteConfirmId(null);
       if (editingInstagramItem?.id === id || itemId === id) {

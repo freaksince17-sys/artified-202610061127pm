@@ -59,52 +59,15 @@ export async function fetchWorkshopMediaMetadataFromFirestore(): Promise<Worksho
 /**
  * Synchronize workshop group metadata (title, description, timestamps) directly to Firestore
  */
-export async function syncWorkshopGroupMetadataToFirestore(group: Omit<WorkshopGroup, 'items'>): Promise<void> {
-  try {
-    if (!group || !group.id) return;
-    const docRef = doc(db, WORKSHOP_GROUPS_COLLECTION, group.id);
-    const now = new Date().toISOString();
-    await setDoc(docRef, {
-      id: group.id,
-      groupKey: group.groupKey,
-      title: group.title,
-      badge: group.badge,
-      tagline: group.tagline,
-      date: group.date,
-      location: group.location,
-      instructor: group.instructor,
-      attendeesCount: group.attendeesCount,
-      description: group.description,
-      keyTechniques: group.keyTechniques,
-      whatsappMessage: group.whatsappMessage,
-      updatedAt: now,
-      createdAt: group.createdAt || now
-    }, { merge: true });
-  } catch (err) {
-    console.warn('Failed to sync workshop group metadata to Firestore:', err);
-  }
+export async function syncWorkshopGroupMetadataToFirestore(_group: Omit<WorkshopGroup, 'items'>): Promise<void> {
+  // No-op: Workshop group metadata is git-authoritative and repository-driven
+  return;
 }
 
 /**
  * Fetch workshop group metadata directly from Firestore
  */
 export async function fetchWorkshopGroupMetadataFromFirestore(): Promise<Omit<WorkshopGroup, 'items'>[]> {
-  try {
-    const colRef = collection(db, WORKSHOP_GROUPS_COLLECTION);
-    const snap = await getDocs(colRef);
-    const groups: Omit<WorkshopGroup, 'items'>[] = [];
-    if (!snap.empty) {
-      snap.forEach((docSnap) => {
-        const d = docSnap.data() as Omit<WorkshopGroup, 'items'>;
-        groups.push({
-          ...d,
-          id: docSnap.id
-        });
-      });
-    }
-    return groups;
-  } catch (err) {
-    console.warn('Failed to fetch workshop group metadata from Firestore:', err);
-    return [];
-  }
+  // Workshop group metadata is git-authoritative and repository-driven
+  return [];
 }

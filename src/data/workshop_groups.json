@@ -1,33 +1,11 @@
 [
   {
-    "id": "ws-macrame",
-    "groupKey": "macrame",
-    "title": "Macrame Wall Art & Planters Workshop",
-    "badge": "",
-    "tagline": "",
-    "date": "Once Every Month",
-    "batchDate": "",
-    "location": "Kathmandu Studio, Nepal",
-    "instructor": "Sahina Shrestha",
-    "attendeesCount": 15,
-    "description": "Master the art of raw cotton cord knotting, symmetrical tension, wooden hoop mounting, and botanical planter framing in our Kathmandu atelier under Sahina Shrestha’s guided mentorship.",
-    "whatsappMessage": "Namaste Sahina! I would like to join the Macrame Wall Art & Planters Workshop in Kathmandu.",
-    "keyTechniques": [
-      "Square Knots & Spiral Weaves",
-      "Lark’s Head Ring Mounting",
-      "Botanical Planter Load Balancing"
-    ],
-    "folder": "Macrame",
-    "createdAt": "2026-10-09T10:07:32.160Z",
-    "updatedAt": "2026-10-10T10:00:00.000Z"
-  },
-  {
     "id": "ws-sunflower",
     "groupKey": "sunflower",
     "title": "Waste Pipe to Sunflower Eco-Art Workshop",
     "badge": "",
     "tagline": "",
-    "date": "Once Every Month",
+    "date": "Every Month",
     "batchDate": "",
     "location": "Kathmandu Studio, Nepal",
     "instructor": "Sahina Shrestha",
@@ -49,7 +27,7 @@
     "title": "Bridal Pearl Bag & Bead Weaving Workshop",
     "badge": "",
     "tagline": "",
-    "date": "Once Every Month",
+    "date": "Every Month",
     "batchDate": "",
     "location": "Kathmandu Studio, Nepal",
     "instructor": "Sahina Shrestha",
@@ -64,5 +42,19 @@
     "folder": "Pearls",
     "createdAt": "2026-10-09T10:07:32.160Z",
     "updatedAt": "2026-10-10T10:00:00.000Z"
+  },
+  {
+    "id": "ws-macrame",
+    "groupKey": "macrame",
+    "title": "Macrame  Workshop",
+    "badge": "",
+    "date": "Every Month",
+    "location": "Kathmandu Studio, Nepal",
+    "instructor": "Sahina Shrestha",
+    "attendeesCount": 15,
+    "tagline": "",
+    "description": "Discover the therapeutic art of knotting in this hands-on Macramé Workshop hosted by Artified Nepal, designed to unlock your inner creativity. In this engaging 3-hour session, absolute beginners will learn foundational knotting techniques and step-by-step pattern creation under expert guidance. The registration fee covers all premium crafting materials—including high-quality cotton cords and wooden dowels—allowing you to relax, connect with fellow creatives, and take home your very own handmade boho-chic masterpiece ready to decorate your space.",
+    "keyTechniques": [],
+    "whatsappMessage": "Namaste Sahina! I would like to join the Macrame Wall Art & Planters Workshop in Kathmandu."
   }
 ]

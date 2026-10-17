@@ -79,7 +79,7 @@ export const MasterclassCreationModal: React.FC<MasterclassCreationModalProps> =
   const [badge, setBadge] = useState('');
   const [tagline, setTagline] = useState('');
   const [batchDate, setBatchDate] = useState('');
-  const [date, setDate] = useState('Once Every Month');
+  const [date, setDate] = useState('Every Month');
   const [location, setLocation] = useState('Kathmandu, Nepal');
   const [instructor, setInstructor] = useState('Sahina Shrestha');
   const [attendeesCount, setAttendeesCount] = useState<number>(15);
@@ -963,7 +963,7 @@ export const MasterclassCreationModal: React.FC<MasterclassCreationModalProps> =
                       type="text"
                       value={date}
                       onChange={(e) => setDate(e.target.value)}
-                      placeholder="Once Every Month"
+                      placeholder="Every Month"
                       className="w-full px-3 py-2 rounded-xl bg-[#FAF8F5] dark:bg-[#201E1C] border border-[#E8DFD8] dark:border-white/10 text-xs text-[#1C1B1A] dark:text-white focus:outline-none focus:border-[#C5A880]"
                     />
                   </div>

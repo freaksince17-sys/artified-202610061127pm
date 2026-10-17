@@ -365,28 +365,11 @@ export async function fetchWorkshopGroups(): Promise<Omit<WorkshopGroup, 'items'
     }
   } catch {}
 
-  // 3. Firestore cloud custom
-  try {
-    const colRef = collection(db, 'workshop_groups');
-    const snap = await getDocs(colRef);
-    if (!snap.empty) {
-      snap.forEach((docSnap) => {
-        const d = docSnap.data() as Omit<WorkshopGroup, 'items'>;
-        const id = docSnap.id;
-        if (!deletedGroupIds.includes(id) && !deletedGroupIds.includes(d.groupKey)) {
-          mergedMap.set(d.groupKey, { ...d, id });
-        }
-      });
-    }
-  } catch (err) {
-    console.warn('Notice: Firestore workshop_groups fallback to persistent local cache:', err);
-  }
-
-  // 4. Local custom (takes absolute precedence so user manual edits never revert)
+  // 3. Local custom (takes absolute precedence so user manual edits never revert)
   localCustom.forEach((g) => mergedMap.set(g.groupKey, g));
 
   const allGroups = Array.from(mergedMap.values());
-  saveCustomWorkshopGroupsToStorage(allGroups.filter((g) => !['macrame', 'wastepipe-sunflower', 'pearl-bag'].includes(g.groupKey)));
+  saveCustomWorkshopGroupsToStorage(allGroups);
   return allGroups;
 }
 
@@ -401,49 +384,71 @@ export async function saveWorkshopGroup(group: WorkshopGroup): Promise<void> {
 
   // Save to local storage cache immediately
   const existingLocal = getCustomWorkshopGroupsFromStorage().filter((g) => g.groupKey !== group.groupKey && g.id !== group.id);
-  existingLocal.push({
+  const updatedGroupItem = {
     id: group.id,
     groupKey: group.groupKey,
     title: group.title,
-    badge: group.badge,
-    date: group.date,
+    badge: group.badge || '',
+    date: group.date || 'Every Month',
     location: group.location,
     instructor: group.instructor,
     attendeesCount: group.attendeesCount,
-    tagline: group.tagline,
+    tagline: group.tagline || '',
     description: group.description,
-    keyTechniques: group.keyTechniques,
+    keyTechniques: group.keyTechniques || [],
     whatsappMessage: group.whatsappMessage
-  });
+  };
+  existingLocal.push(updatedGroupItem);
   saveCustomWorkshopGroupsToStorage(existingLocal);
 
-  // Save to Firestore in background (non-blocking with 1500ms timeout race)
-  const docRef = doc(db, 'workshop_groups', group.id);
-  const now = new Date().toISOString();
-  
-  const cloudSavePromise = safeSetDoc(docRef, {
-    id: group.id,
-    groupKey: group.groupKey,
-    title: group.title,
-    badge: group.badge,
-    date: group.date,
-    location: group.location,
-    instructor: group.instructor,
-    attendeesCount: group.attendeesCount,
-    tagline: group.tagline,
-    description: group.description,
-    keyTechniques: group.keyTechniques,
-    whatsappMessage: group.whatsappMessage,
-    updatedAt: now,
-    createdAt: now
-  }, { merge: true }).catch((err) => {
-    console.warn('Background Firestore group save notice:', err);
-  });
+  // Sync with artified_workshop_classes_list_v36
+  try {
+    const currentClassesRaw = localStorage.getItem('artified_workshop_classes_list_v36');
+    if (currentClassesRaw) {
+      const parsed = JSON.parse(currentClassesRaw);
+      if (Array.isArray(parsed)) {
+        const updatedClasses = parsed.map((c: any) => {
+          if (c.id === group.id || c.key === group.groupKey) {
+            return {
+              ...c,
+              title: group.title || c.title,
+              description: group.description || c.description,
+              location: group.location || c.location,
+              instructor: group.instructor || c.instructor,
+              capacity: group.attendeesCount || c.capacity,
+              schedule: group.date || c.schedule || 'Every Month',
+              whatsappMessage: group.whatsappMessage || c.whatsappMessage
+            };
+          }
+          return c;
+        });
+        localStorage.setItem('artified_workshop_classes_list_v36', JSON.stringify(updatedClasses));
+      }
+    }
+  } catch (syncErr) {}
 
-  await Promise.race([
-    cloudSavePromise,
-    new Promise((resolve) => setTimeout(resolve, 1500))
-  ]);
+  // Save to server JSON disk API permanently
+  try {
+    const sRes = await fetch('/api/workshop-groups');
+    let currentServerGroups: any[] = [];
+    if (sRes.ok) {
+      const sData = await sRes.json();
+      if (sData?.success && Array.isArray(sData.groups)) {
+        currentServerGroups = sData.groups;
+      }
+    }
+    const mergedServer = currentServerGroups.filter((g: any) => g.id !== group.id && g.groupKey !== group.groupKey);
+    mergedServer.push(updatedGroupItem);
+    await fetch('/api/workshop-groups', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(mergedServer)
+    });
+  } catch (apiErr) {
+    console.warn('Notice: Server API workshop-groups save error:', apiErr);
+  }
+
+  window.dispatchEvent(new CustomEvent('artified_workshop_groups_updated', { detail: updatedGroupItem }));
 }
 
 export const DELETED_GROUP_IDS_STORAGE_KEY = 'artified_deleted_workshop_group_ids_v12';

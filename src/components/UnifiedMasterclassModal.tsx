@@ -160,7 +160,7 @@ const UnifiedMasterclassModalInner: React.FC<UnifiedMasterclassModalProps> = ({
   // Form State: Workshop Details
   const [title, setTitle] = useState('');
   const [badge, setBadge] = useState('');
-  const [date, setDate] = useState('Once Every Month');
+  const [date, setDate] = useState('Every Month');
   const [batchDate, setBatchDate] = useState('');
   const [location, setLocation] = useState('Kathmandu, Nepal');
   const [instructor, setInstructor] = useState('Sahina Shrestha');
@@ -235,7 +235,7 @@ const UnifiedMasterclassModalInner: React.FC<UnifiedMasterclassModalProps> = ({
       const batchNum = availableGroups.length + 1;
       setTitle(`Workshop Batch #${batchNum < 10 ? '0' + batchNum : batchNum}`);
       setBadge('');
-      setDate('Once Every Month');
+      setDate('Every Month');
       setBatchDate('');
       setLocation('Kathmandu, Nepal');
       setInstructor('Sahina Shrestha');
@@ -252,7 +252,7 @@ const UnifiedMasterclassModalInner: React.FC<UnifiedMasterclassModalProps> = ({
     if (current) {
       setTitle(current.title || '');
       setBadge('');
-      setDate(current.date || 'Once Every Month');
+      setDate(current.date || 'Every Month');
       setBatchDate('');
       setLocation(current.location || 'Kathmandu, Nepal');
       setInstructor(current.instructor || 'Sahina Shrestha');
@@ -474,13 +474,13 @@ const UnifiedMasterclassModalInner: React.FC<UnifiedMasterclassModalProps> = ({
         id: currentGroup?.id || `group_${Date.now()}`,
         groupKey: targetKey,
         title: title.trim(),
-        badge: badge.trim(),
-        date: date.trim(),
-        batchDate: batchDate.trim() || 'Sat, Oct 24, 2026',
+        badge: '',
+        date: 'Every Month',
+        batchDate: '',
         location: location.trim(),
         instructor: instructor.trim(),
         attendeesCount: Number(attendeesCount) || 15,
-        tagline: tagline.trim(),
+        tagline: '',
         description: description.trim(),
         keyTechniques: [],
         whatsappMessage: whatsappMessage.trim() || `Namaste Sahina! I want to join "${title}" at Kathmandu Workshop.`,
@@ -1164,7 +1164,7 @@ const UnifiedMasterclassModalInner: React.FC<UnifiedMasterclassModalProps> = ({
                   type="text"
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
-                  placeholder="Once Every Month"
+                  placeholder="Every Month"
                   className="w-full px-3 py-2 rounded-xl bg-[#FAF8F5] dark:bg-[#201E1C] border border-[#E8DFD8] dark:border-white/10 text-xs text-[#1C1B1A] dark:text-white focus:outline-none focus:border-[#C5A880]"
                 />
               </div>

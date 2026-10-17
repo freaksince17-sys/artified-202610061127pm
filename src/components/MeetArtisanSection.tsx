@@ -228,30 +228,6 @@ export const MeetArtisanSection: React.FC = () => {
                   className="w-full h-full object-cover group-hover:scale-104 transition-transform duration-500"
                 />
 
-                {/* Direct Action Buttons over photo - Strictly Seller Mode */}
-                {isSellerMode && (
-                  <div className="absolute top-2.5 right-2.5 z-20 flex items-center gap-1.5 flex-wrap justify-end">
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="py-1 px-2.5 rounded-full bg-black/85 hover:bg-black text-[#D4AF37] border border-[#D4AF37]/60 text-[10px] font-bold flex items-center gap-1.5 shadow-md transition-all hover:scale-105 cursor-pointer backdrop-blur-xs"
-                      title="Upload Sahina's photo from computer or phone"
-                    >
-                      <Upload className="w-3 h-3 text-[#D4AF37]" />
-                      <span>Upload Photo</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setIsEditModalOpen(true)}
-                      className="py-1 px-2 rounded-full bg-black/85 hover:bg-black text-white hover:text-[#D4AF37] border border-white/30 text-[10px] font-bold flex items-center gap-1 shadow-md transition-all hover:scale-105 cursor-pointer backdrop-blur-xs"
-                      title="Edit profile details"
-                    >
-                      <Edit3 className="w-2.5 h-2.5" />
-                    </button>
-                  </div>
-                )}
-
                 {/* Drag over overlay hint */}
                 {isDraggingOver && (
                   <div className="absolute inset-0 bg-emerald-950/80 backdrop-blur-xs flex flex-col items-center justify-center text-white z-30 p-4 text-center">
@@ -266,22 +242,11 @@ export const MeetArtisanSection: React.FC = () => {
 
                 {/* Floating Founder & Creator Bio Pill */}
                 <div className="absolute bottom-3 left-3 right-3 text-white z-10 space-y-0.5">
-                  <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#D4AF37] text-[#1C1B1A] text-[9px] font-bold uppercase tracking-wider shadow-sm">
-                    <Sparkles className="w-2.5 h-2.5" />
+                  <div className="inline-flex items-center px-2 py-0.5 rounded-full bg-[#D4AF37] text-[#1C1B1A] text-[9px] font-bold uppercase tracking-wider shadow-sm">
                     <span>Founder & Creator</span>
                   </div>
                   <h3 className="font-serif text-lg sm:text-xl font-bold tracking-tight text-white flex items-center justify-between">
                     <span>{profile.artisanName || 'Sahina Shrestha'}</span>
-                    {isSellerMode && (
-                      <button
-                        type="button"
-                        onClick={() => setIsEditModalOpen(true)} 
-                        className="text-[10px] text-[#D4AF37] hover:text-white font-sans font-medium underline flex items-center gap-0.5 cursor-pointer"
-                      >
-                        <Edit3 className="w-2.5 h-2.5" />
-                        <span>Edit</span>
-                      </button>
-                    )}
                   </h3>
                   <p className="text-[11px] text-white/80">
                     Kathmandu, Nepal

@@ -30,6 +30,7 @@ import {
   DEFAULT_ARTISAN_PROFILE 
 } from '../data/artisanProfile';
 import { compressImage } from '../utils/imageCompressor';
+import { getFreshArtisanAvatarUrl } from '../utils/storageAssetUtils';
 
 interface MeetArtisanModalProps {
   isOpen: boolean;
@@ -399,11 +400,7 @@ export const MeetArtisanModal: React.FC<MeetArtisanModalProps> = ({
                 {/* Primary Photo of Sahina Shrestha (object-fit: cover, centered focus) */}
                 <div className="relative w-24 sm:w-28 aspect-[3/4] rounded-xl overflow-hidden bg-[#1C1B1A] shrink-0 border-2 border-[#D4AF37]/50 shadow-md group">
                   <img
-                    src={
-                      !profile.avatarUrl || profile.avatarUrl.includes('unsplash.com') || profile.avatarUrl.includes('photo-')
-                        ? '/artisan_avatar.png'
-                        : profile.avatarUrl
-                    }
+                    src={getFreshArtisanAvatarUrl(profile.avatarUrl, profile.avatarUpdatedAt)}
                     alt={`${profile.artisanName} - ${profile.artisanRole}`}
                     style={{ 
                       objectFit: 'cover', 
