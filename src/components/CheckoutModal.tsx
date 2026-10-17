@@ -33,8 +33,12 @@ import {
 import { useCart } from '../context/CartContext';
 import { DELIVERY_ZONES } from '../data/products';
 import { DeliveryZone, PaymentMethod, OrderDetails } from '../types';
-import { getSellerPaymentSettings, SellerPaymentSettings } from '../data/paymentSettings';
-import { earnPurchasePoints } from '../data/loyaltyData';
+import { 
+  getSellerPaymentSettings, 
+  fetchPaymentSettingsFromServer, 
+  SellerPaymentSettings 
+} from '../data/paymentSettings';
+
 import { PaymentQRModal } from './PaymentQRModal';
 
 export const CheckoutModal: React.FC = () => {
@@ -55,7 +59,8 @@ export const CheckoutModal: React.FC = () => {
     setCompletedOrder,
     openTracker,
     openAccountModal,
-    recordOnlineOrderSales
+    recordOnlineOrderSales,
+    directPurchaseItem
   } = useCart();
 
   // Form State
@@ -74,16 +79,20 @@ export const CheckoutModal: React.FC = () => {
   const [isQRModalOpen, setIsQRModalOpen] = useState(false);
   const [paymentSettings, setPaymentSettings] = useState<SellerPaymentSettings>(getSellerPaymentSettings());
 
-  // Fixed reference order ID generated on mount so buyer can copy it during instructions step
-  const [provisionalOrderId] = useState(() => `ART-2026-${Math.floor(1000 + Math.random() * 9000)}`);
-
   useEffect(() => {
-    const handleUpdate = () => {
-      setPaymentSettings(getSellerPaymentSettings());
-    };
+    const handleUpdate = () => setPaymentSettings(getSellerPaymentSettings());
     window.addEventListener('artified_payment_settings_updated', handleUpdate);
     return () => window.removeEventListener('artified_payment_settings_updated', handleUpdate);
   }, []);
+
+  useEffect(() => {
+    if (isCheckoutOpen) {
+      fetchPaymentSettingsFromServer().then((fresh) => setPaymentSettings(fresh)).catch(() => {});
+    }
+  }, [isCheckoutOpen]);
+
+  // Fixed reference order ID generated on mount so buyer can copy it during instructions step
+  const [provisionalOrderId] = useState(() => `ART-2026-${Math.floor(1000 + Math.random() * 9000)}`);
 
   // Validation errors
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
@@ -93,7 +102,9 @@ export const CheckoutModal: React.FC = () => {
 
   const currentDeliveryFee = selectedDeliveryZone.fee;
   const giftFee = giftPackaging ? 150 : 0;
-  const grandTotal = Math.max(0, subtotal + currentDeliveryFee + giftFee - discount);
+  
+  const itemsToBuy = directPurchaseItem ? [directPurchaseItem] : cart;
+  const grandTotal = Math.max(0, itemsToBuy.reduce((sum, item) => sum + (item.product.price * item.quantity), 0) + currentDeliveryFee + giftFee - discount);
 
   const validateDetails = () => {
     const errs: { [key: string]: string } = {};
@@ -128,12 +139,12 @@ export const CheckoutModal: React.FC = () => {
       return;
     }
 
-    // Award loyalty points to the customer's account dashboard!
-    const { pointsEarned } = earnPurchasePoints(grandTotal, provisionalOrderId, fullName, phone, email);
+
+    // Removed loyalty points earning logic.
 
     const order: OrderDetails = {
       orderId: `#${provisionalOrderId}`,
-      items: [...cart],
+      items: [...itemsToBuy],
       customerName: fullName,
       phone: phone,
       email: email || undefined,
@@ -165,7 +176,8 @@ export const CheckoutModal: React.FC = () => {
 
     setConfirmedOrder(order);
     setCompletedOrder(order);
-    recordOnlineOrderSales(cart);
+    recordOnlineOrderSales(itemsToBuy);
+    setDirectPurchaseItem(null);
     clearCart();
     setStep('confirmation');
   };
@@ -235,7 +247,10 @@ export const CheckoutModal: React.FC = () => {
       {/* Backdrop */}
       <div 
         className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity"
-        onClick={() => setIsCheckoutOpen(false)}
+        onClick={() => {
+          setIsCheckoutOpen(false);
+          setDirectPurchaseItem(null);
+        }}
       />
 
       {/* Modal Dialog */}
@@ -410,230 +425,41 @@ export const CheckoutModal: React.FC = () => {
                 </div>
               </div>
 
-              {/* ========================================================
-                  GIFT WRAP & PERSONAL NOTE TOGGLE OPTION
-                  ======================================================= */}
-              <div className="bg-gradient-to-br from-white to-[#FBF9F6] p-4 sm:p-5 rounded-2xl border-2 border-[#D4AF37]/50 shadow-xs space-y-3.5 transition-all">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 rounded-2xl bg-[#D4AF37]/15 border border-[#D4AF37]/40 flex items-center justify-center text-[#D4AF37] shrink-0 mt-0.5">
-                      <Gift className="w-5 h-5 text-[#D4AF37]" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-serif text-sm font-bold text-[#1C1B1A]">
-                          Gift Wrap & Personal Note
-                        </span>
-                        <span className="text-[10px] bg-[#D4AF37]/20 text-[#8C7A6B] font-bold px-2 py-0.5 rounded-full border border-[#D4AF37]/30">
-                          {discount >= 150 ? 'Free Voucher Applied' : '+ Rs. 150'}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-[#736C65] mt-0.5 leading-relaxed">
-                        Handcrafted gold satin ribbon, rigid luxury gift box, and botanical handwritten calligraphy card with a genuine red wax seal.
-                      </p>
-                    </div>
-                  </div>
+                {/* ========================================================
+                    END OF STEP 1
+                    ======================================================= */}
 
-                  {/* Toggle Switch */}
-                  <label className="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
-                    <input
-                      type="checkbox"
-                      checked={giftPackaging}
-                      onChange={(e) => setGiftPackaging(e.target.checked)}
-                      className="sr-only peer"
-                    />
-                    <div className="w-11 h-6 bg-zinc-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#1C1B1A]"></div>
-                  </label>
+                {/* Order Breakdown Snapshot */}
+                <div className="bg-white p-4 rounded-2xl border border-[#E8DFD8] space-y-2 text-xs text-[#5E5955] shadow-2xs">
+                  <div className="flex justify-between">
+                    <span>Items ({itemsToBuy.reduce((s, i) => s + i.quantity, 0)})</span>
+                    <span>Rs. {itemsToBuy.reduce((s, i) => s + (i.product.price * i.quantity), 0).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Delivery ({selectedDeliveryZone.name})</span>
+                    <span>Rs. {currentDeliveryFee.toLocaleString()}</span>
+                  </div>
+                  {discount > 0 && (
+                    <div className="flex justify-between text-emerald-700 font-medium">
+                      <span>Voucher Applied</span>
+                      <span>- Rs. {discount.toLocaleString()}</span>
+                    </div>
+                  )}
+                  <div className="pt-2 border-t border-[#F0EBE5] flex justify-between font-bold text-sm text-[#1C1B1A]">
+                    <span>Total Payable</span>
+                    <span>Rs. {grandTotal.toLocaleString()}</span>
+                  </div>
                 </div>
 
-                {/* Expanded Custom Message Card Controls */}
-                {giftPackaging && (
-                  <div className="pt-3 border-t border-[#E8DFD8] space-y-3 animate-in fade-in duration-200">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-xs font-semibold text-[#1C1B1A] mb-1">
-                          To (Recipient Name):
-                        </label>
-                        <input
-                          type="text"
-                          value={recipientName}
-                          onChange={(e) => setRecipientName(e.target.value)}
-                          placeholder="e.g. Dearest Sneha"
-                          className="w-full p-2.5 bg-white border border-[#E8DFD8] rounded-xl text-xs text-[#1C1B1A] focus:outline-none focus:border-[#C5A880]"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-semibold text-[#1C1B1A] mb-1">
-                          From (Your Name / Sender):
-                        </label>
-                        <input
-                          type="text"
-                          value={senderName}
-                          onChange={(e) => setSenderName(e.target.value)}
-                          placeholder="e.g. Aayushi"
-                          className="w-full p-2.5 bg-white border border-[#E8DFD8] rounded-xl text-xs text-[#1C1B1A] focus:outline-none focus:border-[#C5A880]"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <label className="text-xs font-semibold text-[#1C1B1A]">
-                          Custom Message for Handwritten Calligraphy Card:
-                        </label>
-                        <span className="text-[10px] text-[#8C847E]">
-                          {giftMessage.length} / 220 chars
-                        </span>
-                      </div>
-                      <textarea
-                        rows={3}
-                        maxLength={220}
-                        value={giftMessage}
-                        onChange={(e) => setGiftMessage(e.target.value)}
-                        placeholder="Write your heartfelt note here. Our founder and creator in Kathmandu will hand-write it onto botanical parchment paper..."
-                        className="w-full p-2.5 bg-white border border-[#E8DFD8] rounded-xl text-xs text-[#1C1B1A] focus:outline-none focus:border-[#C5A880] leading-relaxed"
-                      />
-                    </div>
-
-                    {/* Quick Preset Messages */}
-                    <div>
-                      <span className="text-[10px] uppercase font-bold text-[#8C7A6B] block mb-1.5">
-                        ✨ Quick Note Presets (Click to insert):
-                      </span>
-                      <div className="flex flex-wrap gap-1.5">
-                        {[
-                          'Happy Birthday! Wishing you joy, radiant pearls, and endless smiles 🌸',
-                          'With love and heartfelt blessings from Kathmandu ✨',
-                          'Happy Anniversary to my favorite person in the world! 💍',
-                          'Congratulations on your milestone! So very proud of you 🎓'
-                        ].map((preset, idx) => (
-                          <button
-                            key={idx}
-                            type="button"
-                            onClick={() => setGiftMessage(preset)}
-                            className="px-2.5 py-1 bg-white hover:bg-[#FAF8F5] border border-[#E8DFD8] text-[10px] text-[#5E5955] hover:text-[#1C1B1A] rounded-lg transition-colors cursor-pointer text-left"
-                          >
-                            {preset.slice(0, 36)}...
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Ultra-Realistic Luxury Calligraphy Gift Card Live Preview */}
-                    <div className="mt-3 p-4 sm:p-5 bg-gradient-to-b from-[#FAF5ED] to-[#F5EFE6] rounded-2xl border-2 border-[#D4AF37]/60 text-[#1C1B1A] relative shadow-md overflow-hidden">
-                      {/* Gold Foil Top Border Accent */}
-                      <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#C5A880] via-[#D4AF37] to-[#C5A880]" />
-
-                      {/* Header Badge */}
-                      <div className="flex items-center justify-between border-b border-[#E8DFD8]/80 pb-2.5 mb-3">
-                        <div className="flex items-center gap-1.5">
-                          <Sparkles className="w-3.5 h-3.5 text-[#D4AF37]" />
-                          <span className="text-[10px] uppercase font-bold tracking-widest text-[#8C7A6B]">
-                            Live Gift Card Preview
-                          </span>
-                        </div>
-                        {/* Real-looking Burgundy Wax Seal */}
-                        <div className="flex items-center gap-1.5 bg-gradient-to-r from-red-900 to-red-950 text-[#F5EFE6] px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider shadow-sm border border-red-700/50">
-                          <span>⚜️</span>
-                          <span>Artified Wax Seal</span>
-                        </div>
-                      </div>
-
-                      {/* The Physical Card Body */}
-                      <div className="bg-[#FAF8F5] p-4 rounded-xl border border-[#D4AF37]/30 shadow-inner relative space-y-2.5">
-                        {/* Decorative Corner Ornaments */}
-                        <span className="absolute top-2 left-2 text-[10px] text-[#D4AF37]/60 select-none">✦</span>
-                        <span className="absolute top-2 right-2 text-[10px] text-[#D4AF37]/60 select-none">✦</span>
-                        <span className="absolute bottom-2 left-2 text-[10px] text-[#D4AF37]/60 select-none">✦</span>
-                        <span className="absolute bottom-2 right-2 text-[10px] text-[#D4AF37]/60 select-none">✦</span>
-
-                        <div className="px-3 py-1 font-serif space-y-2">
-                          <p className="font-bold text-xs text-[#1C1B1A]">
-                            {recipientName.trim() ? `Dearest ${recipientName.trim()},` : 'Dearest Recipient,'}
-                          </p>
-                          <p className="italic text-xs sm:text-sm text-[#2B2927] leading-relaxed tracking-wide min-h-[44px] whitespace-pre-wrap">
-                            &ldquo;{giftMessage.trim() || 'Wishing you radiant moments with this handmade pearl treasure. Handcrafted with love in Kathmandu.'}&rdquo;
-                          </p>
-                          <p className="text-right text-xs font-semibold text-[#8C7A6B] pt-1">
-                            {senderName.trim() ? `With love, ${senderName.trim()}` : 'With love, Your Secret Admirer'}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Packaging Footnote */}
-                      <div className="mt-3 flex items-center justify-between text-[10px] text-[#736C65] px-1">
-                        <span className="flex items-center gap-1 font-medium">
-                          <span>🌿 Hand-penned on 280gsm botanical cotton cardstock</span>
-                        </span>
-                        <span className="text-[#C5A880] font-bold">
-                          Kathmandu, Nepal
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                )}
+                <button
+                  type="button"
+                  onClick={handleProceedToPayment}
+                  className="w-full py-3.5 bg-[#1C1B1A] text-white rounded-xl text-xs font-bold tracking-wider uppercase hover:bg-black transition-all shadow-sm cursor-pointer"
+                >
+                  Proceed to Payment Selection →
+                </button>
               </div>
-
-              {/* Order Breakdown Snapshot with Loyalty Points Preview */}
-              <div className="bg-white p-4 rounded-2xl border border-[#E8DFD8] space-y-2 text-xs text-[#5E5955] shadow-2xs">
-                <div className="flex justify-between">
-                  <span>Items ({cart.reduce((s, i) => s + i.quantity, 0)})</span>
-                  <span>Rs. {subtotal.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Delivery ({selectedDeliveryZone.name})</span>
-                  <span>Rs. {currentDeliveryFee.toLocaleString()}</span>
-                </div>
-                {giftPackaging && (
-                  <div className="flex justify-between text-[#8C7A6B] font-medium">
-                    <span>Luxury Gift Wrap & Calligraphy Card</span>
-                    <span>+ Rs. 150</span>
-                  </div>
-                )}
-                {discount > 0 && (
-                  <div className="flex justify-between text-emerald-700 font-medium">
-                    <span>Voucher Applied</span>
-                    <span>- Rs. {discount.toLocaleString()}</span>
-                  </div>
-                )}
-                <div className="pt-2 border-t border-[#F0EBE5] flex justify-between font-bold text-sm text-[#1C1B1A]">
-                  <span>Total Payable</span>
-                  <span>Rs. {grandTotal.toLocaleString()}</span>
-                </div>
-
-                {/* Loyalty Points Earning Badge */}
-                <div className="pt-2 border-t border-[#F0EBE5] flex items-center justify-between bg-[#FAF8F5] p-2.5 rounded-xl border border-[#E8DFD8]">
-                  <div className="flex items-center gap-2">
-                    <Crown className="w-4 h-4 text-[#D4AF37] fill-[#D4AF37]/20" />
-                    <div>
-                      <span className="text-[11px] font-bold text-[#1C1B1A] block">
-                        +{Math.max(10, Math.floor(grandTotal / 10))} Loyalty Reward Points
-                      </span>
-                      <span className="text-[10px] text-[#736C65]">
-                        Earned upon order completion (1 pt / Rs. 10)
-                      </span>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => openAccountModal('rewards')}
-                    className="text-[10px] font-bold text-[#C5A880] hover:text-[#1C1B1A] underline cursor-pointer"
-                  >
-                    View Rewards
-                  </button>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={handleProceedToPayment}
-                className="w-full py-3.5 bg-[#1C1B1A] text-white rounded-xl text-xs font-bold tracking-wider uppercase hover:bg-black transition-all shadow-sm cursor-pointer"
-              >
-                Proceed to Payment Selection →
-              </button>
-            </div>
-          )}
+            )}
 
           {/* STEP 2: PAYMENT METHOD SELECTION */}
           {step === 'payment' && (
@@ -734,9 +560,20 @@ export const CheckoutModal: React.FC = () => {
                     </span>
                   </div>
 
-                  <p className="text-xs text-[#5E5955] leading-relaxed">
-                    In the next step, you will see the <strong>direct QR code</strong> for {paymentMethod === 'fonepay' ? 'Fonepay / Any Bank' : paymentMethod === 'esewa' ? 'eSewa' : 'Khalti'}, along with clear instructions on <strong>taking and attaching your payment screenshot</strong> for instant verification!
-                  </p>
+                  {activeQrImage ? (
+                    <div className="flex flex-col items-center py-2">
+                      <img 
+                        src={activeQrImage} 
+                        alt={`${paymentMethod} QR`} 
+                        className="w-32 h-32 object-contain rounded-lg border border-[#E8DFD8]"
+                      />
+                      <p className="text-[9px] text-[#736C65] mt-2 italic">Scan to pay with {paymentMethod}</p>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-[#5E5955] leading-relaxed">
+                      In the next step, you will see the <strong>direct QR code</strong> for {paymentMethod === 'fonepay' ? 'Fonepay / Any Bank' : paymentMethod === 'esewa' ? 'eSewa' : 'Khalti'}, along with clear instructions on <strong>taking and attaching your payment screenshot</strong> for instant verification!
+                    </p>
+                  )}
 
                   <div className="p-2.5 bg-emerald-50/80 rounded-xl border border-emerald-200 text-xs text-emerald-900 flex items-center gap-2">
                     <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />

@@ -53,7 +53,6 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigateSection }) => {
     setIsSellerAuthModalOpen,
     openOrderManager,
     openAccountModal,
-    loyaltyPointsBalance,
     openReferralModal,
     openMeetArtisanModal,
     cartAnimationKey,

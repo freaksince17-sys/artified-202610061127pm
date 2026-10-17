@@ -33,8 +33,7 @@ import { handleFirestoreError, OperationType } from '../utils/firestoreErrors';
 import { compressImage } from '../utils/imageCompressor';
 import { sanitizeForFirestore } from '../utils/firestoreSanitizer';
 import { sanitizeReviewItem, getProductReviews, isProductBestSeller } from '../utils/productStats';
-import { getLoyaltyAccount, earnPurchasePoints } from '../data/loyaltyData';
-import { LoyaltyAccount } from '../types';
+
 import { buildTrackedOrderFromOrderDetails, syncTrackedOrdersFromServer } from '../data/trackingData';
 import { saveOrderToFirestore, seedDemoOrdersToFirestore } from '../services/orderTrackingService';
 import { 
@@ -132,14 +131,14 @@ interface CartContextType {
   isOrderManagerOpen: boolean;
   setIsOrderManagerOpen: (val: boolean) => void;
   openOrderManager: (orderId?: string) => void;
+
   // Customer Account & Loyalty Points Dashboard
   isAccountModalOpen: boolean;
   setIsAccountModalOpen: (val: boolean) => void;
   openAccountModal: (tab?: 'rewards' | 'history' | 'tiers' | 'profile') => void;
   accountModalTab: 'rewards' | 'history' | 'tiers' | 'profile';
   setAccountModalTab: (tab: 'rewards' | 'history' | 'tiers' | 'profile') => void;
-  loyaltyPointsBalance: number;
-  loyaltyAccount: LoyaltyAccount;
+
   // Product Comparison Feature
   compareProducts: Product[];
   isCompareOpen: boolean;
@@ -243,6 +242,8 @@ interface CartContextType {
   // Product Navigation & Filtered Products Collection
   filteredProducts: Product[];
   navigateProduct: (direction: 'next' | 'prev') => void;
+  directPurchaseItem: CartItem | null;
+  setDirectPurchaseItem: (item: CartItem | null) => void;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
@@ -578,26 +579,17 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch {}
   }, [wishlist]);
 
+
   // Customer Loyalty & Account Modal State
   const [isAccountModalOpen, setIsAccountModalOpen] = useState<boolean>(false);
   const [accountModalTab, setAccountModalTab] = useState<'rewards' | 'history' | 'tiers' | 'profile'>('rewards');
-  const [loyaltyAccount, setLoyaltyAccount] = useState<LoyaltyAccount>(() => getLoyaltyAccount());
-  const [loyaltyPointsBalance, setLoyaltyPointsBalance] = useState<number>(() => getLoyaltyAccount().pointsBalance);
+  const [directPurchaseItem, setDirectPurchaseItem] = useState<CartItem | null>(null);
 
   const openAccountModal = (tab: 'rewards' | 'history' | 'tiers' | 'profile' = 'rewards') => {
     setAccountModalTab(tab);
     setIsAccountModalOpen(true);
   };
 
-  useEffect(() => {
-    const handleLoyaltyChange = () => {
-      const fresh = getLoyaltyAccount();
-      setLoyaltyAccount(fresh);
-      setLoyaltyPointsBalance(fresh.pointsBalance);
-    };
-    window.addEventListener('artified_loyalty_updated', handleLoyaltyChange);
-    return () => window.removeEventListener('artified_loyalty_updated', handleLoyaltyChange);
-  }, []);
 
   // Known local cover images for TikTok reels in /public/tiktok_videos
   const KNOWN_LOCAL_TIKTOK_COVERS: Record<string, string> = {
@@ -1900,34 +1892,24 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     customizationNote?: string,
     selectedColorOrStyle?: string
   ) => {
-    setCart((prev) => {
-      const noteHash = (customizationNote || '').trim().toLowerCase();
-      const styleHash = (selectedColorOrStyle || '').trim().toLowerCase();
-      const itemId = `${product.id}-${noteHash}-${styleHash}`;
-
-      const existingIndex = prev.findIndex((item) => item.id === itemId);
-      if (existingIndex > -1) {
-        const next = [...prev];
-        next[existingIndex] = {
-          ...next[existingIndex],
-          quantity: Math.max(next[existingIndex].quantity, quantity),
-        };
-        return next;
-      } else {
-        return [
-          ...prev,
-          {
-            id: itemId,
-            product,
-            quantity,
-            customizationNote: customizationNote?.trim() || undefined,
-            selectedColorOrStyle: selectedColorOrStyle?.trim() || undefined,
-          },
-        ];
-      }
-    });
+    // Treat as a direct purchase of a specific item, not adding to cart
+    const tempItem: CartItem = {
+      id: `quick-${product.id}-${Date.now()}`,
+      product,
+      quantity,
+      customizationNote: customizationNote?.trim() || undefined,
+      selectedColorOrStyle: selectedColorOrStyle?.trim() || undefined,
+    };
+    
+    // Set a temporary checkout item or just pass this to checkout modal
+    setCompletedOrder(null); // Reset
     setQuickViewProduct(null);
     setIsCartOpen(false);
+    
+    // We need a way to pass this temp item to CheckoutModal
+    // Let's create a temporary state for direct purchase
+    setDirectPurchaseItem(tempItem);
+    
     setIsCheckoutOpen(true);
   };
 
@@ -2058,8 +2040,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const cartCount = cart.reduce((acc, item) => acc + item.quantity, 0);
   const subtotal = cart.reduce((acc, item) => acc + item.product.price * item.quantity, 0);
   const deliveryFee = cart.length > 0 ? selectedDeliveryZone.fee : 0;
-  const giftPackagingFee = giftPackaging && cart.length > 0 ? GIFT_PACKAGING_COST : 0;
-  const total = Math.max(0, subtotal + deliveryFee + giftPackagingFee - discount);
+  const total = Math.max(0, subtotal + deliveryFee - discount);
 
   return (
     <CartContext.Provider
@@ -2076,15 +2057,10 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         cartCount,
         subtotal,
         deliveryFee,
-        giftPackagingFee,
         discount,
         total,
         selectedDeliveryZone,
         setSelectedDeliveryZone,
-        giftPackaging,
-        setGiftPackaging,
-        giftMessage,
-        setGiftMessage,
         orderNote,
         setOrderNote,
         promoCode,
@@ -2131,8 +2107,6 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         openAccountModal,
         accountModalTab,
         setAccountModalTab,
-        loyaltyPointsBalance,
-        loyaltyAccount,
         // Seller Mode & Products
         products,
         updateProduct,
@@ -2258,6 +2232,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isProductCompared,
         clearCompare,
         openCompareModal,
+        directPurchaseItem,
+        setDirectPurchaseItem,
       }}
     >
       {children}

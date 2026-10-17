@@ -88,22 +88,6 @@ export const CANONICAL_WORKSHOPS: WorkshopClassDef[] = [
     ]
   },
   {
-    id: 'ws-sunflower',
-    key: 'sunflower',
-    title: 'Waste Pipe to Sunflower Eco-Art Workshop',
-    schedule: 'Every Month',
-    location: 'Kathmandu Studio, Nepal',
-    instructor: 'Sahina Shrestha',
-    capacity: 12,
-    description: 'Transform discarded plastic waste pipes into vibrant, enduring sunflower masterpieces! In this upcycled eco-art masterclass led by Sahina Shrestha in Kathmandu, learn precision heat-shaping, core wiring, textured petal painting, and structural botanical assembly to turn everyday trash into stunning sustainable floral sculpture.',
-    whatsappMessage: 'Namaste Sahina! I would like to reserve a seat for the Waste Pipe to Sunflower Eco-Art Workshop in Kathmandu.',
-    techniques: [
-      'Upcycled Plastic Pipe Heat-Shaping',
-      'Chenille Stem Petal Loop Sculpting',
-      'Structured Floral Core Assembly'
-    ]
-  },
-  {
     id: 'ws-pearl-bag',
     key: 'pearl-bag',
     title: 'Bridal Pearl Bag & Bead Weaving Workshop',
@@ -117,6 +101,22 @@ export const CANONICAL_WORKSHOPS: WorkshopClassDef[] = [
       '4-Bead Cross-Weave High-Tension Grid',
       'Reinforced Monofilament Internal Locking',
       'Bridal Handle Arch Geometry & Satin Lining'
+    ]
+  },
+  {
+    id: 'ws-sunflower',
+    key: 'sunflower',
+    title: 'Waste Pipe to Sunflower Eco-Art Workshop',
+    schedule: 'Every Month',
+    location: 'Kathmandu Studio, Nepal',
+    instructor: 'Sahina Shrestha',
+    capacity: 12,
+    description: 'Transform discarded plastic waste pipes into vibrant, enduring sunflower masterpieces! In this upcycled eco-art masterclass led by Sahina Shrestha in Kathmandu, learn precision heat-shaping, core wiring, textured petal painting, and structural botanical assembly to turn everyday trash into stunning sustainable floral sculpture.',
+    whatsappMessage: 'Namaste Sahina! I would like to reserve a seat for the Waste Pipe to Sunflower Eco-Art Workshop in Kathmandu.',
+    techniques: [
+      'Upcycled Plastic Pipe Heat-Shaping',
+      'Chenille Stem Petal Loop Sculpting',
+      'Structured Floral Core Assembly'
     ]
   }
 ];
@@ -1178,51 +1178,45 @@ export const ArtifiedThreeWorkshopsPage: React.FC = () => {
           return (
             <div 
               key={cls.key}
-              className="relative w-full rounded-3xl bg-[#121110] border border-[#2D2A26] p-4 sm:p-7 shadow-2xl overflow-hidden transition-all duration-300"
+              className="relative w-full rounded-2xl bg-[#121110] border border-[#2D2A26] p-4 sm:p-5 shadow-lg overflow-hidden transition-all duration-300"
             >
               {/* Subtle top gold accent line */}
               <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[#C5A880]/60 to-transparent" />
 
-              {/* SELLER EDIT BUTTON (Only shown when authenticated as Seller) */}
+              {/* SELLER EDIT BUTTON */}
               {isSellerMode && (
-                <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
-                  <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-[#C5A880]/20 text-[#E6CA9E] border border-[#C5A880]/30 hidden sm:inline-block">
-                    Seller Admin
-                  </span>
+                <div className="absolute top-3 right-3 z-20 flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() => handleOpenEditWorkshop(cls)}
-                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#C5A880] hover:bg-[#b8986c] text-[#121110] text-xs font-bold uppercase tracking-wider transition-all shadow-md cursor-pointer hover:scale-103"
+                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-[#C5A880] hover:bg-[#b8986c] text-[#121110] text-[10px] font-bold uppercase tracking-wider transition-all shadow-md cursor-pointer"
                   >
-                    <Edit3 className="w-3.5 h-3.5" />
+                    <Edit3 className="w-3 h-3" />
                     <span>Edit</span>
                   </button>
                 </div>
               )}
 
-              {/* 2-Column Responsive Public Workshop Module matching Image 0 Style */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8 items-stretch pt-2">
+              {/* 2-Column Responsive Public Workshop Module */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6 items-stretch pt-2">
                 
-                {/* LEFT CARD (Image 0 Style: Logo, UPCOMING WORKSHOP BATCH badge, Title, Description, Footer metadata) */}
-                <div className="flex flex-col justify-between p-6 sm:p-8 rounded-2xl bg-[#181716] border border-[#2A2825] shadow-inner relative overflow-hidden">
-                  <div className="space-y-5">
-                    {/* Brand Logo & Class Batch indicator */}
+                {/* LEFT CARD */}
+                <div className="flex flex-col justify-between p-4 sm:p-6 rounded-xl bg-[#181716] border border-[#2A2825] shadow-inner relative overflow-hidden">
+                  <div className="space-y-3">
                     <div className="flex items-center justify-between gap-3">
                       <ArtifiedLogo variant="light" size="sm" />
-                      <span className="text-[10px] font-mono text-[#8C7A6B] uppercase tracking-widest">
-                        Module 0{idx + 1}
-                      </span>
                     </div>
 
                     {/* Workshop Heading */}
-                    <h3 className="font-serif text-2xl sm:text-3xl font-bold tracking-tight text-white leading-tight">
+                    <h3 className="font-serif text-xl sm:text-2xl font-bold tracking-tight text-white leading-tight">
                       {cls.title}
                     </h3>
 
                     {/* Workshop Description */}
-                    <p className="text-xs sm:text-sm text-[#A8A29D] leading-relaxed font-normal">
+                    <p className="text-xs text-[#A8A29D] leading-relaxed font-normal">
                       {cls.description}
                     </p>
+
 
                     {/* Technique Bullets */}
                     <div className="pt-2 flex flex-wrap gap-1.5">

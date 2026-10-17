@@ -10,13 +10,21 @@ import {
   Sparkles,
   Smartphone,
   CreditCard,
-  Building
+  Building,
+  RefreshCw
 } from 'lucide-react';
 import { 
   getSellerPaymentSettings, 
   saveSellerPaymentSettings, 
+  saveSellerPaymentSettingsAsync,
+  fetchPaymentSettingsFromServer,
   SellerPaymentSettings 
 } from '../data/paymentSettings';
+import { storage } from '../firebase';
+import { ref, uploadString, getDownloadURL } from 'firebase/storage';
+import { compressImage } from '../utils/imageCompressor';
+
+import jsQR from 'jsqr';
 
 interface SellerPaymentSettingsModalProps {
   isOpen: boolean;
@@ -29,41 +37,124 @@ export const SellerPaymentSettingsModal: React.FC<SellerPaymentSettingsModalProp
 }) => {
   const [settings, setSettings] = useState<SellerPaymentSettings>(getSellerPaymentSettings());
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [uploadProgressText, setUploadProgressText] = useState<string | null>(null);
+  const [qualityNotice, setQualityNotice] = useState<{ type: 'success' | 'warning'; message: string } | null>(null);
 
   useEffect(() => {
     if (isOpen) {
-      setSettings(getSellerPaymentSettings());
+      const currentLocal = getSellerPaymentSettings();
+      setSettings(currentLocal);
       setSavedSuccess(false);
+      setQualityNotice(null);
+      // Fetch fresh payment settings from cloud Firestore
+      fetchPaymentSettingsFromServer().then((fresh) => {
+        setSettings(fresh);
+      }).catch(() => {});
     }
   }, [isOpen]);
 
   if (!isOpen) return null;
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    saveSellerPaymentSettings(settings);
-    setSavedSuccess(true);
-    setTimeout(() => {
-      setSavedSuccess(false);
-      onClose();
-    }, 1200);
+    setIsSaving(true);
+    try {
+      await saveSellerPaymentSettingsAsync(settings);
+      setSavedSuccess(true);
+      setTimeout(() => {
+        setSavedSuccess(false);
+        onClose();
+      }, 1000);
+    } catch (err) {
+      console.error('Error saving payment settings:', err);
+      alert('Error committing settings to cloud. Local settings saved.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const handleFileUpload = (
+  const handleFileUpload = async (
     key: 'fonepayQrImage' | 'esewaQrImage' | 'khaltiQrImage',
     file: File | undefined
   ) => {
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      if (event.target?.result) {
-        setSettings((prev) => ({
-          ...prev,
-          [key]: event.target?.result as string
-        }));
+
+    setIsUploading(true);
+    setQualityNotice(null);
+    setUploadProgressText('Processing high-definition QR image...');
+    try {
+      console.log(`[QR Upload] Processing selected file for ${key}: name=${file.name}, size=${file.size}B, type=${file.type}`);
+      
+      // 1. Compress image to crystal-clear 1200px resolution (0.92 quality) for 100% scanner accuracy
+      const compressedDataUrl = await compressImage(file, 1200, 1200, 0.92);
+      console.log(`[QR Upload] High-definition compressed QR generated for ${key}, length=${compressedDataUrl.length}`);
+      
+      // 1.5 Client-side jsQR readability & contrast verification test
+      try {
+        const img = new Image();
+        img.src = compressedDataUrl;
+        await new Promise((res) => { img.onload = res; img.onerror = res; });
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth || 800;
+        canvas.height = img.naturalHeight || 800;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0);
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const code = jsQR(imageData.data, canvas.width, canvas.height);
+          if (code && code.data) {
+            setQualityNotice({
+              type: 'success',
+              message: `🟢 100% Scannable QR Verified! Payload: ${code.data}`
+            });
+          } else {
+            setQualityNotice({
+              type: 'warning',
+              message: '⚠️ Low Contrast or Unreadable Image Warning: Our scanner could not detect QR data in this photo. Please upload a higher-contrast, well-lit photo of your QR code!'
+            });
+          }
+        }
+      } catch (e) {
+        console.warn('QR scan check notice:', e);
       }
-    };
-    reader.readAsDataURL(file);
+
+      // 2. Instantly update form state AND commit to local/cloud storage so QR is never lost
+      const instantSettings = { ...settings, [key]: compressedDataUrl };
+      setSettings(instantSettings);
+      saveSellerPaymentSettings(instantSettings);
+
+      // 3. Attempt uploading to Firebase Storage CDN for cloud URL
+      setUploadProgressText('Uploading to Firebase Storage CDN...');
+      try {
+        const storagePath = `qr_codes/${key}_${Date.now()}.jpg`;
+        const storageRef = ref(storage, storagePath);
+        
+        const uploadTask = uploadString(storageRef, compressedDataUrl, 'data_url');
+        const timeoutTask = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Firebase Storage upload timed out after 6s')), 6000)
+        );
+
+        await Promise.race([uploadTask, timeoutTask]);
+        const cloudDownloadUrl = await getDownloadURL(storageRef);
+        console.log(`[QR Upload] ✅ Firebase Storage download URL obtained for ${key}:`, cloudDownloadUrl);
+
+        // Update settings with permanent Firebase Storage public download URL & commit
+        const cloudSettings = { ...instantSettings, [key]: cloudDownloadUrl };
+        setSettings(cloudSettings);
+        await saveSellerPaymentSettingsAsync(cloudSettings);
+      } catch (storageErr) {
+        console.warn(`[QR Upload] Notice: Cloud storage upload fallback, using persistent local base64:`, storageErr);
+      }
+
+    } catch (error) {
+      console.error("[QR Upload] Error processing file:", error);
+      alert("Failed to process QR code file. Please try selecting a valid image file.");
+    } finally {
+      setIsUploading(false);
+      setUploadProgressText(null);
+    }
   };
 
   return (
@@ -291,6 +382,33 @@ export const SellerPaymentSettingsModal: React.FC<SellerPaymentSettingsModalProp
             </div>
           </div>
 
+          {/* QR Readability & Contrast Verification Notice */}
+          {qualityNotice && (
+            <div className={`p-3 rounded-2xl border text-xs font-medium space-y-1 animate-fade-in ${
+              qualityNotice.type === 'success' 
+                ? 'bg-emerald-50 text-emerald-950 border-emerald-300' 
+                : 'bg-amber-50 text-amber-950 border-amber-300'
+            }`}>
+              <div className="flex items-start gap-2">
+                <ShieldCheck className={`w-4 h-4 shrink-0 mt-0.5 ${
+                  qualityNotice.type === 'success' ? 'text-emerald-600' : 'text-amber-600'
+                }`} />
+                <span className="leading-relaxed">{qualityNotice.message}</span>
+              </div>
+            </div>
+          )}
+
+          {/* Upload / Save Progress Indicator Banner */}
+          {(uploadProgressText || isUploading || isSaving) && (
+            <div className="p-2.5 bg-[#1C1B1A] text-[#D4AF37] text-[11px] font-semibold rounded-xl flex items-center justify-between gap-2 border border-[#D4AF37]/30 shadow-xs animate-fade-in">
+              <div className="flex items-center gap-2">
+                <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#D4AF37]" />
+                <span>{uploadProgressText || (isSaving ? 'Committing QR & Settings to Firestore...' : 'Uploading QR Code...')}</span>
+              </div>
+              <span className="text-[9px] uppercase tracking-wider text-[#A69E96]">Auto-Syncing</span>
+            </div>
+          )}
+
           {/* Footer Save Button */}
           <div className="pt-2 flex items-center justify-end gap-2">
             <button
@@ -303,12 +421,23 @@ export const SellerPaymentSettingsModal: React.FC<SellerPaymentSettingsModalProp
 
             <button
               type="submit"
-              className="px-5 py-2 bg-[#1C1B1A] hover:bg-black text-[#D4AF37] font-bold rounded-xl text-xs flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
+              disabled={isUploading || isSaving}
+              className={`px-5 py-2 bg-[#1C1B1A] ${(isUploading || isSaving) ? 'opacity-70 cursor-not-allowed' : 'hover:bg-black'} text-[#D4AF37] font-bold rounded-xl text-xs flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer`}
             >
-              {savedSuccess ? (
+              {isUploading ? (
+                <>
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  <span>Uploading QR...</span>
+                </>
+              ) : isSaving ? (
+                <>
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin text-emerald-400" />
+                  <span>Saving to Cloud...</span>
+                </>
+              ) : savedSuccess ? (
                 <>
                   <Check className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Saved Live!</span>
+                  <span>Saved Live to Firestore!</span>
                 </>
               ) : (
                 <>

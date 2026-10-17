@@ -181,43 +181,7 @@ export const CartDrawer: React.FC = () => {
                 ))}
               </div>
 
-              {/* Gift Packaging Box */}
-              <div className="bg-white dark:bg-[#181716] p-3.5 rounded-xl border border-[#E8DFD8] dark:border-[#2D2B28] space-y-2">
-                <label className="flex items-center justify-between cursor-pointer">
-                  <div className="flex items-center gap-2">
-                    <Gift className="w-4 h-4 text-[#C5A880]" />
-                    <div>
-                      <span className="text-xs font-semibold text-[#1C1B1A] dark:text-[#F5F2EB] block">
-                        Luxury Gift Packaging (+ Rs. 150)
-                      </span>
-                      <span className="text-[10px] text-[#736C65] dark:text-[#A69E96]">
-                        Satin gold ribbon, handmade gift box & handwritten note
-                      </span>
-                    </div>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={giftPackaging}
-                    onChange={(e) => {
-                      setGiftPackaging(e.target.checked);
-                      if (e.target.checked) setShowGiftMessageInput(true);
-                    }}
-                    className="w-4 h-4 accent-[#1C1B1A] rounded"
-                  />
-                </label>
 
-                {giftPackaging && (
-                  <div className="pt-2 border-t border-[#F0EBE5] dark:border-[#262422]">
-                    <textarea
-                      value={giftMessage}
-                      onChange={(e) => setGiftMessage(e.target.value)}
-                      placeholder="Write your personal gift message to be handwritten in calligraphy..."
-                      rows={2}
-                      className="w-full text-xs p-2 bg-[#FAF8F5] dark:bg-[#201F1D] border border-[#E8DFD8] dark:border-[#33302C] rounded-lg text-[#1C1B1A] dark:text-[#F5F2EB] focus:outline-none focus:border-[#C5A880]"
-                    />
-                  </div>
-                )}
-              </div>
 
               {/* Order instructions note */}
               <div className="bg-white dark:bg-[#181716] p-3.5 rounded-xl border border-[#E8DFD8] dark:border-[#2D2B28]">
