@@ -347,7 +347,7 @@ export const NavbarSearch: React.FC<NavbarSearchProps> = ({ isOpen, onClose }) =
                             <span className="text-xs font-bold text-[#1C1B1A]">
                               NPR {product.price.toLocaleString()}
                             </span>
-                            {product.originalPrice && (
+                            {product.originalPrice && product.originalPrice > product.price && (
                               <span className="text-[10px] text-[#9E9791] line-through ml-1.5">
                                 NPR {product.originalPrice.toLocaleString()}
                               </span>

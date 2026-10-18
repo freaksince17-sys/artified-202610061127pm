@@ -263,10 +263,12 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, isSelected = 
 
         {/* Pricing & Status block - Clean, uncongested, concise layout */}
         <div className="mt-1 pt-1 border-t border-[#F3F4F6] dark:border-[#262422]">
-          {/* Strikethrough original price */}
-          <div className="text-[9px] sm:text-[10px] text-[#8C847E] dark:text-[#7A736C] line-through leading-none">
-            NPR {displayOriginalPrice.toLocaleString()}
-          </div>
+          {/* Strikethrough original price - strictly shown only if explicitly set and higher than current price */}
+          {displayOriginalPrice > product.price && (
+            <div className="text-[9px] sm:text-[10px] text-[#8C847E] dark:text-[#7A736C] line-through leading-none">
+              NPR {displayOriginalPrice.toLocaleString()}
+            </div>
+          )}
 
           {/* Current bold price */}
           <div className="flex items-baseline justify-between gap-1 mt-0.5">
@@ -282,10 +284,12 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, isSelected = 
 
           {/* Discount & Sold count row */}
           <div className="flex items-center justify-between gap-1 mt-0.5 text-[9px] sm:text-[10px] leading-tight">
-            <span className="font-bold text-emerald-600 dark:text-emerald-400">
-              {discountPercent}% {t('offPercent')}
-            </span>
-            <span className="text-[#736C65] dark:text-[#A8A096] font-medium">
+            {discountPercent > 0 ? (
+              <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                {discountPercent}% {t('offPercent')}
+              </span>
+            ) : null}
+            <span className="text-[#736C65] dark:text-[#A8A096] font-medium ml-auto">
               {totalSold} {t('soldCount')}
             </span>
           </div>

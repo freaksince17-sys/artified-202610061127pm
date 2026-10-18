@@ -4,9 +4,10 @@ import { Product, ProductReviewItem } from '../types';
  * Calculates original reference price before discount
  */
 export function getDisplayOriginalPrice(product: Product): number {
-  return product.originalPrice && product.originalPrice > product.price
-    ? product.originalPrice
-    : Math.round((product.price * 1.2) / 50) * 50;
+  if (product && product.originalPrice && product.originalPrice > product.price) {
+    return product.originalPrice;
+  }
+  return product ? Math.round((product.price * 1.2) / 50) * 50 : 0;
 }
 
 /**
