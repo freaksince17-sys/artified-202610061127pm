@@ -13,8 +13,8 @@ export interface Product {
   title: string;
   subtitle: string;
   category: 'pearl-bags' | 'pearl-necklaces' | 'macrame' | 'accessories' | 'custom-beaded';
-  price: number; // In NPR (Rs.)
-  originalPrice?: number; // In NPR (Rs.)
+  price: number; // In NPR
+  originalPrice?: number; // In NPR
   rating: number;
   reviewsCount: number;
   soldCount?: number;
@@ -199,6 +199,7 @@ export interface TrackedOrderData {
   deliveryZoneName: string;
   paymentMethodText: string;
   paymentStatus: string;
+  paymentScreenshot?: string;
   items: Array<{
     title: string;
     image: string;
@@ -207,6 +208,11 @@ export interface TrackedOrderData {
     customization?: string;
   }>;
   total: number;
+  subtotal?: number;
+  deliveryFee?: number;
+  updatedAt?: string;
+  statusRevision?: number;
+  legacyOrderId?: string;
   orderPlacedDate: string;
   estimatedDeliveryDate: string;
   currentPhase: OrderProductionPhase;

@@ -15,13 +15,13 @@ const TRANSLATIONS: Record<Language, Record<string, string>> = {
     brandName: 'Artified_np',
     brandTagline: '-Art made with love',
     atelierLocation: 'Kathmandu, Nepal',
-    pricingInNpr: 'Pricing in NPR (Rs.)',
+    pricingInNpr: 'Pricing in NPR',
     currencyNpr: 'NPR',
 
     // Announcement Bar
     announcementStore: 'Store: Kathmandu, Nepal',
     announcementText: 'Handcrafted in Kathmandu, Nepal • Easy exchange within 24 hrs',
-    referFriendGet: 'Refer a Friend • Get Rs. 250',
+    referFriendGet: 'Refer a Friend • Get NPR 250',
 
     // Navigation Tabs
     navCreations: 'Creations',

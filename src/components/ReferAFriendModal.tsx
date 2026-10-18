@@ -125,11 +125,11 @@ export const ReferAFriendModal: React.FC<ReferAFriendModalProps> = ({ isOpen, on
             </div>
 
             <h2 className="font-serif text-2xl sm:text-3xl font-bold tracking-tight text-white leading-tight">
-              Give 10%, Get Rs. 250 Off
+              Give 10%, Get NPR 250 Off
             </h2>
 
             <p className="text-xs sm:text-sm text-[#D8CFCA] leading-relaxed">
-              Invite your friends and bridesmaids to experience handcrafted elegance from Kathmandu, Nepal. They receive 10% off their first order, and you unlock Rs. 250 credit!
+              Invite your friends and bridesmaids to experience handcrafted elegance from Kathmandu, Nepal. They receive 10% off their first order, and you unlock NPR 250 credit!
             </p>
           </div>
         </div>
@@ -159,7 +159,7 @@ export const ReferAFriendModal: React.FC<ReferAFriendModalProps> = ({ isOpen, on
               <span className="w-6 h-6 rounded-full bg-[#FAF8F5] text-[#1C1B1A] font-bold text-xs flex items-center justify-center mx-auto border border-[#E8DFD8]">
                 3
               </span>
-              <p className="font-semibold text-xs text-[#1C1B1A]">You Get Rs. 250</p>
+              <p className="font-semibold text-xs text-[#1C1B1A]">You Get NPR 250</p>
               <p className="text-[10px] text-[#736C65]">+ 200 Loyalty Pts</p>
             </div>
           </div>
@@ -214,7 +214,7 @@ export const ReferAFriendModal: React.FC<ReferAFriendModalProps> = ({ isOpen, on
             </button>
           </div>
 
-          {/* Unlocked Reward Section: Rs. 250 Off Voucher */}
+          {/* Unlocked Reward Section: NPR 250 Off Voucher */}
           <div className="p-4 rounded-2xl bg-gradient-to-br from-amber-50/70 via-white to-amber-50/70 border border-[#D4AF37]/50 space-y-2.5">
             <div className="flex items-center justify-between">
               <div>
@@ -222,7 +222,7 @@ export const ReferAFriendModal: React.FC<ReferAFriendModalProps> = ({ isOpen, on
                   Your Available Reward
                 </span>
                 <h4 className="font-serif text-base font-bold text-[#1C1B1A]">
-                  Rs. {referralData.rewardDiscountAmount} Discount Code
+                  NPR {referralData.rewardDiscountAmount} Discount Code
                 </h4>
               </div>
 
@@ -249,7 +249,7 @@ export const ReferAFriendModal: React.FC<ReferAFriendModalProps> = ({ isOpen, on
               ) : (
                 <>
                   <Gift className="w-4 h-4" />
-                  <span>Apply Rs. {referralData.rewardDiscountAmount} Code to Checkout</span>
+                  <span>Apply NPR {referralData.rewardDiscountAmount} Code to Checkout</span>
                 </>
               )}
             </button>

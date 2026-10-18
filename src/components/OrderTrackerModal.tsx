@@ -18,12 +18,20 @@ import {
   Check
 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
-import { getTrackedOrder, updateOrderPhase, normalizeOrderId } from '../data/trackingData';
+import { 
+  getTrackedOrder, 
+  updateOrderPhase, 
+  normalizeOrderId, 
+  sanitizeOrderItems,
+  getOrderDeliveryFee,
+  getOrderItemsSubtotal
+} from '../data/trackingData';
 import { TrackedOrderData, OrderProductionPhase } from '../types';
 import { getStoredOrderNotifications, markNotificationsAsRead, OrderNotification } from '../utils/orderNotificationManager';
 import { OrderProgressManagerModal } from './OrderProgressManagerModal';
 import { DeliveryProgressMap } from './DeliveryProgressMap';
 import { subscribeToTrackedOrder } from '../services/orderTrackingService';
+import { getRealProductImage, CAVIAR_PEARL_BAG_IMAGE } from '../utils/productImages';
 
 export const OrderTrackerModal: React.FC = () => {
   const { 
@@ -52,17 +60,27 @@ export const OrderTrackerModal: React.FC = () => {
   // Active Firestore unsubscribe reference
   const unsubscribeRef = React.useRef<(() => void) | null>(null);
 
-  // When trackingOrderId changes or modal opens, only perform lookup if an order ID is explicitly provided
+  // When modal opens, only perform lookup if an order ID was explicitly passed, then clear trackingOrderId so refresh/reopen is private
   useEffect(() => {
+    try {
+      localStorage.removeItem('artified_last_order_id');
+    } catch {}
+
     if (isTrackerOpen) {
-      const targetId = trackingOrderId || completedOrder?.orderId || '';
-      if (targetId) {
+      if (trackingOrderId && trackingOrderId.trim()) {
+        const targetId = trackingOrderId.trim();
         setInputOrderId(targetId);
+        setTrackingOrderId('');
         performLookup(targetId);
       } else {
         setInputOrderId('');
         setTrackedOrder(null);
+        setErrorMsg(null);
       }
+    } else {
+      setInputOrderId('');
+      setTrackedOrder(null);
+      setErrorMsg(null);
     }
 
     return () => {
@@ -71,7 +89,7 @@ export const OrderTrackerModal: React.FC = () => {
         unsubscribeRef.current = null;
       }
     };
-  }, [isTrackerOpen, trackingOrderId, completedOrder]);
+  }, [isTrackerOpen]);
 
   // Listen for order updates and status alerts from localStorage
   useEffect(() => {
@@ -91,7 +109,7 @@ export const OrderTrackerModal: React.FC = () => {
             setTrackingOrderId('');
             setErrorMsg(`We couldn't locate an order with ID "${inputOrderId || currentNorm}". Please verify your order number or consult our WhatsApp support.`);
           } else if (customEvent.detail.items) {
-            setTrackedOrder(customEvent.detail);
+            setTrackedOrder(sanitizeOrderItems(customEvent.detail));
           }
         }
       }
@@ -113,9 +131,10 @@ export const OrderTrackerModal: React.FC = () => {
     };
   }, [trackedOrder, inputOrderId]);
 
-  const performLookup = (idToLookup: string) => {
-    if (!idToLookup.trim()) {
-      setErrorMsg('Please enter a valid Order ID (e.g. #ART-2026-8842)');
+  const performLookup = async (idToLookup: string) => {
+    const query = idToLookup.trim();
+    if (!query) {
+      setErrorMsg('Please enter a valid Order ID (e.g. #ART-2026-1000)');
       setTrackedOrder(null);
       return;
     }
@@ -129,17 +148,17 @@ export const OrderTrackerModal: React.FC = () => {
       unsubscribeRef.current = null;
     }
 
-    // Set up real-time listener on Firestore document
+    // Set up real-time listener on Order ID only
     unsubscribeRef.current = subscribeToTrackedOrder(
-      idToLookup,
+      query,
       (order) => {
         setIsSearching(false);
         if (order) {
-          setTrackedOrder(order);
+          setTrackedOrder(sanitizeOrderItems(order));
           setErrorMsg(null);
         } else {
           setTrackedOrder(null);
-          setErrorMsg(`We couldn't locate an order with ID "${idToLookup}". Please verify your order number or consult our WhatsApp support.`);
+          setErrorMsg(`We couldn't locate an order with ID "${query}". Please verify your Order ID or consult our WhatsApp support.`);
         }
       },
       () => {
@@ -239,8 +258,15 @@ export const OrderTrackerModal: React.FC = () => {
               <input
                 type="text"
                 value={inputOrderId}
-                onChange={(e) => setInputOrderId(e.target.value)}
-                placeholder="Enter Order ID (e.g. ART-2026-8842 or ART-2026-5521)"
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setInputOrderId(val);
+                  if (!val.trim()) {
+                    setTrackedOrder(null);
+                    setErrorMsg(null);
+                  }
+                }}
+                placeholder="Enter Order ID (e.g. #ART-2026-1000)"
                 className="w-full pl-9 pr-3 py-2 bg-[#FAF8F5] border border-[#E8DFD8] rounded-xl text-xs text-[#1C1B1A] focus:outline-none focus:border-[#C5A880]"
               />
             </div>
@@ -333,43 +359,45 @@ export const OrderTrackerModal: React.FC = () => {
           {trackedOrder && (
             <div className="space-y-6">
 
-              {/* Status Simulation Controls for Quick Testing */}
-              <div className="p-3 bg-[#FAF8F5] rounded-2xl border border-[#E8DFD8] flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] uppercase tracking-wider font-bold text-[#8C7A6B] flex items-center gap-1">
-                    <Sparkles className="w-3 h-3 text-[#D4AF37]" />
-                    <span>Notification System:</span>
-                  </span>
-                  <span className="text-[11px] text-[#5E5955]">
-                    Current: <strong className="text-[#1C1B1A] uppercase">{trackedOrder.currentPhase.replace(/_/g, ' ')}</strong>
-                  </span>
-                </div>
+              {/* Status Simulation Controls (Seller Only) */}
+              {isSellerMode && (
+                <div className="p-3 bg-[#FAF8F5] rounded-2xl border border-[#E8DFD8] flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] uppercase tracking-wider font-bold text-[#8C7A6B] flex items-center gap-1">
+                      <Sparkles className="w-3 h-3 text-[#D4AF37]" />
+                      <span>Seller Quick Status:</span>
+                    </span>
+                    <span className="text-[11px] text-[#5E5955]">
+                      Current: <strong className="text-[#1C1B1A] uppercase">{trackedOrder.currentPhase.replace(/_/g, ' ')}</strong>
+                    </span>
+                  </div>
 
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <button
-                    type="button"
-                    onClick={() => handleInlinePhaseChange('out_for_delivery')}
-                    className={`px-2.5 py-1 text-[10px] font-bold uppercase rounded-lg border transition-all cursor-pointer ${
-                      trackedOrder.currentPhase === 'out_for_delivery'
-                        ? 'bg-[#1C1B1A] text-[#D4AF37] border-[#1C1B1A]'
-                        : 'bg-white hover:bg-amber-50 border-[#E8DFD8] text-[#1C1B1A]'
-                    }`}
-                  >
-                    ⚡ Move to Shipped (Out for Delivery)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleInlinePhaseChange('delivered')}
-                    className={`px-2.5 py-1 text-[10px] font-bold uppercase rounded-lg border transition-all cursor-pointer ${
-                      trackedOrder.currentPhase === 'delivered'
-                        ? 'bg-emerald-700 text-white border-emerald-700'
-                        : 'bg-white hover:bg-emerald-50 border-[#E8DFD8] text-emerald-800'
-                    }`}
-                  >
-                    ⚡ Move to Delivered
-                  </button>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => handleInlinePhaseChange('out_for_delivery')}
+                      className={`px-2.5 py-1 text-[10px] font-bold uppercase rounded-lg border transition-all cursor-pointer ${
+                        trackedOrder.currentPhase === 'out_for_delivery'
+                          ? 'bg-[#1C1B1A] text-[#D4AF37] border-[#1C1B1A]'
+                          : 'bg-white hover:bg-amber-50 border-[#E8DFD8] text-[#1C1B1A]'
+                      }`}
+                    >
+                      ⚡ Move to Shipped (Out for Delivery)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleInlinePhaseChange('delivered')}
+                      className={`px-2.5 py-1 text-[10px] font-bold uppercase rounded-lg border transition-all cursor-pointer ${
+                        trackedOrder.currentPhase === 'delivered'
+                          ? 'bg-emerald-700 text-white border-emerald-700'
+                          : 'bg-white hover:bg-emerald-50 border-[#E8DFD8] text-emerald-800'
+                      }`}
+                    >
+                      ⚡ Move to Delivered
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
               
               {/* Order High-Level Status Card */}
               <div className="bg-white p-5 rounded-2xl border border-[#E8DFD8] shadow-xs space-y-4">
@@ -394,34 +422,80 @@ export const OrderTrackerModal: React.FC = () => {
                 </div>
 
                 {/* Progress Bar with Phase Header (4 exact stages) */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-semibold text-[#1C1B1A] flex items-center gap-1.5">
-                      <Sparkles className="w-3.5 h-3.5 text-[#C5A880]" />
-                      <span>
-                        {trackedOrder.currentPhase === 'confirmed' && '1. Order Confirmed & Paid'}
-                        {(trackedOrder.currentPhase === 'handcrafting_and_packaging' || 
-                          trackedOrder.currentPhase === 'beading_in_progress' || 
-                          trackedOrder.currentPhase === 'quality_and_packaging') && '2. Handcrafting & Packaging'}
-                        {trackedOrder.currentPhase === 'out_for_delivery' && '3. Dispatched & In-Transit (Out for Delivery)'}
-                        {trackedOrder.currentPhase === 'delivered' && '4. Delivered to Doorstep'}
-                      </span>
-                    </span>
-                    <span className="font-bold text-[#C5A880]">
-                      {trackedOrder.progressPercentage}%
-                    </span>
-                  </div>
+                {(() => {
+                  const modalPhases: Array<{
+                    key: OrderProductionPhase;
+                    label: string;
+                    sublabel: string;
+                    icon: React.ComponentType<{ className?: string }>;
+                  }> = [
+                    { key: 'confirmed', label: '1. Order Confirmed & Paid', sublabel: 'Materials reserved', icon: Package },
+                    { key: 'handcrafting_and_packaging', label: '2. Handcrafting & Packaging', sublabel: 'By Sahina Shrestha', icon: Sparkles },
+                    { key: 'out_for_delivery', label: '3. Dispatch & In-Transit', sublabel: 'Courier handover', icon: Truck },
+                    { key: 'delivered', label: '4. Delivered', sublabel: 'Doorstep handover', icon: CheckCircle2 }
+                  ];
+                  const modalIdx =
+                    trackedOrder.currentPhase === 'delivered'
+                      ? 3
+                      : trackedOrder.currentPhase === 'out_for_delivery'
+                      ? 2
+                      : trackedOrder.currentPhase === 'handcrafting_and_packaging' ||
+                        trackedOrder.currentPhase === 'beading_in_progress' ||
+                        trackedOrder.currentPhase === 'quality_and_packaging'
+                      ? 1
+                      : 0;
 
-                  {/* Visual Progress Bar */}
-                  <div className="w-full h-2.5 bg-[#FAF8F5] rounded-full overflow-hidden border border-[#E8DFD8]">
-                    <div 
-                      className="h-full bg-gradient-to-r from-[#D4AF37] to-[#C5A880] rounded-full transition-all duration-700 relative"
-                      style={{ width: `${trackedOrder.progressPercentage}%` }}
-                    >
-                      <span className="absolute inset-0 bg-white/20 animate-pulse" />
+                  return (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#C5A880]">
+                          Progress Timeline ({trackedOrder.progressPercentage}%)
+                        </span>
+                        <span className="font-semibold text-[#1C1B1A]">
+                          Current Status: <strong className="text-[#C5A880]">{modalPhases[modalIdx]?.label}</strong>
+                        </span>
+                      </div>
+
+                      <div className="relative pt-1">
+                        <div className="block absolute top-5 left-0 w-full h-[2.5px] bg-[#E8DFD8] -translate-y-1/2 z-0 rounded-full" />
+                        <div
+                          className="block absolute top-5 left-0 h-[2.5px] bg-gradient-to-r from-[#D4AF37] to-[#C5A880] -translate-y-1/2 z-0 transition-all duration-700 rounded-full"
+                          style={{ width: `${modalIdx >= modalPhases.length - 1 ? 100 : modalIdx * 25 + 19}%` }}
+                        />
+                        <div className="grid grid-cols-4 gap-1.5 sm:gap-2.5 relative z-10">
+                          {modalPhases.map((phase, idx) => {
+                            const isDone = idx <= modalIdx;
+                            const isCurrent = idx === modalIdx;
+                            const IconComp = phase.icon;
+                            return (
+                              <div key={phase.key} className="flex flex-col items-center gap-1.5 text-center">
+                                <div
+                                  className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-all ${
+                                    isCurrent
+                                      ? 'bg-[#C5A880] text-white shadow-sm ring-2 ring-[#C5A880]/30'
+                                      : isDone
+                                      ? 'bg-[#C5A880] text-white shadow-2xs'
+                                      : 'bg-[#F0EBE5] text-[#8C847E]'
+                                  }`}
+                                >
+                                  <IconComp className="w-3.5 h-3.5" />
+                                </div>
+                                <div className="mt-0.5">
+                                  <p className={`text-[10px] sm:text-xs font-bold leading-tight ${isDone ? 'text-[#1C1B1A]' : 'text-[#8C847E]'}`}>
+                                    {phase.label}
+                                  </p>
+                                  <p className="text-[9px] sm:text-[10px] text-[#736C65] mt-0.5">
+                                    {phase.sublabel}
+                                  </p>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
+                  );
+                })()}
 
                 {/* Handcrafter & Workshop Card */}
                 <div className="bg-[#FAF8F5] p-3.5 rounded-xl border border-[#E8DFD8] flex items-start gap-3">
@@ -560,14 +634,17 @@ export const OrderTrackerModal: React.FC = () => {
                   {trackedOrder.items.map((item, idx) => (
                     <div key={idx} className="flex items-center gap-3">
                       <img 
-                        src={item.image} 
+                        src={getRealProductImage(item.title, item.image)} 
                         alt={item.title} 
-                        className="w-12 h-12 rounded-xl object-cover border border-[#E8DFD8] shrink-0"
+                        onError={(e) => {
+                          (e.currentTarget as HTMLImageElement).src = CAVIAR_PEARL_BAG_IMAGE;
+                        }}
+                        className="w-12 h-12 rounded-xl object-cover border border-[#E8DFD8] shrink-0 bg-white"
                       />
                       <div className="flex-1 min-w-0 text-xs">
                         <p className="font-semibold text-[#1C1B1A] truncate">{item.title}</p>
                         <p className="text-[11px] text-[#736C65]">
-                          Qty: {item.quantity} • NPR {item.price.toLocaleString()}
+                          Qty: {item.quantity ?? 1} • NPR {(Number(item.price) || 0).toLocaleString()}
                         </p>
                         {item.customization && (
                           <p className="text-[10px] text-[#C5A880] italic">
@@ -579,11 +656,21 @@ export const OrderTrackerModal: React.FC = () => {
                   ))}
                 </div>
 
-                <div className="pt-3 border-t border-[#F0EBE5] flex items-center justify-between text-xs">
-                  <span className="text-[#736C65]">Total Paid / Due</span>
-                  <span className="font-bold text-[#1C1B1A] font-mono text-sm">
-                    NPR {trackedOrder.total.toLocaleString()} ({trackedOrder.paymentStatus})
-                  </span>
+                <div className="pt-3 border-t border-[#F0EBE5] space-y-1.5 text-xs">
+                  <div className="flex items-center justify-between text-[#736C65]">
+                    <span>Items Subtotal</span>
+                    <span className="font-mono">NPR {getOrderItemsSubtotal(trackedOrder).toLocaleString()}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-[#736C65]">
+                    <span>Delivery Charge ({trackedOrder.deliveryZoneName})</span>
+                    <span className="font-mono">NPR {getOrderDeliveryFee(trackedOrder).toLocaleString()}</span>
+                  </div>
+                  <div className="pt-1.5 border-t border-[#F0EBE5] flex items-center justify-between">
+                    <span className="font-semibold text-[#1C1B1A]">Total Paid / Due</span>
+                    <span className="font-bold text-[#1C1B1A] font-mono text-sm">
+                      NPR {(Number(trackedOrder.total) || 0).toLocaleString()} ({trackedOrder.paymentStatus || 'Verified'})
+                    </span>
+                  </div>
                 </div>
 
                 <div className="bg-[#FAF8F5] p-3 rounded-xl border border-[#E8DFD8] text-xs space-y-1">
@@ -592,7 +679,7 @@ export const OrderTrackerModal: React.FC = () => {
                   </span>
                   <p className="font-medium text-[#1C1B1A]">{trackedOrder.customerName} ({trackedOrder.phone})</p>
                   <p className="text-[#5E5955]">{trackedOrder.deliveryAddress}</p>
-                  <p className="text-[11px] text-[#736C65]">{trackedOrder.deliveryZoneName}</p>
+                  <p className="text-[11px] text-[#736C65]">{trackedOrder.deliveryZoneName} • Delivery Charge: NPR {getOrderDeliveryFee(trackedOrder).toLocaleString()}</p>
                 </div>
               </div>
 

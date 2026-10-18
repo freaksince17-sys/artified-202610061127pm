@@ -3,9 +3,7 @@ import { Lock, KeyRound, Check, X, ShieldAlert, ShieldCheck, Eye, EyeOff, Loader
 import { 
   validateSellerPassword, 
   validateSellerPasswordAsync,
-  setCustomSellerPasswordAsync, 
-  isCustomPasswordSet,
-  resetSellerPasswordToDefaultAsync 
+  setCustomSellerPasswordAsync
 } from '../utils/sellerAuthService';
 
 interface SellerChangePasswordModalProps {
@@ -28,8 +26,6 @@ export const SellerChangePasswordModal: React.FC<SellerChangePasswordModalProps>
 
   if (!isOpen) return null;
 
-  const hasCustom = isCustomPasswordSet();
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSaving) return;
@@ -47,8 +43,8 @@ export const SellerChangePasswordModal: React.FC<SellerChangePasswordModalProps>
       }
 
       // 2. Validate new password
-      if (newPass.trim().length < 4) {
-        setErrorMsg('New password must be at least 4 characters long.');
+      if (newPass.trim().length < 6) {
+        setErrorMsg('New password must be at least 6 characters long for security.');
         setIsSaving(false);
         return;
       }
@@ -68,7 +64,7 @@ export const SellerChangePasswordModal: React.FC<SellerChangePasswordModalProps>
         return;
       }
 
-      setSuccessMsg('Seller Studio password successfully updated & hashed to Firebase!');
+      setSuccessMsg('Seller Studio password successfully updated & SHA-256 hashed!');
       setTimeout(() => {
         onClose();
         setCurrentPass('');
@@ -80,20 +76,6 @@ export const SellerChangePasswordModal: React.FC<SellerChangePasswordModalProps>
     } catch (err: any) {
       setErrorMsg(err?.message || 'Error updating password');
       setIsSaving(false);
-    }
-  };
-
-  const handleReset = async () => {
-    if (window.confirm('Reset Seller Studio password back to the default (1234)?')) {
-      await resetSellerPasswordToDefaultAsync();
-      setSuccessMsg('Password reset to default (1234).');
-      setTimeout(() => {
-        onClose();
-        setCurrentPass('');
-        setNewPass('');
-        setConfirmPass('');
-        setSuccessMsg('');
-      }, 1200);
     }
   };
 
@@ -113,7 +95,7 @@ export const SellerChangePasswordModal: React.FC<SellerChangePasswordModalProps>
                 Change Studio Password
               </h3>
               <p className="text-[11px] text-[#736C65] tracking-wide uppercase font-medium">
-                {hasCustom ? 'Update Secure Passcode' : 'Set Your First Custom Passcode'}
+                Update Secure Passcode
               </p>
             </div>
           </div>
@@ -149,7 +131,7 @@ export const SellerChangePasswordModal: React.FC<SellerChangePasswordModalProps>
           {/* Current Password */}
           <div>
             <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#1C1B1A] mb-1">
-              Current Passcode {hasCustom ? '' : '(Default is 1234)'}
+              Current Passcode
             </label>
             <div className="relative">
               <KeyRound className="w-3.5 h-3.5 text-[#8C7A6B] absolute left-3 top-1/2 -translate-y-1/2" />
@@ -158,7 +140,7 @@ export const SellerChangePasswordModal: React.FC<SellerChangePasswordModalProps>
                 value={currentPass}
                 onChange={(e) => setCurrentPass(e.target.value)}
                 required
-                placeholder={hasCustom ? 'Enter current password' : 'Enter 1234'}
+                placeholder="Enter current password"
                 className="w-full pl-9 pr-9 py-2 bg-white border border-[#E8DFD8] focus:border-[#C5A880] text-xs rounded-xl focus:outline-none text-[#1C1B1A]"
               />
               <button
@@ -229,18 +211,6 @@ export const SellerChangePasswordModal: React.FC<SellerChangePasswordModalProps>
               Cancel
             </button>
           </div>
-
-          {hasCustom && (
-            <div className="text-center pt-1 border-t border-[#E8DFD8]/60">
-              <button
-                type="button"
-                onClick={handleReset}
-                className="text-[10px] text-[#A69E96] hover:text-rose-600 transition-colors"
-              >
-                Reset to default password (1234)
-              </button>
-            </div>
-          )}
         </form>
       </div>
     </div>

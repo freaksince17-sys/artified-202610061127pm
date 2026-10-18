@@ -195,7 +195,7 @@ export const SellerPaymentSettingsModal: React.FC<SellerPaymentSettingsModalProp
         <div className="p-3 bg-amber-50 border-b border-amber-200/70 text-xs text-amber-900 flex items-start gap-2 shrink-0">
           <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
           <p className="text-[11px] leading-relaxed">
-            <strong>Zero Fees Guarantee:</strong> Official merchant gateway APIs charge 1.5% to 3% on every sale. Using Sahina Shrestha's personal QR (Fonepay, eSewa, Khalti) is completely free, and customers can pay from all Nepali banking apps!
+            <strong>Zero Fees Guarantee:</strong> Official merchant gateway APIs charge 1.5% to 3% on every sale. Using Sahina Shrestha's personal QR is completely free with 0% commission!
           </p>
         </div>
 
@@ -226,7 +226,7 @@ export const SellerPaymentSettingsModal: React.FC<SellerPaymentSettingsModalProp
 
               <div>
                 <label className="block text-[11px] font-semibold text-[#1C1B1A] mb-1">
-                  Mobile / eSewa / Khalti ID *
+                  Mobile / eSewa ID *
                 </label>
                 <div className="relative">
                   <Smartphone className="w-3.5 h-3.5 text-[#8C847E] absolute left-2.5 top-1/2 -translate-y-1/2" />
@@ -245,7 +245,7 @@ export const SellerPaymentSettingsModal: React.FC<SellerPaymentSettingsModalProp
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               <div>
                 <label className="block text-[11px] font-semibold text-[#1C1B1A] mb-1">
-                  Bank / Network Name
+                  eSewa QR Number / Network
                 </label>
                 <div className="relative">
                   <Building className="w-3.5 h-3.5 text-[#8C847E] absolute left-2.5 top-1/2 -translate-y-1/2" />
@@ -253,7 +253,7 @@ export const SellerPaymentSettingsModal: React.FC<SellerPaymentSettingsModalProp
                     type="text"
                     value={settings.bankName}
                     onChange={(e) => setSettings({ ...settings, bankName: e.target.value })}
-                    placeholder="Global IME Bank (Fonepay Network)"
+                    placeholder="+9779813028999 (eSewa Direct)"
                     className="w-full pl-8 pr-2.5 py-1.5 bg-[#FAF8F5] border border-[#E8DFD8] rounded-lg text-xs text-[#1C1B1A] focus:outline-none focus:border-[#C5A880]"
                   />
                 </div>
@@ -274,111 +274,216 @@ export const SellerPaymentSettingsModal: React.FC<SellerPaymentSettingsModalProp
             </div>
           </div>
 
+          {/* Seller QR Visibility Controls */}
+          <div className="bg-white p-3.5 rounded-2xl border border-[#E8DFD8] space-y-2.5 shadow-2xs">
+            <div className="flex items-center justify-between">
+              <h4 className="text-[11px] font-bold uppercase tracking-wider text-[#1C1B1A] flex items-center gap-1.5">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Website Payment QR Visibility (Seller Control)</span>
+              </h4>
+              <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                eSewa Active • Others Hidden
+              </span>
+            </div>
+            <p className="text-[11px] text-[#736C65] leading-relaxed">
+              Only the QR options enabled below are shown to buyers across the website (Checkout, QR Modal, Footer, and FAQs). Turn on Khalti or Fonepay anytime in the future when you wish to display them.
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
+              {/* eSewa Toggle */}
+              <label className={`p-2.5 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
+                settings.enableEsewa !== false
+                  ? 'bg-emerald-50/70 border-[#60BB46] text-[#1C1B1A]'
+                  : 'bg-[#FAF8F5] border-[#E8DFD8] text-[#736C65]'
+              }`}>
+                <div className="flex items-center gap-2">
+                  <span className="w-4 h-4 rounded-full bg-[#60BB46] text-white font-bold text-[9px] flex items-center justify-center">e</span>
+                  <div>
+                    <span className="text-[11px] font-bold block leading-tight">eSewa QR</span>
+                    <span className="text-[9px] text-emerald-700 font-semibold">
+                      {settings.enableEsewa !== false ? 'Shown on site' : 'Hidden on site'}
+                    </span>
+                  </div>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={settings.enableEsewa !== false}
+                  onChange={(e) => {
+                    const updated = { ...settings, enableEsewa: e.target.checked };
+                    setSettings(updated);
+                    saveSellerPaymentSettings(updated);
+                  }}
+                  className="accent-[#60BB46] w-4 h-4 cursor-pointer"
+                />
+              </label>
+
+              {/* Fonepay Toggle */}
+              <label className={`p-2.5 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
+                settings.enableFonepay === true
+                  ? 'bg-rose-50/70 border-[#E21A22] text-[#1C1B1A]'
+                  : 'bg-[#FAF8F5] border-[#E8DFD8] text-[#736C65]'
+              }`}>
+                <div className="flex items-center gap-2">
+                  <span className="w-4 h-4 rounded bg-[#E21A22] text-white font-bold text-[8px] flex items-center justify-center">FP</span>
+                  <div>
+                    <span className="text-[11px] font-bold block leading-tight">Fonepay QR</span>
+                    <span className="text-[9px] font-semibold">
+                      {settings.enableFonepay === true ? 'Shown on site' : 'Hidden on site'}
+                    </span>
+                  </div>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={settings.enableFonepay === true}
+                  onChange={(e) => {
+                    const updated = { ...settings, enableFonepay: e.target.checked };
+                    setSettings(updated);
+                    saveSellerPaymentSettings(updated);
+                  }}
+                  className="accent-[#E21A22] w-4 h-4 cursor-pointer"
+                />
+              </label>
+
+              {/* Khalti Toggle */}
+              <label className={`p-2.5 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
+                settings.enableKhalti === true
+                  ? 'bg-purple-50/70 border-[#5D2E8E] text-[#1C1B1A]'
+                  : 'bg-[#FAF8F5] border-[#E8DFD8] text-[#736C65]'
+              }`}>
+                <div className="flex items-center gap-2">
+                  <span className="w-4 h-4 rounded-full bg-[#5D2E8E] text-white font-bold text-[9px] flex items-center justify-center">K</span>
+                  <div>
+                    <span className="text-[11px] font-bold block leading-tight">Khalti QR</span>
+                    <span className="text-[9px] font-semibold">
+                      {settings.enableKhalti === true ? 'Shown on site' : 'Hidden on site'}
+                    </span>
+                  </div>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={settings.enableKhalti === true}
+                  onChange={(e) => {
+                    const updated = { ...settings, enableKhalti: e.target.checked };
+                    setSettings(updated);
+                    saveSellerPaymentSettings(updated);
+                  }}
+                  className="accent-[#5D2E8E] w-4 h-4 cursor-pointer"
+                />
+              </label>
+            </div>
+          </div>
+
           {/* QR Codes Upload / Configuration Box */}
           <div className="bg-white p-3.5 rounded-2xl border border-[#E8DFD8] space-y-3 shadow-2xs">
             <div className="flex items-center justify-between">
               <h4 className="text-[11px] font-bold uppercase tracking-wider text-[#1C1B1A] flex items-center gap-1.5">
                 <QrCode className="w-3.5 h-3.5 text-[#C5A880]" />
-                <span>Upload QR Codes (Optional - Plug in whenever ready)</span>
+                <span>Upload Active QR Codes</span>
               </h4>
-              <span className="text-[10px] text-[#736C65]">Can be added later</span>
+              <span className="text-[10px] text-[#736C65]">eSewa QR (+9779813028999)</span>
             </div>
 
             <p className="text-[11px] text-[#736C65] leading-relaxed">
-              When you download your QR screenshot from your banking app, eSewa, or Khalti, upload or paste it here. Until then, our elegant branded QR placeholder is active.
+              Upload your eSewa QR code image below. {(!settings.enableFonepay && !settings.enableKhalti) && 'Fonepay and Khalti QR upload slots are currently hidden — toggle them ON above whenever you wish to add them.'}
             </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {/* 1. Fonepay QR */}
-              <div className="p-2.5 bg-[#FAF8F5] rounded-xl border border-[#E8DFD8] flex flex-col items-center gap-2 text-center">
-                <span className="text-[10px] font-bold text-[#E21A22] uppercase tracking-wider">
-                  Fonepay / Bank QR
-                </span>
-                {settings.fonepayQrImage ? (
-                  <img
-                    src={settings.fonepayQrImage}
-                    alt="Fonepay QR"
-                    className="w-24 h-24 object-contain rounded-lg border border-[#E8DFD8] bg-white p-1"
-                  />
-                ) : (
-                  <div className="w-24 h-24 rounded-lg border border-dashed border-[#C5A880] flex flex-col items-center justify-center p-2 text-center bg-white text-[10px] text-[#8C847E]">
-                    <QrCode className="w-6 h-6 text-[#C5A880] mb-1" />
-                    <span>No QR yet</span>
-                  </div>
-                )}
-                <label className="cursor-pointer px-2 py-1 bg-white border border-[#E8DFD8] hover:border-[#C5A880] rounded text-[10px] font-semibold text-[#1C1B1A] flex items-center gap-1">
-                  <Upload className="w-2.5 h-2.5" />
-                  <span>Upload QR</span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => handleFileUpload('fonepayQrImage', e.target.files?.[0])}
-                  />
-                </label>
-              </div>
-
-              {/* 2. eSewa QR */}
-              <div className="p-2.5 bg-[#FAF8F5] rounded-xl border border-[#E8DFD8] flex flex-col items-center gap-2 text-center">
-                <span className="text-[10px] font-bold text-[#60BB46] uppercase tracking-wider">
-                  eSewa QR
-                </span>
-                {settings.esewaQrImage ? (
-                  <img
-                    src={settings.esewaQrImage}
-                    alt="eSewa QR"
-                    className="w-24 h-24 object-contain rounded-lg border border-[#E8DFD8] bg-white p-1"
-                  />
-                ) : (
-                  <div className="w-24 h-24 rounded-lg border border-dashed border-[#60BB46]/50 flex flex-col items-center justify-center p-2 text-center bg-white text-[10px] text-[#8C847E]">
-                    <div className="w-6 h-6 rounded-full bg-[#60BB46] text-white flex items-center justify-center font-bold text-xs mb-1">
-                      e
+              {/* 1. eSewa QR (Primary) */}
+              {settings.enableEsewa !== false && (
+                <div className="p-2.5 bg-[#FAF8F5] rounded-xl border-2 border-[#60BB46]/50 flex flex-col items-center gap-2 text-center">
+                  <span className="text-[10px] font-bold text-[#60BB46] uppercase tracking-wider">
+                    eSewa QR (Active)
+                  </span>
+                  {settings.esewaQrImage ? (
+                    <img
+                      src={settings.esewaQrImage}
+                      alt="eSewa QR"
+                      className="w-24 h-24 object-contain rounded-lg border border-[#E8DFD8] bg-white p-1"
+                    />
+                  ) : (
+                    <div className="w-24 h-24 rounded-lg border border-dashed border-[#60BB46]/50 flex flex-col items-center justify-center p-2 text-center bg-white text-[10px] text-[#8C847E]">
+                      <div className="w-6 h-6 rounded-full bg-[#60BB46] text-white flex items-center justify-center font-bold text-xs mb-1">
+                        e
+                      </div>
+                      <span>No QR yet</span>
                     </div>
-                    <span>No QR yet</span>
-                  </div>
-                )}
-                <label className="cursor-pointer px-2 py-1 bg-white border border-[#E8DFD8] hover:border-[#60BB46] rounded text-[10px] font-semibold text-[#1C1B1A] flex items-center gap-1">
-                  <Upload className="w-2.5 h-2.5" />
-                  <span>Upload QR</span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => handleFileUpload('esewaQrImage', e.target.files?.[0])}
-                  />
-                </label>
-              </div>
+                  )}
+                  <label className="cursor-pointer px-2 py-1 bg-white border border-[#E8DFD8] hover:border-[#60BB46] rounded text-[10px] font-semibold text-[#1C1B1A] flex items-center gap-1">
+                    <Upload className="w-2.5 h-2.5" />
+                    <span>Upload eSewa QR</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => handleFileUpload('esewaQrImage', e.target.files?.[0])}
+                    />
+                  </label>
+                </div>
+              )}
 
-              {/* 3. Khalti QR */}
-              <div className="p-2.5 bg-[#FAF8F5] rounded-xl border border-[#E8DFD8] flex flex-col items-center gap-2 text-center">
-                <span className="text-[10px] font-bold text-[#5D2E8E] uppercase tracking-wider">
-                  Khalti QR
-                </span>
-                {settings.khaltiQrImage ? (
-                  <img
-                    src={settings.khaltiQrImage}
-                    alt="Khalti QR"
-                    className="w-24 h-24 object-contain rounded-lg border border-[#E8DFD8] bg-white p-1"
-                  />
-                ) : (
-                  <div className="w-24 h-24 rounded-lg border border-dashed border-[#5D2E8E]/50 flex flex-col items-center justify-center p-2 text-center bg-white text-[10px] text-[#8C847E]">
-                    <div className="w-6 h-6 rounded-full bg-[#5D2E8E] text-white flex items-center justify-center font-bold text-xs mb-1">
-                      K
+              {/* 2. Fonepay QR (Only shown if Seller enables Fonepay) */}
+              {settings.enableFonepay === true && (
+                <div className="p-2.5 bg-[#FAF8F5] rounded-xl border border-[#E8DFD8] flex flex-col items-center gap-2 text-center">
+                  <span className="text-[10px] font-bold text-[#E21A22] uppercase tracking-wider">
+                    Fonepay / Bank QR
+                  </span>
+                  {settings.fonepayQrImage ? (
+                    <img
+                      src={settings.fonepayQrImage}
+                      alt="Fonepay QR"
+                      className="w-24 h-24 object-contain rounded-lg border border-[#E8DFD8] bg-white p-1"
+                    />
+                  ) : (
+                    <div className="w-24 h-24 rounded-lg border border-dashed border-[#C5A880] flex flex-col items-center justify-center p-2 text-center bg-white text-[10px] text-[#8C847E]">
+                      <QrCode className="w-6 h-6 text-[#C5A880] mb-1" />
+                      <span>No QR yet</span>
                     </div>
-                    <span>No QR yet</span>
-                  </div>
-                )}
-                <label className="cursor-pointer px-2 py-1 bg-white border border-[#E8DFD8] hover:border-[#5D2E8E] rounded text-[10px] font-semibold text-[#1C1B1A] flex items-center gap-1">
-                  <Upload className="w-2.5 h-2.5" />
-                  <span>Upload QR</span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => handleFileUpload('khaltiQrImage', e.target.files?.[0])}
-                  />
-                </label>
-              </div>
+                  )}
+                  <label className="cursor-pointer px-2 py-1 bg-white border border-[#E8DFD8] hover:border-[#C5A880] rounded text-[10px] font-semibold text-[#1C1B1A] flex items-center gap-1">
+                    <Upload className="w-2.5 h-2.5" />
+                    <span>Upload QR</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => handleFileUpload('fonepayQrImage', e.target.files?.[0])}
+                    />
+                  </label>
+                </div>
+              )}
+
+              {/* 3. Khalti QR (Only shown if Seller enables Khalti) */}
+              {settings.enableKhalti === true && (
+                <div className="p-2.5 bg-[#FAF8F5] rounded-xl border border-[#E8DFD8] flex flex-col items-center gap-2 text-center">
+                  <span className="text-[10px] font-bold text-[#5D2E8E] uppercase tracking-wider">
+                    Khalti QR
+                  </span>
+                  {settings.khaltiQrImage ? (
+                    <img
+                      src={settings.khaltiQrImage}
+                      alt="Khalti QR"
+                      className="w-24 h-24 object-contain rounded-lg border border-[#E8DFD8] bg-white p-1"
+                    />
+                  ) : (
+                    <div className="w-24 h-24 rounded-lg border border-dashed border-[#5D2E8E]/50 flex flex-col items-center justify-center p-2 text-center bg-white text-[10px] text-[#8C847E]">
+                      <div className="w-6 h-6 rounded-full bg-[#5D2E8E] text-white flex items-center justify-center font-bold text-xs mb-1">
+                        K
+                      </div>
+                      <span>No QR yet</span>
+                    </div>
+                  )}
+                  <label className="cursor-pointer px-2 py-1 bg-white border border-[#E8DFD8] hover:border-[#5D2E8E] rounded text-[10px] font-semibold text-[#1C1B1A] flex items-center gap-1">
+                    <Upload className="w-2.5 h-2.5" />
+                    <span>Upload QR</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => handleFileUpload('khaltiQrImage', e.target.files?.[0])}
+                    />
+                  </label>
+                </div>
+              )}
             </div>
           </div>
 

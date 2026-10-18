@@ -7,6 +7,8 @@ import {
   CURRENT_ORDER_GENERATION,
   CURRENT_PURGE_EPOCH
 } from '../services/orderTrackingService';
+import { db } from '../firebase';
+import { collection, getDocs, onSnapshot } from 'firebase/firestore';
 import { getRealProductImage } from '../utils/productImages';
 import SAVED_TRACKED_ORDERS from './tracked_orders.json';
 
@@ -19,7 +21,30 @@ const PERMANENTLY_PURGED_CANONICAL_IDS = new Set<string>([
   'ART20268842',
   'ART20265521',
   'ART20263190',
-  'ART20263829'
+  'ART20263829',
+  'ART20265157',
+  'ART20264729'
+]);
+
+/**
+ * Maps the customer's first two random Order IDs (#ART-2026-615397 and #ART-2026-423390)
+ * to their official progressive Order IDs (#ART-2026-1852 and #ART-2026-1853) so that pasting
+ * either the original random ID or the progressive ID works seamlessly everywhere.
+ */
+export const LEGACY_ORDER_ID_ALIASES: Record<string, string> = {
+  'ART2026615397': 'ART-2026-1852',
+  '615397': 'ART-2026-1852',
+  'ART2026423390': 'ART-2026-1853',
+  '423390': 'ART-2026-1853'
+};
+
+/**
+ * Raw legacy strings that were mistakenly added to deleted_orders previously and must never block
+ * the customer's rescued orders #ART-2026-615397 (#ART-2026-1852) and #ART-2026-423390 (#ART-2026-1853).
+ */
+const RESCUED_RAW_LEGACY_COMPACT_IDS = new Set<string>([
+  'ART2026615397',
+  'ART2026423390'
 ]);
 
 /**
@@ -27,10 +52,18 @@ const PERMANENTLY_PURGED_CANONICAL_IDS = new Set<string>([
  */
 const CLOUD_DELETED_CANONICAL_IDS = new Set<string>();
 
+function getRawCompactKey(id: string): string {
+  return (id || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+}
+
 export function registerCloudDeletedOrderIds(ids: string[]): void {
   if (!Array.isArray(ids)) return;
   for (const raw of ids) {
     if (typeof raw === 'string' && raw.trim()) {
+      const rawCompact = getRawCompactKey(raw);
+      if (RESCUED_RAW_LEGACY_COMPACT_IDS.has(rawCompact)) {
+        continue;
+      }
       const canonical = getCanonicalOrderKey(raw);
       if (canonical) {
         CLOUD_DELETED_CANONICAL_IDS.add(canonical);
@@ -115,28 +148,93 @@ export function getProgressPercentage(phase?: OrderProductionPhase): number {
 export const DEMO_TRACKED_ORDERS: Record<string, TrackedOrderData> = {};
 
 /**
- * Normalizes item images to authentic product photos
+ * Calculates the items subtotal for a tracked order
+ */
+export function getOrderItemsSubtotal(order: TrackedOrderData): number {
+  if (typeof order.subtotal === 'number' && order.subtotal > 0) {
+    return order.subtotal;
+  }
+  const computed = (order.items || []).reduce((sum, item) => {
+    const qty = typeof item.quantity === 'number' ? item.quantity : Number(item.quantity) || 1;
+    const price = typeof item.price === 'number' ? item.price : Number(item.price) || 0;
+    return sum + price * qty;
+  }, 0);
+  return computed > 0 ? computed : (Number(order.total) || 0);
+}
+
+/**
+ * Calculates the delivery charge (in NPR) for a tracked order
+ */
+export function getOrderDeliveryFee(order: TrackedOrderData): number {
+  if (typeof order.deliveryFee === 'number' && order.deliveryFee >= 0) {
+    return order.deliveryFee;
+  }
+  const total = typeof order.total === 'number' ? order.total : Number(order.total) || 0;
+  const itemsSub = (order.items || []).reduce((sum, item) => {
+    const qty = typeof item.quantity === 'number' ? item.quantity : Number(item.quantity) || 1;
+    const price = typeof item.price === 'number' ? item.price : Number(item.price) || 0;
+    return sum + price * qty;
+  }, 0);
+  if (itemsSub > 0 && total > itemsSub) {
+    return total - itemsSub;
+  }
+  const zone = (order.deliveryZoneName || '').toLowerCase();
+  if (zone.includes('outside valley') || zone.includes('pokhara') || zone.includes('chitwan')) return 200;
+  if (zone.includes('outside ring') || zone.includes('bhaktapur')) return 150;
+  if (zone.includes('kathmandu') || zone.includes('ring road') || zone.includes('lalitpur')) return 120;
+  return 0;
+}
+
+/**
+ * Normalizes item images and guarantees numeric values for total, subtotal, deliveryFee, and prices
  */
 export function sanitizeOrderItems(order: TrackedOrderData): TrackedOrderData {
+  const normId = normalizeOrderId(order.orderId);
+  const items = (order.items || []).map((item) => ({
+    ...item,
+    quantity: typeof item.quantity === 'number' ? item.quantity : Number(item.quantity) || 1,
+    price: typeof item.price === 'number' ? item.price : Number(item.price) || 0,
+    image: getRealProductImage(item?.title, item?.image)
+  }));
+  const total = typeof order.total === 'number' ? order.total : Number(order.total) || 0;
+  const computedSub = items.reduce((s, i) => s + i.price * i.quantity, 0);
+  const subtotal = typeof order.subtotal === 'number' && order.subtotal > 0 ? order.subtotal : computedSub;
+  const deliveryFee =
+    typeof order.deliveryFee === 'number' && order.deliveryFee >= 0
+      ? order.deliveryFee
+      : total > subtotal && subtotal > 0
+      ? total - subtotal
+      : 0;
+
   return {
     ...order,
-    items: (order.items || []).map((item) => ({
-      ...item,
-      image: getRealProductImage(item.title, item.image)
-    }))
+    orderId: normId.startsWith('#') ? normId : `#${normId}`,
+    total,
+    subtotal,
+    deliveryFee,
+    items
   };
 }
 
 /**
- * Normalizes input order id (e.g. "#art-2026-8842" -> "ART-2026-8842")
+ * Normalizes input order id (e.g. "#art-2026-1852" -> "ART-2026-1852")
+ * and maps legacy random IDs (#ART-2026-615397 -> ART-2026-1852, #ART-2026-423390 -> ART-2026-1853).
  */
 export function normalizeOrderId(id: string): string {
-  return (id || '').replace(/[#\s]/g, '').toUpperCase();
+  const clean = (id || '').replace(/[#\s]/g, '').toUpperCase();
+  const rawCompact = clean.replace(/[^A-Z0-9]/g, '');
+  if (LEGACY_ORDER_ID_ALIASES[rawCompact]) {
+    return LEGACY_ORDER_ID_ALIASES[rawCompact];
+  }
+  if (LEGACY_ORDER_ID_ALIASES[clean]) {
+    return LEGACY_ORDER_ID_ALIASES[clean];
+  }
+  return clean;
 }
 
 /**
  * Canonical order key that strips '#', whitespace, and hyphens '-'
- * so "ART-2026-4846", "art 2026 4846", and "#ART20264846" all resolve to "ART20264846".
+ * so "ART-2026-1852", "art 2026 1852", "#ART20261852", and "#ART-2026-615397" all resolve to "ART20261852".
  */
 export function getCanonicalOrderKey(id: string): string {
   return normalizeOrderId(id).replace(/[^A-Z0-9]/g, '');
@@ -160,6 +258,188 @@ export function getOrderIdVariants(rawId: string): string[] {
 }
 
 /**
+ * Authoritative in-memory map of tracked orders for the active browser session,
+ * ensuring seller status updates succeed immediately even if browser localStorage is full.
+ */
+const IN_MEMORY_TRACKED_ORDERS: Record<string, TrackedOrderData> = {};
+
+/**
+ * Compares statusRevision and timestamps so a newer local seller status update
+ * is never overwritten by older server/Firestore data (or container clock drift).
+ */
+export function shouldAcceptIncomingOrder(localOrder: TrackedOrderData | undefined, incomingOrder: TrackedOrderData): boolean {
+  if (!localOrder) return true;
+
+  const localRev = typeof localOrder.statusRevision === 'number' ? localOrder.statusRevision : 1;
+  const incomingRev = typeof incomingOrder.statusRevision === 'number' ? incomingOrder.statusRevision : 1;
+
+  if (incomingRev > localRev) return true;
+  if (localRev > incomingRev) return false;
+
+  const parseEffectiveTime = (iso?: string, rev?: number): number => {
+    if (!iso) return 0;
+    // Ignore container-generated 2026-10-18 baseline timestamps on revision 1
+    if ((rev || 1) <= 1 && iso.startsWith('2026-10-18')) {
+      return Date.parse('2025-01-01T00:00:00.000Z');
+    }
+    const parsed = Date.parse(iso);
+    return isNaN(parsed) ? 0 : parsed;
+  };
+
+  const localTime = parseEffectiveTime(localOrder.updatedAt, localRev);
+  const incomingTime = parseEffectiveTime(incomingOrder.updatedAt, incomingRev);
+
+  if (localTime > 0 && incomingTime > 0) {
+    return incomingTime >= localTime;
+  }
+  if (localTime > 0 && incomingTime === 0) {
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Safely writes `artified_tracked_orders` to localStorage, automatically freeing space
+ * from redundant multi-megabyte catalog caches if localStorage hits the 5MB browser quota.
+ */
+function persistTrackedOrdersMapToLocalStorage(map: Record<string, TrackedOrderData>): void {
+  Object.entries(map).forEach(([k, v]) => {
+    if (v) {
+      const normKey = normalizeOrderId(v.orderId || k);
+      const existingMem = IN_MEMORY_TRACKED_ORDERS[normKey];
+      IN_MEMORY_TRACKED_ORDERS[normKey] = {
+        ...v,
+        paymentScreenshot: v.paymentScreenshot !== undefined ? v.paymentScreenshot : existingMem?.paymentScreenshot
+      };
+    }
+  });
+  try {
+    localStorage.setItem('artified_tracked_orders', JSON.stringify(map));
+  } catch {
+    try {
+      // Free redundant 4.8MB product/workshop caches (which are already stored in products.json & /api/products)
+      localStorage.removeItem('artified_products_custom');
+      localStorage.removeItem('artified_workshop_media');
+      localStorage.setItem('artified_tracked_orders', JSON.stringify(map));
+    } catch {
+      try {
+        // Fallback: strip screenshots only from browser localStorage while keeping them in IN_MEMORY_TRACKED_ORDERS, server disk, and Firestore
+        const ultraLightMap: Record<string, TrackedOrderData> = {};
+        Object.entries(map).forEach(([k, v]) => {
+          ultraLightMap[k] = { ...v, paymentScreenshot: undefined };
+        });
+        localStorage.setItem('artified_tracked_orders', JSON.stringify(ultraLightMap));
+      } catch {}
+    }
+  }
+}
+
+/**
+ * One-time rescue & progressive ID migration for browser localStorage so that
+ * #ART-2026-615397 (#ART-2026-1852) and #ART-2026-423390 (#ART-2026-1853) are restored,
+ * broken ibb.co icons are stripped, and artified_last_order_id is removed so refreshing never exposes an order.
+ */
+function rescueAndMigrateLocalStorageOrders(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    // Always remove artified_last_order_id so refreshing the website never auto-displays an order in Track Order
+    localStorage.removeItem('artified_last_order_id');
+
+    // Free localStorage if artified_products_custom is bloating storage (> 500KB) so order status updates never hit QuotaExceededError
+    try {
+      const customProds = localStorage.getItem('artified_products_custom');
+      if (customProds && customProds.length > 500000) {
+        localStorage.removeItem('artified_products_custom');
+      }
+    } catch {}
+
+    // 1. Clean mistaken raw legacy IDs (615397, 423390) from artified_deleted_orders
+    const rawDeleted = localStorage.getItem('artified_deleted_orders');
+    if (rawDeleted) {
+      const deletedList: string[] = JSON.parse(rawDeleted);
+      const cleanedDeleted = deletedList.filter((d) => {
+        const rc = getRawCompactKey(d);
+        return !RESCUED_RAW_LEGACY_COMPACT_IDS.has(rc);
+      });
+      if (cleanedDeleted.length !== deletedList.length) {
+        localStorage.setItem('artified_deleted_orders', JSON.stringify(cleanedDeleted));
+      }
+    }
+
+    // 2. Migrate artified_orders (customer order history) to progressive IDs & strip heavy base64 images
+    const rawOrders = localStorage.getItem('artified_orders');
+    if (rawOrders) {
+      const orders: OrderDetails[] = JSON.parse(rawOrders);
+      const seen = new Set<string>();
+      const migratedOrders: OrderDetails[] = [];
+      for (const o of orders) {
+        if (!o || !o.orderId) continue;
+        const norm = normalizeOrderId(o.orderId);
+        const canonical = getCanonicalOrderKey(norm);
+        if (PERMANENTLY_PURGED_CANONICAL_IDS.has(canonical)) continue;
+        const formattedId = `#${norm}`;
+        if (!seen.has(canonical)) {
+          seen.add(canonical);
+          migratedOrders.push({
+            ...o,
+            orderId: formattedId,
+            paymentScreenshot: undefined,
+            items: (o.items || []).map((item) => ({
+              ...item,
+              product: item.product
+                ? {
+                    ...item.product,
+                    images: []
+                  }
+                : item.product
+            }))
+          });
+        }
+      }
+      try {
+        localStorage.setItem('artified_orders', JSON.stringify(migratedOrders));
+      } catch {}
+    }
+
+    // 3. Migrate artified_tracked_orders to progressive IDs, strip broken ibb.co URLs, and remove purged 5157/4729
+    const rawTracked = localStorage.getItem('artified_tracked_orders');
+    if (rawTracked) {
+      const map: Record<string, TrackedOrderData> = JSON.parse(rawTracked);
+      const newMap: Record<string, TrackedOrderData> = {};
+      for (const [k, v] of Object.entries(map)) {
+        if (!v) continue;
+        const norm = normalizeOrderId(v.orderId || k);
+        const canonical = getCanonicalOrderKey(norm);
+        if (PERMANENTLY_PURGED_CANONICAL_IDS.has(canonical)) continue;
+        const cleanItems = (v.items || []).map((it) => ({
+          ...it,
+          image: it.image && (it.image.includes('ibb.co') || (it.image.startsWith('data:') && it.image.length > 5000)) ? '' : it.image
+        }));
+        const fixedUpdatedAt =
+          v.updatedAt && v.updatedAt.startsWith('2026-10-18') && (!v.statusRevision || v.statusRevision <= 1)
+            ? '2025-01-01T00:00:00.000Z'
+            : v.updatedAt;
+        const cleanedOrder = sanitizeOrderItems({
+          ...v,
+          orderId: `#${norm}`,
+          statusRevision: v.statusRevision || 1,
+          updatedAt: fixedUpdatedAt,
+          items: cleanItems
+        });
+        newMap[norm] = {
+          ...cleanedOrder,
+          items: cleanItems
+        };
+        IN_MEMORY_TRACKED_ORDERS[norm] = newMap[norm];
+      }
+      persistTrackedOrdersMapToLocalStorage(newMap);
+    }
+  } catch {}
+}
+
+rescueAndMigrateLocalStorageOrders();
+
+/**
  * Checks whether an Order ID or Order object has been deleted or belongs to a purged generation.
  */
 export function isOrderDeletedOrPurged(orderIdInput: string, orderObj?: any): boolean {
@@ -174,7 +454,11 @@ export function isOrderDeletedOrPurged(orderIdInput: string, orderObj?: any): bo
     const rawDeleted = localStorage.getItem('artified_deleted_orders');
     if (rawDeleted) {
       const deletedList: string[] = JSON.parse(rawDeleted);
-      const isMatch = deletedList.some((d) => getCanonicalOrderKey(d) === canonical);
+      const isMatch = deletedList.some((d) => {
+        const rc = getRawCompactKey(d);
+        if (RESCUED_RAW_LEGACY_COMPACT_IDS.has(rc)) return false;
+        return getCanonicalOrderKey(d) === canonical;
+      });
       if (isMatch) return true;
     }
   } catch {}
@@ -184,18 +468,7 @@ export function isOrderDeletedOrPurged(orderIdInput: string, orderObj?: any): bo
       return true;
     }
     const customer = (orderObj.customerName || '').trim();
-    if (
-      customer === 'Valued Artified Customer' ||
-      customer === 'Lamar Anzelov' ||
-      customer === '1st customer'
-    ) {
-      return true;
-    }
-    // Strictly require current order generation AND current purge epoch on all order records
-    if (
-      orderObj.generation !== CURRENT_ORDER_GENERATION ||
-      orderObj.purgeEpochId !== CURRENT_PURGE_EPOCH
-    ) {
+    if (customer === 'Valued Artified Customer') {
       return true;
     }
   }
@@ -204,14 +477,84 @@ export function isOrderDeletedOrPurged(orderIdInput: string, orderObj?: any): bo
 }
 
 /**
+ * Auto-generates a progressive, sequential Artified Order ID:
+ * - For year 2026: starts at #ART-2026-1852 (2026 being the year, 1852 being the items sold before launch),
+ *   then #ART-2026-1853, #ART-2026-1854, etc.
+ * - For year 2027 and onwards: starts at #ART-2027-1, #ART-2027-2, etc.
+ */
+export function generateUniqueOrderId(): string {
+  const year = new Date().getFullYear();
+  const baseStart = year <= 2026 ? 1852 : 1;
+  let maxSeq = baseStart - 1;
+
+  const extractSeq = (rawId?: string) => {
+    if (!rawId) return;
+    const norm = normalizeOrderId(rawId);
+    const match = norm.match(new RegExp(`^ART-${year}-(\\d+)$`));
+    if (match) {
+      const num = parseInt(match[1], 10);
+      if (!isNaN(num) && num >= baseStart && num < 100000) {
+        if (num > maxSeq) {
+          maxSeq = num;
+        }
+      }
+    }
+  };
+
+  let activeCountForYear = 0;
+  try {
+    const activeOrders = getAllOrdersForSeller();
+    activeOrders.forEach((o) => {
+      const norm = normalizeOrderId(o.orderId);
+      if (norm.startsWith(`ART-${year}-`)) {
+        activeCountForYear++;
+      }
+      extractSeq(o.orderId);
+    });
+  } catch {}
+
+  if (activeCountForYear > 0) {
+    try {
+      const storedSeqRaw = localStorage.getItem(`artified_last_seq_${year}`);
+      if (storedSeqRaw) {
+        const storedSeq = parseInt(storedSeqRaw, 10);
+        if (!isNaN(storedSeq) && storedSeq >= baseStart && storedSeq < 100000 && storedSeq > maxSeq) {
+          maxSeq = storedSeq;
+        }
+      }
+    } catch {}
+  }
+
+  const nextSeq = maxSeq + 1;
+  return `#ART-${year}-${nextSeq}`;
+}
+
+/**
  * Persists an updated tracked order to browser storage, server disk, and Firestore.
  */
 export function saveTrackedOrder(order: TrackedOrderData): void {
   try {
     const norm = normalizeOrderId(order.orderId);
-    const canonical = getCanonicalOrderKey(order.orderId);
+    const canonical = getCanonicalOrderKey(norm);
+    const formattedOrderId = `#${norm}`;
+    const nowIso = new Date().toISOString();
 
-    // If seller or customer creates a new order, ensure it's not blocked in artified_deleted_orders
+    // Record sequence number for progressive counter
+    const seqMatch = norm.match(/^ART-(\d{4})-(\d+)$/);
+    if (seqMatch) {
+      const orderYear = parseInt(seqMatch[1], 10);
+      const orderSeq = parseInt(seqMatch[2], 10);
+      if (!isNaN(orderYear) && !isNaN(orderSeq) && orderSeq < 100000) {
+        try {
+          const prevSeq = parseInt(localStorage.getItem(`artified_last_seq_${orderYear}`) || '0', 10);
+          if (orderSeq > prevSeq) {
+            localStorage.setItem(`artified_last_seq_${orderYear}`, String(orderSeq));
+          }
+        } catch {}
+      }
+    }
+
+    // If seller or customer creates/updates an order, ensure it's not blocked in artified_deleted_orders
     CLOUD_DELETED_CANONICAL_IDS.delete(canonical);
     try {
       const rawDeleted = localStorage.getItem('artified_deleted_orders');
@@ -222,35 +565,69 @@ export function saveTrackedOrder(order: TrackedOrderData): void {
       }
     } catch {}
 
-    const stampedOrder: TrackedOrderData & { generation: number; purgeEpochId: string } = {
+    const nextRev = typeof order.statusRevision === 'number' && order.statusRevision > 0
+      ? order.statusRevision
+      : (IN_MEMORY_TRACKED_ORDERS[norm]?.statusRevision || 1);
+
+    const preservedScreenshot =
+      order.paymentScreenshot !== undefined
+        ? order.paymentScreenshot
+        : IN_MEMORY_TRACKED_ORDERS[norm]?.paymentScreenshot;
+
+    const sanitized = sanitizeOrderItems({
       ...order,
+      orderId: formattedOrderId,
+      paymentScreenshot: preservedScreenshot,
+      statusRevision: nextRev,
+      updatedAt: nowIso
+    });
+
+    // Store lightweight item entries in localStorage and server disk (real images are resolved via getRealProductImage)
+    const lightweightForStorage: TrackedOrderData & { generation: number; purgeEpochId: string; updatedAt: string; statusRevision: number } = {
+      ...sanitized,
+      paymentScreenshot: preservedScreenshot,
+      items: (sanitized.items || []).map((it) => ({
+        ...it,
+        image: it.image && (it.image.includes('ibb.co') || (it.image.startsWith('data:') && it.image.length > 5000)) ? '' : it.image
+      })),
+      statusRevision: nextRev,
+      updatedAt: nowIso,
       generation: CURRENT_ORDER_GENERATION,
       purgeEpochId: CURRENT_PURGE_EPOCH
     };
 
-    const raw = localStorage.getItem('artified_tracked_orders');
-    const map: Record<string, TrackedOrderData> = raw ? JSON.parse(raw) : {};
-    map[norm] = stampedOrder;
-    localStorage.setItem('artified_tracked_orders', JSON.stringify(map));
+    // 1. Update in-memory store and bundled seed reference immediately
+    IN_MEMORY_TRACKED_ORDERS[norm] = lightweightForStorage;
+    if (SAVED_TRACKED_ORDERS && typeof SAVED_TRACKED_ORDERS === 'object') {
+      (SAVED_TRACKED_ORDERS as Record<string, any>)[norm] = lightweightForStorage;
+    }
 
-    // Sync to server disk
+    // 2. Persist to localStorage safely (never throws or aborts subsequent steps)
+    try {
+      const raw = localStorage.getItem('artified_tracked_orders');
+      const map: Record<string, TrackedOrderData> = raw ? JSON.parse(raw) : {};
+      map[norm] = lightweightForStorage;
+      persistTrackedOrdersMapToLocalStorage(map);
+    } catch {}
+
+    // 3. Sync to server disk
     try {
       fetch('/api/tracked-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(stampedOrder)
+        body: JSON.stringify(lightweightForStorage)
       }).catch(() => {});
     } catch {}
 
-    // Real-time Firestore sync
-    saveOrderToFirestore(stampedOrder).catch((err) => {
+    // 4. Real-time Firestore sync
+    saveOrderToFirestore(lightweightForStorage).catch((err) => {
       console.warn('Notice: Firestore order tracking save:', err);
     });
 
-    recordOrderStatusChange(stampedOrder.orderId, stampedOrder.currentPhase, stampedOrder.customerName);
-    window.dispatchEvent(new CustomEvent('artified_order_updated', { detail: stampedOrder }));
+    recordOrderStatusChange(sanitized.orderId, sanitized.currentPhase, sanitized.customerName);
+    window.dispatchEvent(new CustomEvent('artified_order_updated', { detail: sanitized }));
   } catch (e) {
-    console.warn('Failed to save tracked order to localStorage', e);
+    console.warn('Failed to save tracked order', e);
   }
 }
 
@@ -273,14 +650,27 @@ export function updateOrderPhase(
   }
 
   const targetPhase: OrderProductionPhase = phase || current.currentPhase || 'confirmed';
+  const defaultPhaseNotes: Record<OrderProductionPhase, string> = {
+    confirmed: 'Your order was received and confirmed! Sahina Shrestha has reserved the required luster pearls and high-strength threads. Handcrafting is scheduled at our Kathmandu workshop.',
+    handcrafting_and_packaging: 'Your piece is now being handcrafted with precision by Sahina Shrestha at our Kathmandu workshop, inspected for knot tension, and prepared in its luxury dust pouch.',
+    beading_in_progress: 'Your piece is now being handcrafted with precision by Sahina Shrestha at our Kathmandu workshop.',
+    quality_and_packaging: 'Handcrafting complete! Final quality inspection and luxury gift packaging in progress.',
+    out_for_delivery: 'Your handcrafted piece has been dispatched from our Kathmandu workshop and is out for doorstep delivery!',
+    delivered: 'Your order has been safely delivered! Thank you for supporting Sahina Shrestha & Artified Nepal.'
+  };
+
+  const nextRevision = Math.max(current.statusRevision || 1, 1) + 1;
+
   const updated: TrackedOrderData = {
     ...current,
     currentPhase: targetPhase,
     progressPercentage: getProgressPercentage(targetPhase),
-    liveCraftNotes: updates?.liveCraftNotes ?? current.liveCraftNotes,
+    liveCraftNotes: updates?.liveCraftNotes ?? defaultPhaseNotes[targetPhase] ?? current.liveCraftNotes,
     courierPartner: updates?.courierPartner ?? current.courierPartner,
     consignmentCode: updates?.consignmentCode ?? current.consignmentCode,
     estimatedDeliveryDate: updates?.estimatedDeliveryDate ?? current.estimatedDeliveryDate,
+    statusRevision: nextRevision,
+    updatedAt: new Date().toISOString(),
     milestones: buildMilestonesForPhase(
       targetPhase,
       current.orderPlacedDate,
@@ -290,19 +680,30 @@ export function updateOrderPhase(
   };
 
   saveTrackedOrder(updated);
-  return updated;
+  return sanitizeOrderItems(updated);
 }
 
 /**
  * Synchronizes tracked orders from server disk into in-memory state and localStorage,
- * ignoring any purged or deleted orders.
+ * ignoring any purged or deleted orders and preserving newer local updates.
  */
 export function syncTrackedOrdersFromServer(ordersMap: Record<string, TrackedOrderData>): void {
   if (!ordersMap || typeof ordersMap !== 'object') return;
 
   try {
-    const raw = localStorage.getItem('artified_tracked_orders');
-    const localMap: Record<string, TrackedOrderData> = raw ? JSON.parse(raw) : {};
+    let localMap: Record<string, TrackedOrderData> = { ...IN_MEMORY_TRACKED_ORDERS };
+    try {
+      const raw = localStorage.getItem('artified_tracked_orders');
+      if (raw) {
+        const parsed: Record<string, TrackedOrderData> = JSON.parse(raw);
+        Object.entries(parsed).forEach(([k, v]) => {
+          const n = normalizeOrderId(v?.orderId || k);
+          if (shouldAcceptIncomingOrder(localMap[n], v)) {
+            localMap[n] = v;
+          }
+        });
+      }
+    } catch {}
 
     Object.entries(ordersMap).forEach(([rawKey, serverOrder]) => {
       if (!serverOrder || typeof serverOrder !== 'object') return;
@@ -311,9 +712,19 @@ export function syncTrackedOrdersFromServer(ordersMap: Record<string, TrackedOrd
         return;
       }
 
+      const existingLocal = IN_MEMORY_TRACKED_ORDERS[norm] || localMap[norm];
+      if (!shouldAcceptIncomingOrder(existingLocal, serverOrder)) {
+        return;
+      }
+
       const enrichedOrder: TrackedOrderData = {
         ...serverOrder,
-        orderId: norm,
+        orderId: `#${norm}`,
+        statusRevision: serverOrder.statusRevision || 1,
+        items: (serverOrder.items || []).map((it) => ({
+          ...it,
+          image: it.image && (it.image.includes('ibb.co') || (it.image.startsWith('data:') && it.image.length > 5000)) ? '' : it.image
+        })),
         progressPercentage: getProgressPercentage(serverOrder.currentPhase),
         milestones: serverOrder.milestones && serverOrder.milestones.length > 0
           ? serverOrder.milestones
@@ -326,35 +737,55 @@ export function syncTrackedOrdersFromServer(ordersMap: Record<string, TrackedOrd
       };
 
       localMap[norm] = enrichedOrder;
-      window.dispatchEvent(new CustomEvent('artified_order_updated', { detail: enrichedOrder }));
+      IN_MEMORY_TRACKED_ORDERS[norm] = enrichedOrder;
     });
 
-    localStorage.setItem('artified_tracked_orders', JSON.stringify(localMap));
+    persistTrackedOrdersMapToLocalStorage(localMap);
   } catch (err) {
     console.warn('Notice: Error syncing tracked orders from server:', err);
   }
 }
 
 /**
- * Fetches order tracking data from valid local storage records.
- * Returns null if the order was deleted or purged.
+ * Fetches order tracking data from valid in-memory state, local storage, and saved server records.
+ * Supports both progressive IDs (#ART-2026-1852, #ART-2026-1853) and legacy random IDs (#ART-2026-615397, #ART-2026-423390).
  */
 export function getTrackedOrder(orderIdInput: string): TrackedOrderData | null {
-  if (!orderIdInput.trim()) return null;
+  if (!orderIdInput || !orderIdInput.trim()) return null;
 
   const canonical = getCanonicalOrderKey(orderIdInput);
+  const rawCompact = getRawCompactKey(orderIdInput);
   if (isOrderDeletedOrPurged(orderIdInput)) {
     return null;
   }
 
-  // 1. Check seller-saved / modified tracking records first
+  const matchesOrder = (key: string, order: any): boolean => {
+    if (!order) return false;
+    if (getCanonicalOrderKey(key) === canonical || getCanonicalOrderKey(order.orderId || '') === canonical) {
+      return true;
+    }
+    if (order.legacyOrderId && (getCanonicalOrderKey(order.legacyOrderId) === canonical || getRawCompactKey(order.legacyOrderId) === rawCompact)) {
+      return true;
+    }
+    return false;
+  };
+
+  // 0. Check in-memory authoritative records first
+  for (const [key, order] of Object.entries(IN_MEMORY_TRACKED_ORDERS)) {
+    if (matchesOrder(key, order) && !isOrderDeletedOrPurged(order.orderId, order)) {
+      return sanitizeOrderItems(order);
+    }
+  }
+
+  // 1. Check seller-saved / modified tracking records in localStorage
   try {
     const raw = localStorage.getItem('artified_tracked_orders');
     if (raw) {
       const map: Record<string, TrackedOrderData> = JSON.parse(raw);
       for (const [key, order] of Object.entries(map)) {
-        if (getCanonicalOrderKey(key) === canonical || getCanonicalOrderKey(order.orderId) === canonical) {
+        if (matchesOrder(key, order)) {
           if (!isOrderDeletedOrPurged(order.orderId, order)) {
+            IN_MEMORY_TRACKED_ORDERS[normalizeOrderId(order.orderId || key)] = order;
             return sanitizeOrderItems(order);
           }
         }
@@ -378,6 +809,28 @@ export function getTrackedOrder(orderIdInput: string): TrackedOrderData | null {
     }
   } catch {}
 
+  // 3. Check saved tracked orders from tracked_orders.json
+  if (SAVED_TRACKED_ORDERS && typeof SAVED_TRACKED_ORDERS === 'object') {
+    for (const [rawKey, order] of Object.entries(SAVED_TRACKED_ORDERS)) {
+      if (order && typeof order === 'object') {
+        const tOrder = order as TrackedOrderData;
+        if (matchesOrder(rawKey, tOrder) && !isOrderDeletedOrPurged(tOrder.orderId || rawKey, tOrder)) {
+          return sanitizeOrderItems({
+            ...tOrder,
+            orderId: `#${normalizeOrderId(tOrder.orderId || rawKey)}`,
+            progressPercentage: getProgressPercentage(tOrder.currentPhase || 'confirmed'),
+            milestones: tOrder.milestones || buildMilestonesForPhase(
+              tOrder.currentPhase || 'confirmed',
+              tOrder.orderPlacedDate || 'Recent Order',
+              tOrder.estimatedDeliveryDate || '1-2 business days',
+              tOrder.deliveryAddress || 'Kathmandu Valley'
+            )
+          });
+        }
+      }
+    }
+  }
+
   return null;
 }
 
@@ -388,7 +841,7 @@ export function getTrackedOrder(orderIdInput: string): TrackedOrderData | null {
 export function getAllOrdersForSeller(): TrackedOrderData[] {
   const result: Record<string, TrackedOrderData> = {};
 
-  // 1. Add saved tracked orders from tracked_orders.json if valid generation & epoch
+  // 1. Add saved tracked orders from tracked_orders.json
   if (SAVED_TRACKED_ORDERS && typeof SAVED_TRACKED_ORDERS === 'object') {
     Object.entries(SAVED_TRACKED_ORDERS).forEach(([rawKey, order]) => {
       if (order && typeof order === 'object') {
@@ -398,7 +851,7 @@ export function getAllOrdersForSeller(): TrackedOrderData[] {
         if (!isOrderDeletedOrPurged(norm, tOrder) && !result[canonical]) {
           result[canonical] = {
             ...tOrder,
-            orderId: norm,
+            orderId: `#${norm}`,
             progressPercentage: getProgressPercentage(tOrder.currentPhase || 'confirmed'),
             milestones: tOrder.milestones || buildMilestonesForPhase(
               tOrder.currentPhase || 'confirmed',
@@ -420,8 +873,11 @@ export function getAllOrdersForSeller(): TrackedOrderData[] {
       customerOrders.forEach((o) => {
         const norm = normalizeOrderId(o.orderId);
         const canonical = getCanonicalOrderKey(norm);
-        if (!isOrderDeletedOrPurged(norm, o)) {
-          result[canonical] = buildTrackedOrderFromOrderDetails(o);
+        if (!isOrderDeletedOrPurged(norm, o) && !result[canonical]) {
+          result[canonical] = buildTrackedOrderFromOrderDetails({
+            ...o,
+            orderId: `#${norm}`
+          });
         }
       });
     }
@@ -429,7 +885,7 @@ export function getAllOrdersForSeller(): TrackedOrderData[] {
     console.warn('Error reading customer orders for seller', e);
   }
 
-  // 3. Overlay any seller-updated tracked orders (artified_tracked_orders)
+  // 3. Overlay any seller-updated tracked orders from localStorage (artified_tracked_orders)
   try {
     const rawTracked = localStorage.getItem('artified_tracked_orders');
     if (rawTracked) {
@@ -437,8 +893,12 @@ export function getAllOrdersForSeller(): TrackedOrderData[] {
       Object.entries(trackedMap).forEach(([rawKey, order]) => {
         const norm = normalizeOrderId(order.orderId || rawKey);
         const canonical = getCanonicalOrderKey(norm);
-        if (!isOrderDeletedOrPurged(norm, order)) {
-          result[canonical] = order;
+        if (!isOrderDeletedOrPurged(norm, order) && shouldAcceptIncomingOrder(result[canonical], order)) {
+          result[canonical] = {
+            ...result[canonical],
+            ...order,
+            orderId: `#${norm}`
+          };
         }
       });
     }
@@ -446,13 +906,145 @@ export function getAllOrdersForSeller(): TrackedOrderData[] {
     console.warn('Error reading tracked orders overlay', e);
   }
 
+  // 4. Overlay authoritative in-memory tracked orders (highest priority for instant seller updates)
+  Object.entries(IN_MEMORY_TRACKED_ORDERS).forEach(([rawKey, order]) => {
+    const norm = normalizeOrderId(order.orderId || rawKey);
+    const canonical = getCanonicalOrderKey(norm);
+    if (!isOrderDeletedOrPurged(norm, order) && shouldAcceptIncomingOrder(result[canonical], order)) {
+      result[canonical] = {
+        ...result[canonical],
+        ...order,
+        orderId: `#${norm}`
+      };
+    }
+  });
+
   return Object.values(result).map((o) => sanitizeOrderItems(o));
+}
+
+/**
+ * Fetches and synchronizes orders from Cloud Firestore so orders placed
+ * across different devices and browsers are visible to the seller immediately.
+ */
+export async function syncOrdersFromFirestore(): Promise<TrackedOrderData[]> {
+  try {
+    const snap = await getDocs(collection(db, 'orders'));
+    const remoteList: TrackedOrderData[] = [];
+    snap.forEach((docSnap) => {
+      const data = docSnap.data() as TrackedOrderData;
+      if (data && data.orderId && !isOrderDeletedOrPurged(data.orderId, data)) {
+        remoteList.push(data);
+      }
+    });
+
+    if (remoteList.length > 0) {
+      try {
+        let map: Record<string, TrackedOrderData> = { ...IN_MEMORY_TRACKED_ORDERS };
+        try {
+          const raw = localStorage.getItem('artified_tracked_orders');
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            Object.entries(parsed).forEach(([k, v]: [string, any]) => {
+              const n = normalizeOrderId(v?.orderId || k);
+              if (shouldAcceptIncomingOrder(map[n], v)) {
+                map[n] = v;
+              }
+            });
+          }
+        } catch {}
+
+        remoteList.forEach((o) => {
+          const norm = normalizeOrderId(o.orderId);
+          if (shouldAcceptIncomingOrder(map[norm], o)) {
+            map[norm] = {
+              ...o,
+              orderId: `#${norm}`,
+              items: (o.items || []).map((it) => ({
+                ...it,
+                image: it.image && (it.image.includes('ibb.co') || (it.image.startsWith('data:') && it.image.length > 5000)) ? '' : it.image
+              }))
+            };
+            IN_MEMORY_TRACKED_ORDERS[norm] = map[norm];
+          }
+        });
+        persistTrackedOrdersMapToLocalStorage(map);
+      } catch {}
+    }
+
+    return getAllOrdersForSeller();
+  } catch (err) {
+    console.warn('Notice: Firestore orders sync:', err);
+    return getAllOrdersForSeller();
+  }
+}
+
+/**
+ * Subscribes to real-time order updates across all customer devices
+ */
+export function subscribeAllOrdersForSeller(onUpdate: (orders: TrackedOrderData[]) => void): () => void {
+  try {
+    const unsub = onSnapshot(
+      collection(db, 'orders'),
+      (snapshot) => {
+        const remoteList: TrackedOrderData[] = [];
+        snapshot.forEach((docSnap) => {
+          const data = docSnap.data() as TrackedOrderData;
+          if (data && data.orderId && !isOrderDeletedOrPurged(data.orderId, data)) {
+            remoteList.push(data);
+          }
+        });
+
+        if (remoteList.length > 0) {
+          try {
+            let map: Record<string, TrackedOrderData> = { ...IN_MEMORY_TRACKED_ORDERS };
+            try {
+              const raw = localStorage.getItem('artified_tracked_orders');
+              if (raw) {
+                const parsed = JSON.parse(raw);
+                Object.entries(parsed).forEach(([k, v]: [string, any]) => {
+                  const n = normalizeOrderId(v?.orderId || k);
+                  if (shouldAcceptIncomingOrder(map[n], v)) {
+                    map[n] = v;
+                  }
+                });
+              }
+            } catch {}
+
+            remoteList.forEach((o) => {
+              const norm = normalizeOrderId(o.orderId);
+              if (shouldAcceptIncomingOrder(map[norm], o)) {
+                map[norm] = {
+                  ...o,
+                  orderId: `#${norm}`,
+                  items: (o.items || []).map((it) => ({
+                    ...it,
+                    image: it.image && (it.image.includes('ibb.co') || (it.image.startsWith('data:') && it.image.length > 5000)) ? '' : it.image
+                  }))
+                };
+                IN_MEMORY_TRACKED_ORDERS[norm] = map[norm];
+              }
+            });
+            persistTrackedOrdersMapToLocalStorage(map);
+          } catch {}
+        }
+
+        onUpdate(getAllOrdersForSeller());
+      },
+      () => {
+        onUpdate(getAllOrdersForSeller());
+      }
+    );
+    return unsub;
+  } catch {
+    return () => {};
+  }
 }
 
 export function buildTrackedOrderFromOrderDetails(order: OrderDetails): TrackedOrderData {
   const phase: OrderProductionPhase = 'confirmed';
+  const norm = normalizeOrderId(order.orderId);
   return {
-    orderId: order.orderId,
+    orderId: `#${norm}`,
     customerName: order.customerName,
     phone: order.phone,
     deliveryAddress: `${order.address}${order.landmark ? ` (Near ${order.landmark})` : ''}`,
@@ -460,10 +1052,13 @@ export function buildTrackedOrderFromOrderDetails(order: OrderDetails): TrackedO
     paymentMethodText: 
       order.paymentMethod === 'cod'
         ? 'Cash on Delivery (COD)'
+        : order.paymentMethod === 'fonepay'
+        ? `Fonepay / Bank QR (Txn: ${order.transactionId || 'Screenshot Attached'})`
         : order.paymentMethod === 'esewa'
-        ? `eSewa (Txn: ${order.transactionId || 'Pending'})`
-        : `Khalti (Txn: ${order.transactionId || 'Pending'})`,
+        ? `eSewa QR (Txn: ${order.transactionId || 'Screenshot Attached'})`
+        : `Khalti QR (Txn: ${order.transactionId || 'Screenshot Attached'})`,
     paymentStatus: order.paymentMethod === 'cod' ? 'Pay on Delivery' : 'Paid & Verified',
+    paymentScreenshot: order.paymentScreenshot,
     items: order.items.map((i) => ({
       title: i.product.title,
       image: getRealProductImage(i.product.title, i.product.images[0]),
@@ -471,6 +1066,8 @@ export function buildTrackedOrderFromOrderDetails(order: OrderDetails): TrackedO
       price: i.product.price,
       customization: i.customizationNote,
     })),
+    subtotal: order.subtotal,
+    deliveryFee: order.deliveryFee,
     total: order.total,
     orderPlacedDate: order.createdAt || 'Just now',
     estimatedDeliveryDate: order.deliveryZone.estimatedDays,
@@ -486,11 +1083,30 @@ export function buildTrackedOrderFromOrderDetails(order: OrderDetails): TrackedO
       order.deliveryZone.estimatedDays,
       order.deliveryZone.name
     ),
+    updatedAt: new Date().toISOString(),
     ...({
       generation: CURRENT_ORDER_GENERATION,
       purgeEpochId: CURRENT_PURGE_EPOCH
     } as any)
   };
+}
+
+/**
+ * Removes the payment screenshot from a specific order after seller verification
+ * to free memory/storage while keeping the order record intact.
+ */
+export function removeOrderPaymentScreenshot(orderIdInput: string): TrackedOrderData | null {
+  const current = getTrackedOrder(orderIdInput);
+  if (!current) return null;
+  const nextRevision = Math.max(current.statusRevision || 1, 1) + 1;
+  const updated: TrackedOrderData = {
+    ...current,
+    paymentScreenshot: '',
+    statusRevision: nextRevision,
+    updatedAt: new Date().toISOString()
+  };
+  saveTrackedOrder(updated);
+  return updated;
 }
 
 /**
@@ -519,17 +1135,24 @@ export function deleteTrackedOrder(orderIdInput: string): void {
     }
     localStorage.setItem('artified_deleted_orders', JSON.stringify(deletedIds));
 
-    // 1. Remove from artified_tracked_orders
-    const rawTracked = localStorage.getItem('artified_tracked_orders');
-    if (rawTracked) {
-      const map: Record<string, TrackedOrderData> = JSON.parse(rawTracked);
-      for (const k of Object.keys(map)) {
-        if (getCanonicalOrderKey(k) === canonical || getCanonicalOrderKey(map[k]?.orderId || '') === canonical) {
-          delete map[k];
-        }
+    // 1. Remove from IN_MEMORY_TRACKED_ORDERS and artified_tracked_orders
+    for (const k of Object.keys(IN_MEMORY_TRACKED_ORDERS)) {
+      if (getCanonicalOrderKey(k) === canonical || getCanonicalOrderKey(IN_MEMORY_TRACKED_ORDERS[k]?.orderId || '') === canonical) {
+        delete IN_MEMORY_TRACKED_ORDERS[k];
       }
-      localStorage.setItem('artified_tracked_orders', JSON.stringify(map));
     }
+    try {
+      const rawTracked = localStorage.getItem('artified_tracked_orders');
+      if (rawTracked) {
+        const map: Record<string, TrackedOrderData> = JSON.parse(rawTracked);
+        for (const k of Object.keys(map)) {
+          if (getCanonicalOrderKey(k) === canonical || getCanonicalOrderKey(map[k]?.orderId || '') === canonical) {
+            delete map[k];
+          }
+        }
+        persistTrackedOrdersMapToLocalStorage(map);
+      }
+    } catch {}
 
     // 2. Remove from artified_orders (customer placed orders)
     const rawOrders = localStorage.getItem('artified_orders');
@@ -538,6 +1161,15 @@ export function deleteTrackedOrder(orderIdInput: string): void {
       const filtered = orders.filter((o) => getCanonicalOrderKey(o.orderId) !== canonical);
       localStorage.setItem('artified_orders', JSON.stringify(filtered));
     }
+
+    // If no active orders remain for this year, reset the sequence counter so the first order starts at 1852 (for 2026) or 1 (for 2027+)
+    try {
+      const remaining = getAllOrdersForSeller();
+      if (remaining.length === 0) {
+        const currentYear = new Date().getFullYear();
+        localStorage.removeItem(`artified_last_seq_${currentYear}`);
+      }
+    } catch {}
 
     // 3. Notify server disk endpoint
     try {
@@ -560,7 +1192,6 @@ export function deleteTrackedOrder(orderIdInput: string): void {
  */
 export function deleteAllOrders(): void {
   try {
-    // Collect any order IDs currently in localStorage so they are permanently added to deletedIds
     const allKnownDeleted = new Set<string>(Array.from(PERMANENTLY_PURGED_CANONICAL_IDS));
     try {
       const prevDeleted = localStorage.getItem('artified_deleted_orders');
@@ -592,6 +1223,9 @@ export function deleteAllOrders(): void {
     const deletedArray = Array.from(allKnownDeleted);
     registerCloudDeletedOrderIds(deletedArray);
 
+    const currentYear = new Date().getFullYear();
+    localStorage.removeItem(`artified_last_seq_${currentYear}`);
+    localStorage.removeItem('artified_last_order_id');
     localStorage.removeItem('artified_all_orders_deleted');
     localStorage.removeItem('artified_orders');
     localStorage.removeItem('artified_tracked_orders');
@@ -610,18 +1244,3 @@ export function deleteAllOrders(): void {
     console.warn('Failed to delete all orders', e);
   }
 }
-
-// Run one-time total purge for generation v6 so all historical orders are wiped cleanly
-try {
-  if (typeof window !== 'undefined') {
-    localStorage.removeItem('artified_all_orders_deleted');
-    const purgeKey = `artified_purge_gen_${CURRENT_ORDER_GENERATION}_${CURRENT_PURGE_EPOCH}`;
-    if (localStorage.getItem(purgeKey) !== 'done') {
-      localStorage.setItem(purgeKey, 'done');
-      deleteAllOrders();
-    } else {
-      // Always ensure legacy Firestore orders are purged in background
-      purgeAllOrdersFromFirestore(false).catch(() => {});
-    }
-  }
-} catch {}

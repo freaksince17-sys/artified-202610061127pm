@@ -618,11 +618,11 @@ export const SellerCatalogListModal: React.FC = () => {
                     {/* Price */}
                     <div className="text-left sm:text-right">
                       <div className="font-semibold text-xs sm:text-sm text-[#1C1B1A]">
-                        Rs. {prod.price.toLocaleString()}
+                        NPR {prod.price.toLocaleString()}
                       </div>
                       {prod.originalPrice && (
                         <div className="text-[10px] text-[#A69E96] line-through">
-                          Rs. {prod.originalPrice.toLocaleString()}
+                          NPR {prod.originalPrice.toLocaleString()}
                         </div>
                       )}
                     </div>

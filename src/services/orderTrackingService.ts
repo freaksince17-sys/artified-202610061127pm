@@ -13,7 +13,6 @@ import {
 } from '../utils/safeFirestore';
 import { TrackedOrderData, OrderProductionPhase } from '../types';
 import { 
-  DEMO_TRACKED_ORDERS, 
   buildMilestonesForPhase, 
   getProgressPercentage, 
   normalizeOrderId,
@@ -23,7 +22,8 @@ import {
   registerCloudDeletedOrderIds,
   sanitizeOrderItems,
   getTrackedOrder,
-  deleteTrackedOrder
+  syncTrackedOrdersFromServer,
+  shouldAcceptIncomingOrder
 } from '../data/trackingData';
 
 const TRACKED_ORDERS_COLLECTION = 'tracked_orders';
@@ -49,7 +49,7 @@ export function getUserSessionToken(): string {
 }
 
 /**
- * Normalizes Order ID for Firestore doc key (e.g. #ART-2026-5526 -> ART-2026-5526)
+ * Normalizes Order ID for Firestore doc key (e.g. #ART-2026-1852 -> ART-2026-1852)
  */
 export function getOrderDocId(rawId: string): string {
   const compact = getCanonicalOrderKey(rawId);
@@ -69,20 +69,38 @@ export async function saveOrderToFirestore(order: TrackedOrderData, userSessionI
   if (!docId) return;
 
   const sessionToken = userSessionId || getUserSessionToken();
-  const nowIso = new Date().toISOString();
+  const nowIso = order.updatedAt || new Date().toISOString();
+
+  // Strip base64 product images from Firestore payload so documents are < 2KB (real images resolve from products.json via getRealProductImage)
+  const cleanOrder = sanitizeOrderItems(order);
+  const sanitizedOrder: any = {
+    ...cleanOrder,
+    items: (cleanOrder.items || []).map((it) => ({
+      ...it,
+      image: it.image && (it.image.startsWith('data:') || it.image.includes('ibb.co')) ? '' : it.image
+    }))
+  };
+  if (sanitizedOrder.paymentScreenshot && typeof sanitizedOrder.paymentScreenshot === 'string' && sanitizedOrder.paymentScreenshot.length > 250000) {
+    sanitizedOrder.paymentScreenshot = '';
+  }
+
+  const normId = normalizeOrderId(order.orderId);
+  const formattedId = `#${normId}`;
 
   const payload: TrackedOrderData & {
     docId: string;
     sessionToken: string;
     updatedAt: string;
+    statusRevision: number;
     generation: number;
     purgeEpochId: string;
   } = {
-    ...order,
-    orderId: order.orderId.startsWith('#') ? order.orderId : `#${order.orderId}`,
+    ...sanitizedOrder,
+    orderId: formattedId,
     docId,
     sessionToken,
     updatedAt: nowIso,
+    statusRevision: order.statusRevision || 1,
     generation: CURRENT_ORDER_GENERATION,
     purgeEpochId: CURRENT_PURGE_EPOCH
   };
@@ -119,31 +137,6 @@ export async function saveOrderToFirestore(order: TrackedOrderData, userSessionI
   } catch (error) {
     console.warn('Notice: Firestore save error, saving locally:', error);
   }
-
-  // Maintain local storage for instant offline recovery
-  try {
-    const raw = localStorage.getItem('artified_tracked_orders');
-    const map: Record<string, TrackedOrderData> = raw ? JSON.parse(raw) : {};
-    map[normalizeOrderId(order.orderId)] = {
-      ...order,
-      generation: CURRENT_ORDER_GENERATION,
-      purgeEpochId: CURRENT_PURGE_EPOCH
-    } as TrackedOrderData;
-    localStorage.setItem('artified_tracked_orders', JSON.stringify(map));
-  } catch {}
-
-  // Sync to server disk
-  try {
-    fetch('/api/tracked-order', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        ...order,
-        generation: CURRENT_ORDER_GENERATION,
-        purgeEpochId: CURRENT_PURGE_EPOCH
-      })
-    }).catch(() => {});
-  } catch {}
 }
 
 /**
@@ -169,7 +162,6 @@ export async function deleteOrderFromFirestore(rawOrderId: string): Promise<void
     deletePromises.push(deleteDoc(doc(db, 'users', sessionToken, 'tracked_orders', docKey)).catch(() => {}));
   }
 
-  // Also record in Firestore tombstone document so all clients know this order was deleted
   deletePromises.push(
     setDoc(
       doc(db, 'store_settings', 'deleted_orders'),
@@ -196,28 +188,6 @@ export async function purgeAllOrdersFromFirestore(forceAll = false): Promise<voi
     ORDER_STATUS_LOGS_COLLECTION
   ];
 
-  // Sync cloud deleted tombstones first
-  try {
-    const deletedSnap = await getDoc(doc(db, 'store_settings', 'deleted_orders'));
-    if (deletedSnap.exists()) {
-      const data = deletedSnap.data();
-      if (Array.isArray(data?.deletedIds)) {
-        registerCloudDeletedOrderIds(data.deletedIds);
-      }
-    }
-  } catch {}
-
-  // Explicitly delete known legacy document IDs immediately
-  await Promise.all([
-    deleteOrderFromFirestore('ART-2026-4846'),
-    deleteOrderFromFirestore('ART20264846'),
-    deleteOrderFromFirestore('ART-2026-5526'),
-    deleteOrderFromFirestore('ART20265526'),
-    deleteOrderFromFirestore('ART-2026-8842'),
-    deleteOrderFromFirestore('ART-2026-5521'),
-    deleteOrderFromFirestore('ART-2026-3190')
-  ]).catch(() => {});
-
   for (const colName of collectionsToPurge) {
     try {
       const snap = await getDocs(collection(db, colName));
@@ -226,11 +196,8 @@ export async function purgeAllOrdersFromFirestore(forceAll = false): Promise<voi
         const data = docSnap.data() as any;
         if (
           forceAll ||
-          data?.generation !== CURRENT_ORDER_GENERATION ||
-          data?.purgeEpochId !== CURRENT_PURGE_EPOCH ||
           isOrderDeletedOrPurged(docSnap.id, data)
         ) {
-          registerCloudDeletedOrderIds([docSnap.id, data?.orderId].filter(Boolean));
           deletions.push(deleteDoc(doc(db, colName, docSnap.id)).catch(() => {}));
         }
       });
@@ -245,11 +212,8 @@ export async function purgeAllOrdersFromFirestore(forceAll = false): Promise<voi
       const data = docSnap.data() as any;
       if (
         forceAll ||
-        data?.generation !== CURRENT_ORDER_GENERATION ||
-        data?.purgeEpochId !== CURRENT_PURGE_EPOCH ||
         isOrderDeletedOrPurged(docSnap.id, data)
       ) {
-        registerCloudDeletedOrderIds([docSnap.id, data?.orderId].filter(Boolean));
         subDeletions.push(deleteDoc(doc(db, 'users', sessionToken, 'tracked_orders', docSnap.id)).catch(() => {}));
       }
     });
@@ -258,10 +222,7 @@ export async function purgeAllOrdersFromFirestore(forceAll = false): Promise<voi
 }
 
 /**
- * Subscribes to real-time status updates of an order from Firestore via onSnapshot.
- * Monitors both `orders/{docId}` and `tracked_orders/{docId}` so that if an order is deleted
- * from the `orders` collection, all associated tracking records and status logs are automatically
- * removed and `onUpdate(null)` is triggered immediately.
+ * Subscribes to real-time status updates of an order from local storage, server disk, and Firestore via onSnapshot.
  */
 export function subscribeToTrackedOrder(
   orderIdInput: string,
@@ -271,123 +232,65 @@ export function subscribeToTrackedOrder(
   const docId = getOrderDocId(orderIdInput);
 
   if (!docId || isOrderDeletedOrPurged(orderIdInput)) {
-    if (docId) {
-      deleteOrderFromFirestore(orderIdInput).catch(() => {});
-    }
     onUpdate(null);
     return () => {};
   }
 
-  // 1. Check local session storage first (only valid generation & epoch orders)
+  let hasResolvedOrder = false;
+
+  // 1. Check local storage & saved orders immediately
   const immediateOrder = getTrackedOrder(orderIdInput);
   if (immediateOrder) {
+    hasResolvedOrder = true;
     onUpdate(sanitizeOrderItems(immediateOrder));
   }
 
-  const orderDocRef = doc(db, ORDERS_COLLECTION, docId);
-  const mainDocRef = doc(db, TRACKED_ORDERS_COLLECTION, docId);
-  const deletedSettingsRef = doc(db, 'store_settings', 'deleted_orders');
-
-  let hasSeenOrderDoc = false;
-
-  // Listen to `store_settings/deleted_orders` tombstone in real time
-  const unsubTombstone = onSnapshot(
-    deletedSettingsRef,
-    (snap) => {
-      if (snap.exists()) {
-        const data = snap.data();
-        if (Array.isArray(data?.deletedIds)) {
-          registerCloudDeletedOrderIds(data.deletedIds);
-          if (isOrderDeletedOrPurged(orderIdInput)) {
-            deleteTrackedOrder(orderIdInput);
-            onUpdate(null);
-          }
-        }
-      }
-    },
-    () => {}
-  );
-
-  // Listen to primary `orders/{docId}` document to detect deletion from the `orders` collection
-  const unsubOrderDoc = onSnapshot(
-    orderDocRef,
-    (orderSnap) => {
-      if (orderSnap.exists()) {
-        const data = orderSnap.data() as TrackedOrderData & { generation?: number; purgeEpochId?: string };
-        if (
-          data.generation !== CURRENT_ORDER_GENERATION ||
-          data.purgeEpochId !== CURRENT_PURGE_EPOCH ||
-          isOrderDeletedOrPurged(data.orderId || docId, data)
-        ) {
-          deleteTrackedOrder(data.orderId || docId);
+  // 2. Always fetch latest server disk `/api/tracked-orders` so any seller status updates from server are reflected immediately
+  fetch('/api/tracked-orders')
+    .then((res) => res.json())
+    .then((serverMap) => {
+      if (serverMap && typeof serverMap === 'object') {
+        syncTrackedOrdersFromServer(serverMap);
+        const syncedOrder = getTrackedOrder(orderIdInput);
+        if (syncedOrder) {
+          hasResolvedOrder = true;
+          onUpdate(sanitizeOrderItems(syncedOrder));
+        } else if (!hasResolvedOrder) {
           onUpdate(null);
-          return;
         }
-        hasSeenOrderDoc = true;
-      } else if (hasSeenOrderDoc) {
-        // Order was deleted from the `orders` collection while listening: cascade delete tracking records & logs
-        deleteTrackedOrder(orderIdInput);
-        onUpdate(null);
       }
-    },
-    () => {}
-  );
+    })
+    .catch(() => {});
 
-  // Set up real-time listener on the `tracked_orders` Firestore document
+  const mainDocRef = doc(db, TRACKED_ORDERS_COLLECTION, docId);
+
+  // 3. Set up real-time listener on the `tracked_orders` Firestore document
   const unsubTrackedDoc = onSnapshot(
     mainDocRef,
-    async (snapshot) => {
+    (snapshot) => {
       if (snapshot.exists()) {
-        const data = snapshot.data() as TrackedOrderData & { generation?: number; purgeEpochId?: string };
+        const data = snapshot.data() as TrackedOrderData;
 
-        // Strictly reject and cascade-delete any order from before the current purge epoch/generation
-        if (
-          data.generation !== CURRENT_ORDER_GENERATION ||
-          data.purgeEpochId !== CURRENT_PURGE_EPOCH ||
-          isOrderDeletedOrPurged(data.orderId || docId, data)
-        ) {
-          deleteTrackedOrder(data.orderId || docId);
+        if (isOrderDeletedOrPurged(data.orderId || docId, data)) {
           onUpdate(null);
           return;
         }
-
-        // Verify the parent order still exists in `orders/{docId}`; if deleted from `orders`, cascade delete tracking records
-        try {
-          const parentOrderSnap = await getDoc(orderDocRef);
-          if (!parentOrderSnap.exists()) {
-            deleteTrackedOrder(data.orderId || docId);
-            onUpdate(null);
-            return;
-          }
-        } catch {}
 
         const sanitized = sanitizeOrderItems(data);
         const localCandidate = getTrackedOrder(orderIdInput);
 
-        const phaseWeights: Record<string, number> = {
-          confirmed: 1,
-          handcrafting_and_packaging: 2,
-          beading_in_progress: 2,
-          quality_and_packaging: 2,
-          out_for_delivery: 3,
-          delivered: 4
-        };
-
-        const localWeight = localCandidate ? (phaseWeights[localCandidate.currentPhase] || 0) : 0;
-        const remoteWeight = phaseWeights[sanitized.currentPhase] || 0;
-
-        if (localCandidate && localWeight > remoteWeight) {
+        hasResolvedOrder = true;
+        if (localCandidate && !shouldAcceptIncomingOrder(localCandidate, sanitized)) {
           onUpdate(sanitizeOrderItems(localCandidate));
-          saveOrderToFirestore(localCandidate).catch(() => {});
         } else {
           onUpdate(sanitized);
         }
       } else {
-        // Document not found in `tracked_orders`: check local valid orders
         const localOrder = getTrackedOrder(orderIdInput);
         if (localOrder) {
+          hasResolvedOrder = true;
           onUpdate(sanitizeOrderItems(localOrder));
-        } else {
+        } else if (!hasResolvedOrder) {
           onUpdate(null);
         }
       }
@@ -400,8 +303,6 @@ export function subscribeToTrackedOrder(
   );
 
   return () => {
-    unsubTombstone();
-    unsubOrderDoc();
     unsubTrackedDoc();
   };
 }
@@ -431,11 +332,7 @@ export async function updateOrderStatusInFirestore(
     const snap = await getDoc(docRef);
     if (snap.exists()) {
       const data = snap.data() as TrackedOrderData & { generation?: number; purgeEpochId?: string };
-      if (
-        data.generation === CURRENT_ORDER_GENERATION &&
-        data.purgeEpochId === CURRENT_PURGE_EPOCH &&
-        !isOrderDeletedOrPurged(orderId, data)
-      ) {
+      if (!isOrderDeletedOrPurged(orderId, data)) {
         existing = data;
       }
     }
@@ -457,6 +354,7 @@ export async function updateOrderStatusInFirestore(
     estimatedDeliveryDate: updates?.estimatedDeliveryDate ?? existing.estimatedDeliveryDate,
     riderName: updates?.riderName ?? existing.riderName,
     riderPhone: updates?.riderPhone ?? existing.riderPhone,
+    updatedAt: new Date().toISOString(),
     milestones: buildMilestonesForPhase(
       newPhase,
       existing.orderPlacedDate,
@@ -470,7 +368,7 @@ export async function updateOrderStatusInFirestore(
 }
 
 /**
- * Cleans up any legacy demo/purged orders in Firestore on startup instead of seeding demo orders.
+ * Cleans up any legacy demo/purged orders in Firestore on startup.
  */
 export async function seedDemoOrdersToFirestore(): Promise<void> {
   await purgeAllOrdersFromFirestore(false);

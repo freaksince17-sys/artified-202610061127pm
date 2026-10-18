@@ -12,7 +12,14 @@ import {
   User,
   ExternalLink
 } from 'lucide-react';
-import { getTrackedOrder, updateOrderPhase, normalizeOrderId, sanitizeOrderItems } from '../data/trackingData';
+import { 
+  getTrackedOrder, 
+  updateOrderPhase, 
+  normalizeOrderId, 
+  sanitizeOrderItems, 
+  getOrderDeliveryFee, 
+  getOrderItemsSubtotal 
+} from '../data/trackingData';
 import { TrackedOrderData, OrderProductionPhase } from '../types';
 import { useCart } from '../context/CartContext';
 import { OrderProgressManagerModal } from './OrderProgressManagerModal';
@@ -20,8 +27,8 @@ import { subscribeToTrackedOrder } from '../services/orderTrackingService';
 import { getRealProductImage, CAVIAR_PEARL_BAG_IMAGE } from '../utils/productImages';
 
 export const OrderTrackerSection: React.FC = () => {
-  const { trackingOrderId, setTrackingOrderId, setActiveNavTab } = useCart();
-  const [inputOrderId, setInputOrderId] = useState<string>(trackingOrderId || '');
+  const { trackingOrderId, setTrackingOrderId } = useCart();
+  const [inputOrderId, setInputOrderId] = useState<string>('');
   const [trackedOrder, setTrackedOrder] = useState<TrackedOrderData | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isSearching, setIsSearching] = useState<boolean>(false);
@@ -29,14 +36,17 @@ export const OrderTrackerSection: React.FC = () => {
 
   const unsubscribeRef = React.useRef<(() => void) | null>(null);
 
-  // Sync when trackingOrderId changes or on mount (only look up if order ID is explicitly provided)
+  // Only look up if an Order ID was explicitly passed during the active action, and clear it so refreshing never auto-loads an order
   useEffect(() => {
+    try {
+      localStorage.removeItem('artified_last_order_id');
+    } catch {}
+
     if (trackingOrderId && trackingOrderId.trim()) {
-      setInputOrderId(trackingOrderId);
-      performLookup(trackingOrderId);
-    } else {
-      setInputOrderId('');
-      setTrackedOrder(null);
+      const idToCheck = trackingOrderId.trim();
+      setInputOrderId(idToCheck);
+      setTrackingOrderId('');
+      performLookup(idToCheck);
     }
 
     return () => {
@@ -73,9 +83,10 @@ export const OrderTrackerSection: React.FC = () => {
     return () => window.removeEventListener('artified_order_updated', handleUpdate);
   }, [trackedOrder, inputOrderId]);
 
-  const performLookup = (idToLookup: string) => {
-    if (!idToLookup.trim()) {
-      setErrorMsg('Please enter an Order ID or Phone Number');
+  const performLookup = async (idToLookup: string) => {
+    const query = idToLookup.trim();
+    if (!query) {
+      setErrorMsg('Please enter your Order ID (e.g. #ART-2026-1000)');
       setTrackedOrder(null);
       return;
     }
@@ -88,18 +99,18 @@ export const OrderTrackerSection: React.FC = () => {
       unsubscribeRef.current = null;
     }
 
+    // Strict Order ID lookup with real-time subscription (only buyers with the Order ID can view progress)
     unsubscribeRef.current = subscribeToTrackedOrder(
-      idToLookup,
+      query,
       (order) => {
         setIsSearching(false);
         if (order) {
           const sanitized = sanitizeOrderItems(order);
           setTrackedOrder(sanitized);
-          setTrackingOrderId(sanitized.orderId);
           setErrorMsg(null);
         } else {
           setTrackedOrder(null);
-          setErrorMsg(`We couldn't find an order for "${idToLookup}". Please check the ID or contact us on WhatsApp.`);
+          setErrorMsg(`We couldn't find an order for Order ID "${query}". Please verify your Order ID or message us on WhatsApp.`);
         }
       },
       () => {
@@ -173,8 +184,15 @@ export const OrderTrackerSection: React.FC = () => {
               <input
                 type="text"
                 value={inputOrderId}
-                onChange={(e) => setInputOrderId(e.target.value)}
-                placeholder="Enter Order ID (e.g. ART-2026-8842)"
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setInputOrderId(val);
+                  if (!val.trim()) {
+                    setTrackedOrder(null);
+                    setErrorMsg(null);
+                  }
+                }}
+                placeholder="Enter Order ID (e.g. #ART-2026-1000)"
                 className="w-full pl-9 pr-3 py-2 bg-[#FAF8F5] dark:bg-[#201F1D] border border-[#E8DFD8] dark:border-[#33302C] rounded-xl text-xs sm:text-sm text-[#1C1B1A] dark:text-[#F5F2EB] focus:outline-none focus:border-[#C5A880]"
               />
             </div>
@@ -213,7 +231,7 @@ export const OrderTrackerSection: React.FC = () => {
               Lookup Your Order Progress
             </h3>
             <p className="text-xs text-[#736C65] dark:text-[#A69E96] leading-relaxed">
-              Enter or paste your Order ID above (e.g. <span className="font-mono text-[#D4AF37] font-bold">ART-2026-5526</span>) to view real-time handcrafting, quality check, and express delivery updates.
+              Enter or paste your Order ID above (e.g. <span className="font-mono text-[#D4AF37] font-bold">#ART-2026-1000</span>) to view real-time handcrafting, quality check, and express delivery updates.
             </p>
           </div>
         )}
@@ -261,36 +279,36 @@ export const OrderTrackerSection: React.FC = () => {
               </div>
               
               <div className="relative">
-                {/* Connecting Line */}
-                <div className="hidden sm:block absolute top-4 left-0 w-full h-[2px] bg-[#E8DFD8] dark:bg-[#2D2B28] -translate-y-1/2 -z-0" />
+                {/* Connecting Line - Golden line crosses through and just past each completed/active stage icon (12.5%, 37.5%, 62.5%, 87.5%) */}
+                <div className="block absolute top-4 left-0 w-full h-[2.5px] bg-[#E8DFD8] dark:bg-[#2D2B28] -translate-y-1/2 z-0 rounded-full" />
                 <div 
-                  className="hidden sm:block absolute top-4 left-0 h-[2px] bg-[#C5A880] -translate-y-1/2 -z-0 transition-all duration-700"
-                  style={{ width: `${(currentIdx / (PHASES.length - 1)) * 100}%` }}
+                  className="block absolute top-4 left-0 h-[2.5px] bg-gradient-to-r from-[#D4AF37] to-[#C5A880] -translate-y-1/2 z-0 transition-all duration-700 rounded-full"
+                  style={{ width: `${currentIdx >= PHASES.length - 1 ? 100 : currentIdx * 25 + 19}%` }}
                 />
 
                 {/* 4 Steps */}
-                <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5 relative z-10">
+                <div className="grid grid-cols-4 gap-1.5 sm:gap-2.5 relative z-10">
                   {PHASES.map((phase, idx) => {
                     const isDone = idx <= currentIdx;
                     const isCurrent = idx === currentIdx;
                     const IconComponent = phase.icon;
 
                     return (
-                      <div key={phase.key} className="flex sm:flex-col items-center gap-2 sm:text-center">
+                      <div key={phase.key} className="flex flex-col items-center gap-1.5 text-center">
                         <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-all ${
                           isCurrent
                             ? 'bg-[#C5A880] text-white shadow-sm ring-2 ring-[#C5A880]/30'
                             : isDone
-                            ? 'bg-[#1C1B1A] dark:bg-[#FAF8F5] text-white dark:text-[#1C1B1A]'
+                            ? 'bg-[#C5A880] text-white shadow-2xs'
                             : 'bg-[#F0EBE5] dark:bg-[#252422] text-[#8C847E]'
                         }`}>
                           <IconComponent className="w-3.5 h-3.5" />
                         </div>
-                        <div className="sm:mt-0.5">
-                          <p className={`text-xs font-bold leading-tight ${isDone ? 'text-[#1C1B1A] dark:text-[#F5F2EB]' : 'text-[#8C847E]'}`}>
+                        <div className="mt-0.5">
+                          <p className={`text-[10px] sm:text-xs font-bold leading-tight ${isDone ? 'text-[#1C1B1A] dark:text-[#F5F2EB]' : 'text-[#8C847E]'}`}>
                             {phase.label}
                           </p>
-                          <p className="text-[10px] text-[#736C65] dark:text-[#A69E96] mt-0.5">
+                          <p className="text-[9px] sm:text-[10px] text-[#736C65] dark:text-[#A69E96] mt-0.5">
                             {phase.sublabel}
                           </p>
                         </div>
@@ -343,7 +361,7 @@ export const OrderTrackerSection: React.FC = () => {
                           {item.title}
                         </h5>
                         <p className="text-[11px] text-[#5E5955] dark:text-[#A69E96]">
-                          Quantity: {item.quantity} • NPR {item.price.toLocaleString()}
+                          Quantity: {item.quantity ?? 1} • NPR {(Number(item.price) || 0).toLocaleString()}
                         </p>
                         {item.customization && (
                           <p className="text-[10px] text-[#C5A880] font-medium truncate">
@@ -354,9 +372,19 @@ export const OrderTrackerSection: React.FC = () => {
                     </div>
                   ))}
                 </div>
-                <div className="mt-2.5 pt-2 border-t border-[#E8DFD8] dark:border-[#2D2B28] flex items-center justify-between text-xs font-semibold text-[#1C1B1A] dark:text-[#F5F2EB]">
-                  <span>Total Amount</span>
-                  <span>NPR {trackedOrder.total.toLocaleString()}</span>
+                <div className="mt-2.5 pt-2 border-t border-[#E8DFD8] dark:border-[#2D2B28] space-y-1 text-xs">
+                  <div className="flex items-center justify-between text-[#5E5955] dark:text-[#A69E96]">
+                    <span>Items Subtotal</span>
+                    <span>NPR {getOrderItemsSubtotal(trackedOrder).toLocaleString()}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-[#5E5955] dark:text-[#A69E96]">
+                    <span>Delivery Charge ({trackedOrder.deliveryZoneName})</span>
+                    <span>NPR {getOrderDeliveryFee(trackedOrder).toLocaleString()}</span>
+                  </div>
+                  <div className="pt-1 border-t border-[#E8DFD8]/60 dark:border-[#2D2B28] flex items-center justify-between font-bold text-[#1C1B1A] dark:text-[#F5F2EB]">
+                    <span>Total Amount</span>
+                    <span>NPR {(Number(trackedOrder.total) || 0).toLocaleString()}</span>
+                  </div>
                 </div>
               </div>
 
@@ -370,6 +398,9 @@ export const OrderTrackerSection: React.FC = () => {
                   <div>
                     <p className="font-semibold text-[#1C1B1A] dark:text-[#F5F2EB]">{trackedOrder.deliveryAddress}</p>
                     <p className="text-[11px] text-[#736C65] dark:text-[#A69E96] mt-0.5">Zone: {trackedOrder.deliveryZoneName}</p>
+                    <p className="text-[11px] font-semibold text-[#1C1B1A] dark:text-[#F5F2EB] mt-0.5">
+                      Delivery Charge: NPR {getOrderDeliveryFee(trackedOrder).toLocaleString()}
+                    </p>
                     {trackedOrder.courierPartner && (
                       <p className="text-[11px] text-[#736C65] dark:text-[#A69E96] mt-0.5">
                         Courier: {trackedOrder.courierPartner} {trackedOrder.consignmentCode ? `(${trackedOrder.consignmentCode})` : ''}

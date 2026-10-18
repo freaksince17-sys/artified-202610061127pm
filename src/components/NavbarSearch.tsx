@@ -132,7 +132,7 @@ export const NavbarSearch: React.FC<NavbarSearchProps> = ({ isOpen, onClose }) =
     { label: 'Bohemian Macrame', query: 'macrame', cat: 'macrame' },
     { label: 'Handcrafted Accessories', query: 'accessories', cat: 'accessories' },
     { label: 'Bridal Pieces', query: 'bridal', cat: 'all' },
-    { label: 'Under Rs. 4,000', query: '', cat: 'under-4000' },
+    { label: 'Under NPR 4,000', query: '', cat: 'under-4000' },
   ];
 
   return (
@@ -201,7 +201,7 @@ export const NavbarSearch: React.FC<NavbarSearchProps> = ({ isOpen, onClose }) =
               { id: 'pearl-necklaces', label: 'Pearl Necklaces' },
               { id: 'macrame', label: 'Macrame' },
               { id: 'accessories', label: 'Accessories' },
-              { id: 'under-4000', label: 'Under Rs. 4,000' },
+              { id: 'under-4000', label: 'Under NPR 4,000' },
             ].map((cat) => {
               const isActive = searchCategory === cat.id;
               return (
@@ -345,11 +345,11 @@ export const NavbarSearch: React.FC<NavbarSearchProps> = ({ isOpen, onClose }) =
                         <div className="flex items-center justify-between pt-2 border-t border-[#F0EBE5]">
                           <div>
                             <span className="text-xs font-bold text-[#1C1B1A]">
-                              Rs. {product.price.toLocaleString()}
+                              NPR {product.price.toLocaleString()}
                             </span>
                             {product.originalPrice && (
                               <span className="text-[10px] text-[#9E9791] line-through ml-1.5">
-                                Rs. {product.originalPrice.toLocaleString()}
+                                NPR {product.originalPrice.toLocaleString()}
                               </span>
                             )}
                           </div>
@@ -428,7 +428,7 @@ export const NavbarSearch: React.FC<NavbarSearchProps> = ({ isOpen, onClose }) =
         {/* Footer with Catalog Action */}
         <div className="p-4 bg-white border-t border-[#E8DFD8] flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
           <p className="text-[#736C65] text-center sm:text-left">
-            🚚 Free delivery across Kathmandu Valley on orders over Rs. 3,500
+            🚚 Free delivery across Kathmandu Valley on orders over NPR 3,500
           </p>
 
           <button

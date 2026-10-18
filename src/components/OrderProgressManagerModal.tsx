@@ -16,18 +16,28 @@ import {
   ClipboardCheck,
   Clock,
   History,
-  Trash2
+  Trash2,
+  Camera,
+  Download,
+  ShieldCheck
 } from 'lucide-react';
 import { 
   getAllOrdersForSeller, 
+  syncOrdersFromFirestore,
+  syncTrackedOrdersFromServer,
+  subscribeAllOrdersForSeller,
   updateOrderPhase, 
   saveTrackedOrder, 
   normalizeOrderId, 
   getProgressPercentage,
   buildMilestonesForPhase,
-  deleteTrackedOrder 
+  deleteTrackedOrder,
+  generateUniqueOrderId,
+  getOrderDeliveryFee,
+  getOrderItemsSubtotal,
+  removeOrderPaymentScreenshot
 } from '../data/trackingData';
-import { getRealProductImage } from '../utils/productImages';
+import { getRealProductImage, CAVIAR_PEARL_BAG_IMAGE } from '../utils/productImages';
 import { TrackedOrderData, OrderProductionPhase } from '../types';
 
 interface OrderProgressManagerModalProps {
@@ -48,6 +58,7 @@ export const OrderProgressManagerModal: React.FC<OrderProgressManagerModalProps>
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isAddingOrder, setIsAddingOrder] = useState(false);
+  const [selectedScreenshotOrder, setSelectedScreenshotOrder] = useState<TrackedOrderData | null>(null);
 
   // Editable estimated arrival dates per order
   const [editingDeliveryDate, setEditingDeliveryDate] = useState<Record<string, string>>({});
@@ -60,20 +71,44 @@ export const OrderProgressManagerModal: React.FC<OrderProgressManagerModalProps>
   const [newTotal, setNewTotal] = useState('');
   const [newDeliveryDate, setNewDeliveryDate] = useState('1-2 business days');
 
-  const reloadOrders = () => {
+  const reloadOrders = async () => {
     const list = getAllOrdersForSeller();
     setOrders(list);
+    try {
+      const res = await fetch('/api/tracked-orders');
+      if (res.ok) {
+        const serverMap = await res.json();
+        if (serverMap && typeof serverMap === 'object') {
+          syncTrackedOrdersFromServer(serverMap);
+          setOrders(getAllOrdersForSeller());
+        }
+      }
+    } catch {}
+    try {
+      const freshCloudOrders = await syncOrdersFromFirestore();
+      if (freshCloudOrders && freshCloudOrders.length > 0) {
+        setOrders(freshCloudOrders);
+      }
+    } catch {}
   };
 
   useEffect(() => {
     if (isOpen) {
       reloadOrders();
       if (initialOrderId) setSearchQuery(initialOrderId);
+
+      // Realtime listener across all devices and customers
+      const unsub = subscribeAllOrdersForSeller((freshList) => {
+        setOrders(freshList);
+      });
+      return () => unsub();
     }
   }, [isOpen, initialOrderId]);
 
   useEffect(() => {
-    const handleOrderUpdated = () => reloadOrders();
+    const handleOrderUpdated = () => {
+      setOrders(getAllOrdersForSeller());
+    };
     window.addEventListener('artified_order_updated', handleOrderUpdated);
     return () => window.removeEventListener('artified_order_updated', handleOrderUpdated);
   }, []);
@@ -98,20 +133,27 @@ export const OrderProgressManagerModal: React.FC<OrderProgressManagerModalProps>
       estimatedDeliveryDate: deliveryDate
     });
 
-    setOrders((prev) => 
-      prev.map((o) => normalizeOrderId(o.orderId) === normalizeOrderId(orderId) ? updated : o)
-    );
+    setOrders((prev) => {
+      const next = prev.map((o) =>
+        normalizeOrderId(o.orderId) === normalizeOrderId(orderId) ? updated : o
+      );
+      return next.length > 0 ? next : getAllOrdersForSeller();
+    });
+
+    if (pendingSubFilter !== 'all' && phase !== 'delivered' && pendingSubFilter !== phase) {
+      setPendingSubFilter('all');
+    }
 
     const phaseNames: Record<OrderProductionPhase, string> = {
-      confirmed: 'Confirmed & Paid',
-      handcrafting_and_packaging: 'Handcrafting & Packaging',
-      out_for_delivery: 'Out for Delivery',
-      delivered: 'Delivered',
-      beading_in_progress: 'Handcrafting & Packaging',
-      quality_and_packaging: 'Handcrafting & Packaging'
+      confirmed: '1. Confirmed & Paid',
+      handcrafting_and_packaging: '2. Handcrafting & Packaging',
+      out_for_delivery: '3. Shipped (Out for Delivery)',
+      delivered: '4. Delivered',
+      beading_in_progress: '2. Handcrafting & Packaging',
+      quality_and_packaging: '2. Handcrafting & Packaging'
     };
 
-    showToast(`Order #${orderId} moved to "${phaseNames[phase]}"!`);
+    showToast(`Order ${orderId} updated to "${phaseNames[phase]}"!`);
   };
 
   const handleDeliveryDateChange = (orderId: string, newDate: string) => {
@@ -158,7 +200,7 @@ export const OrderProgressManagerModal: React.FC<OrderProgressManagerModalProps>
       return;
     }
 
-    const generatedId = `ART-2026-${Math.floor(1000 + Math.random() * 9000)}`;
+    const generatedId = generateUniqueOrderId();
 
     const newOrder: TrackedOrderData = {
       orderId: generatedId,
@@ -207,9 +249,13 @@ export const OrderProgressManagerModal: React.FC<OrderProgressManagerModalProps>
 
   const filteredOrders = targetList.filter((order) => {
     const q = searchQuery.toLowerCase().trim();
+    const normQuery = normalizeOrderId(searchQuery).toLowerCase();
+    const legacyId = ((order as any).legacyOrderId || '').toLowerCase();
     const matchesSearch = 
       !q || 
       order.orderId.toLowerCase().includes(q) ||
+      (normQuery && order.orderId.toLowerCase().includes(normQuery)) ||
+      (legacyId && legacyId.includes(q)) ||
       order.customerName.toLowerCase().includes(q) ||
       order.phone.includes(q) ||
       order.deliveryAddress.toLowerCase().includes(q) ||
@@ -492,12 +538,26 @@ export const OrderProgressManagerModal: React.FC<OrderProgressManagerModalProps>
                     </div>
 
                     <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[10px] font-medium text-[#736C65] bg-[#FAF8F5] px-1.5 py-0.2 rounded border border-[#E8DFD8]">
+                        Delivery: <strong className="text-[#1C1B1A]">NPR {getOrderDeliveryFee(order).toLocaleString()}</strong>
+                      </span>
                       <span className="text-[10px] font-bold text-[#1C1B1A] bg-[#FAF8F5] px-1.5 py-0.2 rounded border border-[#E8DFD8]">
-                        NPR {order.total.toLocaleString()}
+                        Total: NPR {(Number(order.total) || 0).toLocaleString()}
                       </span>
                       <span className="text-[9px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
-                        {order.paymentStatus}
+                        {order.paymentStatus || 'Verified'} ({order.paymentMethodText || 'COD'})
                       </span>
+                      {order.paymentScreenshot && (order.paymentScreenshot.startsWith('data:image') || order.paymentScreenshot.startsWith('http') || order.paymentScreenshot.startsWith('blob:')) && (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedScreenshotOrder(order)}
+                          className="text-[10px] font-bold text-[#1C1B1A] bg-[#D4AF37]/25 hover:bg-[#D4AF37]/40 px-2 py-0.5 rounded border border-[#D4AF37] flex items-center gap-1 cursor-pointer transition-colors"
+                          title={`View Payment Screenshot for ${order.orderId} (${order.customerName})`}
+                        >
+                          <Camera className="w-3 h-3 text-[#1C1B1A]" />
+                          <span>View Payment Screenshot</span>
+                        </button>
+                      )}
                       <div className="flex items-center gap-1 text-[10px] text-[#736C65] bg-[#FAF8F5] px-1.5 py-0.2 rounded border border-[#E8DFD8]">
                         <span className="text-[#8C7A6B] uppercase font-bold text-[9px]">Est:</span>
                         <input
@@ -514,7 +574,7 @@ export const OrderProgressManagerModal: React.FC<OrderProgressManagerModalProps>
                   {/* Compact Main Row */}
                   <div className="grid grid-cols-1 md:grid-cols-12 gap-2.5 items-center">
                     
-                    {/* 1. Customer & Delivery (Ticked Green) */}
+                    {/* 1. Customer & Delivery */}
                     <div className="md:col-span-3 text-xs space-y-0.5 bg-[#FAF8F5] p-2 rounded-lg border border-[#E8DFD8]/80">
                       <span className="text-[8px] uppercase font-bold tracking-wider text-[#8C7A6B] block">
                         Customer & Delivery
@@ -528,25 +588,38 @@ export const OrderProgressManagerModal: React.FC<OrderProgressManagerModalProps>
                         <MapPin className="w-2.5 h-2.5 text-[#8C7A6B] shrink-0" />
                         <span className="truncate">{order.deliveryAddress}</span>
                       </p>
-                      <span className="inline-block text-[8px] font-semibold text-[#8C7A6B] bg-white px-1 py-0.2 rounded border border-[#E8DFD8] truncate max-w-full">
-                        {order.deliveryZoneName}
-                      </span>
+                      <div className="flex items-center gap-1 flex-wrap pt-0.5">
+                        <span className="inline-block text-[8px] font-semibold text-[#8C7A6B] bg-white px-1 py-0.2 rounded border border-[#E8DFD8] truncate max-w-full">
+                          {order.deliveryZoneName}
+                        </span>
+                        <span className="inline-block text-[8px] font-bold text-[#1C1B1A] bg-amber-50/80 px-1 py-0.2 rounded border border-amber-200/80">
+                          Delivery Fee: NPR {getOrderDeliveryFee(order).toLocaleString()}
+                        </span>
+                      </div>
                     </div>
 
-                    {/* 2. Ordered Items (Ticked Green) */}
+                    {/* 2. Ordered Items */}
                     <div className="md:col-span-3 flex items-center gap-2 bg-[#FAF8F5] p-2 rounded-lg border border-[#E8DFD8]/80 min-w-0">
                       <img
-                        src={getRealProductImage(order.items[0]?.title, order.items[0]?.image)}
-                        alt={order.items[0]?.title}
-                        className="w-9 h-9 rounded-md object-cover border border-[#E8DFD8] shrink-0"
+                        src={getRealProductImage(order.items?.[0]?.title, order.items?.[0]?.image)}
+                        alt={order.items?.[0]?.title || 'Handcrafted Item'}
+                        onError={(e) => {
+                          (e.currentTarget as HTMLImageElement).src = CAVIAR_PEARL_BAG_IMAGE;
+                        }}
+                        className="w-10 h-10 rounded-md object-cover border border-[#E8DFD8] shrink-0 bg-white"
                       />
                       <div className="flex-1 min-w-0 text-xs">
                         <span className="text-[8px] uppercase font-bold tracking-wider text-[#8C7A6B] block">
-                          Ordered Items ({order.items.length})
+                          Ordered Items ({order.items?.length || 0})
                         </span>
-                        <p className="font-semibold text-[#1C1B1A] truncate text-[11px]">{order.items[0]?.title}</p>
+                        <p className="font-semibold text-[#1C1B1A] truncate text-[11px]">
+                          {order.items?.[0]?.title || 'Handcrafted Artified Piece'}
+                        </p>
                         <p className="text-[10px] text-[#736C65]">
-                          Qty: {order.items[0]?.quantity} • NPR {order.items[0]?.price.toLocaleString()}
+                          Qty: {order.items?.[0]?.quantity ?? 1} • NPR {(Number(order.items?.[0]?.price ?? getOrderItemsSubtotal(order)) || 0).toLocaleString()}
+                        </p>
+                        <p className="text-[9px] text-[#8C7A6B] font-medium">
+                          + Delivery: NPR {getOrderDeliveryFee(order).toLocaleString()} (Total: NPR {(Number(order.total) || 0).toLocaleString()})
                         </p>
                       </div>
                     </div>
@@ -652,11 +725,143 @@ export const OrderProgressManagerModal: React.FC<OrderProgressManagerModalProps>
 
                   </div>
 
+                  {/* Dedicated Mistake-Proof Payment Screenshot Verification Strip */}
+                  {order.paymentScreenshot && (order.paymentScreenshot.startsWith('data:image') || order.paymentScreenshot.startsWith('http') || order.paymentScreenshot.startsWith('blob:')) && (
+                    <div className="mt-1 pt-2 border-t border-[#F0EBE5] flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-emerald-50/40 px-2.5 py-2 rounded-xl border border-emerald-200/70">
+                      <div className="flex items-center gap-2.5">
+                        <img
+                          src={order.paymentScreenshot}
+                          alt={`Payment receipt for ${order.orderId}`}
+                          onClick={() => setSelectedScreenshotOrder(order)}
+                          className="w-11 h-11 rounded-lg object-cover border-2 border-[#D4AF37] cursor-pointer shrink-0 bg-white hover:scale-105 transition-transform"
+                          title="Click to enlarge payment screenshot"
+                        />
+                        <div className="text-xs">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-900 flex items-center gap-1">
+                              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                              <span>Buyer Payment Screenshot Attached</span>
+                            </span>
+                            <span className="font-mono text-[10px] font-extrabold bg-[#1C1B1A] text-[#D4AF37] px-1.5 py-0.2 rounded">
+                              {order.orderId}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-[#5E5955] mt-0.5">
+                            Buyer: <strong className="text-[#1C1B1A]">{order.customerName}</strong> ({order.phone}) • <strong className="text-[#1C1B1A]">NPR {(Number(order.total) || 0).toLocaleString()}</strong> • {order.paymentMethodText}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedScreenshotOrder(order)}
+                          className="px-2.5 py-1.5 bg-[#1C1B1A] hover:bg-black text-[#D4AF37] text-[10px] font-bold rounded-lg flex items-center gap-1 cursor-pointer transition-colors"
+                        >
+                          <Camera className="w-3 h-3" />
+                          <span>Inspect Full Receipt</span>
+                        </button>
+                        <a
+                          href={order.paymentScreenshot}
+                          download={`Artified-Receipt-${order.orderId.replace('#', '')}-${order.customerName.replace(/\s+/g, '_')}.jpg`}
+                          className="px-2.5 py-1.5 bg-white hover:bg-[#FAF8F5] text-[#1C1B1A] border border-[#E8DFD8] text-[10px] font-bold rounded-lg flex items-center gap-1 cursor-pointer transition-colors"
+                          title="Download stamped receipt image"
+                        >
+                          <Download className="w-3 h-3" />
+                          <span>Save</span>
+                        </a>
+                      </div>
+                    </div>
+                  )}
+
                 </div>
               );
             })
           )}
         </div>
+
+        {/* Full-Screen Mistake-Proof Payment Screenshot Lightbox Modal */}
+        {selectedScreenshotOrder && selectedScreenshotOrder.paymentScreenshot && (
+          <div
+            className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 animate-fade-in"
+            onClick={() => setSelectedScreenshotOrder(null)}
+          >
+            <div
+              className="bg-[#FAF8F5] rounded-2xl border-2 border-[#D4AF37] shadow-2xl max-w-lg w-full max-h-[92vh] flex flex-col overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="bg-[#1C1B1A] text-white px-4 py-3 flex items-center justify-between border-b border-[#34312F]">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-sm font-extrabold text-[#D4AF37]">
+                      {selectedScreenshotOrder.orderId}
+                    </span>
+                    <span className="text-[10px] bg-emerald-900/80 text-emerald-300 border border-emerald-600/50 px-2 py-0.2 rounded-full font-bold">
+                      Verified Order Binding
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-[#A69E96] mt-0.5">
+                    Buyer: <strong className="text-white">{selectedScreenshotOrder.customerName}</strong> ({selectedScreenshotOrder.phone}) • Total: <strong className="text-[#D4AF37]">NPR {(Number(selectedScreenshotOrder.total) || 0).toLocaleString()}</strong>
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedScreenshotOrder(null)}
+                  className="p-1.5 text-[#A69E96] hover:text-white rounded-lg cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-4 overflow-y-auto flex-1 flex flex-col items-center bg-zinc-900/95">
+                <img
+                  src={selectedScreenshotOrder.paymentScreenshot}
+                  alt={`Payment Screenshot for ${selectedScreenshotOrder.orderId}`}
+                  className="max-h-[62vh] w-auto object-contain rounded-xl border border-[#D4AF37]/50 shadow-lg bg-white"
+                />
+                <p className="text-[10px] text-[#D4AF37] mt-2 text-center">
+                  🔒 Locked to Order {selectedScreenshotOrder.orderId} ({selectedScreenshotOrder.customerName}) • Compressed (~30KB) for zero storage bloat
+                </p>
+              </div>
+
+              <div className="p-3 bg-white border-t border-[#E8DFD8] flex items-center justify-between gap-2 flex-wrap">
+                <a
+                  href={selectedScreenshotOrder.paymentScreenshot}
+                  download={`Artified-Receipt-${selectedScreenshotOrder.orderId.replace('#', '')}-${selectedScreenshotOrder.customerName.replace(/\s+/g, '_')}.jpg`}
+                  className="px-3.5 py-2 bg-[#1C1B1A] hover:bg-black text-[#D4AF37] text-xs font-bold rounded-xl flex items-center gap-1.5 cursor-pointer transition-colors"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Download Receipt ({selectedScreenshotOrder.orderId})</span>
+                </a>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      removeOrderPaymentScreenshot(selectedScreenshotOrder.orderId);
+                      setOrders(getAllOrdersForSeller());
+                      setSelectedScreenshotOrder(null);
+                      setToastMessage(`Removed screenshot image from ${selectedScreenshotOrder.orderId} to free space.`);
+                      setTimeout(() => setToastMessage(null), 3000);
+                    }}
+                    className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold rounded-xl flex items-center gap-1 cursor-pointer transition-colors"
+                    title="Remove screenshot image after verification to free storage"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Clear Screenshot (Free Space)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedScreenshotOrder(null)}
+                    className="px-3.5 py-2 bg-[#FAF8F5] hover:bg-[#F0EBE5] text-[#1C1B1A] border border-[#E8DFD8] text-xs font-bold rounded-xl cursor-pointer"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
       </div>
     </div>

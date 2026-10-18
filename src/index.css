@@ -8,11 +8,24 @@
   --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
 }
 
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
 body {
   font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
   background-color: #FAF8F5;
   color: #1C1B1A;
   transition: background-color 0.2s ease, color 0.2s ease;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+button, a, input, select, textarea, label {
+  touch-action: manipulation;
 }
 
 html.dark body {

@@ -265,13 +265,13 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, isSelected = 
         <div className="mt-1 pt-1 border-t border-[#F3F4F6] dark:border-[#262422]">
           {/* Strikethrough original price */}
           <div className="text-[9px] sm:text-[10px] text-[#8C847E] dark:text-[#7A736C] line-through leading-none">
-            NPR{displayOriginalPrice.toLocaleString()}.00
+            NPR {displayOriginalPrice.toLocaleString()}
           </div>
 
           {/* Current bold price */}
           <div className="flex items-baseline justify-between gap-1 mt-0.5">
             <span className="text-xs sm:text-[13px] font-bold text-[#1C1B1A] dark:text-[#FAF8F5] tracking-tight leading-tight">
-              NPR{product.price.toLocaleString()}.00
+              NPR {product.price.toLocaleString()}
             </span>
             {isOutOfStock && (
               <span className="text-[9px] font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 px-1 py-0.5 rounded border border-amber-200 dark:border-amber-800">

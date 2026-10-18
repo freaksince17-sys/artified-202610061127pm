@@ -45,7 +45,7 @@ export const ProductCompareModal: React.FC = () => {
   const handleWhatsAppOrder = (product: Product) => {
     const phone = '9779767573721';
     const text = encodeURIComponent(
-      `Namaste Artified Nepal! ✨ I am interested in ordering the handmade ${product.title} (Rs. ${product.price.toLocaleString()}). Could you please confirm availability and valley delivery? Dhanyabad!`
+      `Namaste Artified Nepal! ✨ I am interested in ordering the handmade ${product.title} (NPR ${product.price.toLocaleString()}). Could you please confirm availability and valley delivery? Dhanyabad!`
     );
     window.open(`https://wa.me/${phone}?text=${text}`, '_blank');
   };
@@ -205,7 +205,7 @@ export const ProductCompareModal: React.FC = () => {
                                 />
                                 <div className="truncate text-xs">
                                   <p className="font-semibold text-[#1C1B1A] truncate">{alt.title}</p>
-                                  <p className="text-[11px] text-[#736C65]">Rs. {alt.price.toLocaleString()}</p>
+                                  <p className="text-[11px] text-[#736C65]">NPR {alt.price.toLocaleString()}</p>
                                 </div>
                               </div>
                               <button
@@ -233,14 +233,14 @@ export const ProductCompareModal: React.FC = () => {
                     <p className="text-[#3C3835]">
                       <strong>Price Comparison:</strong>{' '}
                       {productA.price === productB.price ? (
-                        <span>Both pieces are priced identically at <strong>Rs. {productA.price.toLocaleString()}</strong>.</span>
+                        <span>Both pieces are priced identically at <strong>NPR {productA.price.toLocaleString()}</strong>.</span>
                       ) : productA.price < productB.price ? (
                         <span>
-                          <strong>{productA.title}</strong> is <strong>Rs. {(productB.price - productA.price).toLocaleString()}</strong> less than {productB.title}.
+                          <strong>{productA.title}</strong> is <strong>NPR {(productB.price - productA.price).toLocaleString()}</strong> less than {productB.title}.
                         </span>
                       ) : (
                         <span>
-                          <strong>{productB.title}</strong> is <strong>Rs. {(productA.price - productB.price).toLocaleString()}</strong> less than {productA.title}.
+                          <strong>{productB.title}</strong> is <strong>NPR {(productA.price - productB.price).toLocaleString()}</strong> less than {productA.title}.
                         </span>
                       )}
                     </p>
@@ -349,11 +349,11 @@ const ComparisonColumn: React.FC<ComparisonColumnProps> = ({
 
           <div className="flex items-baseline gap-2 pt-1">
             <span className="font-mono text-lg font-bold text-[#1C1B1A]">
-              Rs. {product.price.toLocaleString()}
+              NPR {product.price.toLocaleString()}
             </span>
             {product.originalPrice && product.originalPrice > product.price && (
               <span className="text-xs text-[#A69E96] line-through">
-                Rs. {product.originalPrice.toLocaleString()}
+                NPR {product.originalPrice.toLocaleString()}
               </span>
             )}
             <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded font-semibold ml-auto">
@@ -444,7 +444,7 @@ const ComparisonColumn: React.FC<ComparisonColumnProps> = ({
           className="w-full py-2.5 px-4 bg-[#1C1B1A] hover:bg-black active:scale-[0.99] text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer"
         >
           <ShoppingBag className="w-4 h-4 text-[#D4AF37]" />
-          <span>Add to Bag (Rs. {product.price.toLocaleString()})</span>
+          <span>Add to Bag (NPR {product.price.toLocaleString()})</span>
         </button>
 
         <button

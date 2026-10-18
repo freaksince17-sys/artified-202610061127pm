@@ -214,7 +214,7 @@ export const SellerDashboardModal: React.FC<SellerDashboardModalProps> = ({
                       stroke="#8C7A6B" 
                       fontSize={11} 
                       tickLine={false}
-                      tickFormatter={(val) => `Rs. ${val.toLocaleString()}`}
+                      tickFormatter={(val) => `NPR ${val.toLocaleString()}`}
                     />
                     <Tooltip 
                       contentStyle={{ backgroundColor: '#1C1B1A', borderColor: '#34312F', borderRadius: '12px', color: '#fff', fontSize: '12px' }}

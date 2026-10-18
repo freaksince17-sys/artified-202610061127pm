@@ -121,7 +121,7 @@ export const ProductDetailModal: React.FC = () => {
   const handleShareWhatsApp = () => {
     if (!quickViewProduct) return;
     const shareUrl = window.location.href;
-    const text = `Look at this stunning handmade ${quickViewProduct.title} from Artified Nepal! ✨\nPrice: Rs. ${quickViewProduct.price.toLocaleString()}\nHandcrafted with pearls in Kathmandu, Nepal 🌸\nTake a look: ${shareUrl}`;
+    const text = `Look at this stunning handmade ${quickViewProduct.title} from Artified Nepal! ✨\nPrice: NPR ${quickViewProduct.price.toLocaleString()}\nHandcrafted with pearls in Kathmandu, Nepal 🌸\nTake a look: ${shareUrl}`;
     const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
     window.open(url, '_blank');
   };
@@ -130,7 +130,7 @@ export const ProductDetailModal: React.FC = () => {
     if (!quickViewProduct) return;
     const shareUrl = window.location.href;
     const shareTitle = `${quickViewProduct.title} | Artified Nepal`;
-    const shareText = `Adoring this handmade ${quickViewProduct.title} by @artified_np ✨ Price: Rs. ${quickViewProduct.price.toLocaleString()} • Handcrafted in Kathmandu: ${shareUrl}`;
+    const shareText = `Adoring this handmade ${quickViewProduct.title} by @artified_np ✨ Price: NPR ${quickViewProduct.price.toLocaleString()} • Handcrafted in Kathmandu: ${shareUrl}`;
 
     // On mobile devices with native share support
     if (navigator.share) {
@@ -292,7 +292,7 @@ export const ProductDetailModal: React.FC = () => {
 
   const handleWhatsAppOrder = () => {
     const phone = '9779767573721';
-    const text = `Namaste Artified_np! ✨ I would like to order / inquire about the *${product.title}* (Rs. ${product.price.toLocaleString()}). Delivery in Kathmandu Valley / Nepal.`;
+    const text = `Namaste Artified_np! ✨ I would like to order / inquire about the *${product.title}* (NPR ${product.price.toLocaleString()}). Delivery in Kathmandu Valley / Nepal.`;
     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`, '_blank');
   };
 
@@ -631,11 +631,11 @@ export const ProductDetailModal: React.FC = () => {
                 {/* Price Display in NPR */}
                 <div className="flex items-baseline gap-3 my-4 py-3 px-4 bg-white rounded-xl border border-[#E8DFD8]">
                   <span className="font-serif text-2xl sm:text-3xl font-semibold text-[#1C1B1A]">
-                    Rs. {product.price.toLocaleString()}
+                    NPR {product.price.toLocaleString()}
                   </span>
                   {product.originalPrice && product.originalPrice > product.price && (
                     <span className="text-sm text-[#A69E96] line-through">
-                      Rs. {product.originalPrice.toLocaleString()}
+                      NPR {product.originalPrice.toLocaleString()}
                     </span>
                   )}
                   {isOutOfStock ? (
@@ -752,7 +752,7 @@ export const ProductDetailModal: React.FC = () => {
                         className="py-3.5 px-4 rounded-xl text-xs font-bold tracking-wider uppercase bg-[#1C1B1A] hover:bg-[#34312F] text-[#FAF8F5] transition-all duration-200 flex items-center justify-center gap-2 shadow-md cursor-pointer active:scale-[0.98]"
                       >
                         <Sparkles className="w-4 h-4 text-[#D4AF37]" />
-                        <span>Buy Now • Rs. {(product.price * quantity).toLocaleString()}</span>
+                        <span>Buy Now • NPR {(product.price * quantity).toLocaleString()}</span>
                       </button>
                     </div>
 
@@ -846,9 +846,9 @@ export const ProductDetailModal: React.FC = () => {
                     </button>
                     {activeAccordion === 'delivery' && (
                       <div className="pb-3 text-xs text-[#5E5955] space-y-1 animate-in fade-in">
-                        <p>• <strong>Kathmandu Valley:</strong> Rs. 120 (1 to 2 days)</p>
-                        <p>• <strong>Outside Valley:</strong> Rs. 250 to 300 (can increase) (3 to 7 days)</p>
-                        <p>• <strong>Payment Methods:</strong> Cash on Delivery (COD), eSewa QR, Khalti QR, Mobile Banking.</p>
+                        <p>• <strong>Kathmandu Valley:</strong> NPR 120 (1 to 2 days)</p>
+                        <p>• <strong>Outside Valley:</strong> NPR 250 to 300 (can increase) (3 to 7 days)</p>
+                        <p>• <strong>Payment Methods:</strong> Cash on Delivery (COD), eSewa QR.</p>
                       </div>
                     )}
                   </div>
@@ -1165,7 +1165,7 @@ export const ProductDetailModal: React.FC = () => {
                   {product.title}
                 </h4>
                 <p className="text-xs font-mono text-[#D4AF37] font-black">
-                  Rs. {product.price.toLocaleString()}
+                  NPR {product.price.toLocaleString()}
                 </p>
                 <span className="text-[9px] text-[#A69E96] block">
                   100% Handcrafted Pearls • Nepal

@@ -141,7 +141,7 @@ export const CartDrawer: React.FC = () => {
                         </div>
 
                         <p className="text-xs font-semibold text-[#1C1B1A] dark:text-[#F5F2EB] mt-0.5">
-                          Rs. {item.product.price.toLocaleString()}
+                          NPR {item.product.price.toLocaleString()}
                         </p>
 
                         {item.customizationNote && (
@@ -206,7 +206,7 @@ export const CartDrawer: React.FC = () => {
                 
                 {promoCode ? (
                   <div className="mt-2 flex items-center justify-between bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 px-3 py-1.5 rounded-lg text-xs">
-                    <span className="font-semibold">{promoCode} applied (-Rs. {discount})</span>
+                    <span className="font-semibold">{promoCode} applied (-NPR {discount})</span>
                     <button
                       onClick={removePromoCode}
                       className="text-xs text-rose-600 hover:underline font-semibold cursor-pointer"
@@ -248,7 +248,7 @@ export const CartDrawer: React.FC = () => {
                 >
                   <div className="flex items-center gap-2">
                     <Gift className="w-3.5 h-3.5 text-[#D4AF37]" />
-                    <span className="font-semibold text-[11px]">Invite friends & earn Rs. 250 credit</span>
+                    <span className="font-semibold text-[11px]">Invite friends & earn NPR 250 credit</span>
                   </div>
                   <span className="text-[10px] text-[#C5A880] font-bold">Refer & Earn &rarr;</span>
                 </button>
@@ -270,24 +270,24 @@ export const CartDrawer: React.FC = () => {
               <div className="flex justify-between">
                 <span>Items Subtotal</span>
                 <span className="font-semibold text-[#1C1B1A] dark:text-[#F5F2EB]">
-                  Rs. {subtotal.toLocaleString()}
+                  NPR {subtotal.toLocaleString()}
                 </span>
               </div>
               {giftPackaging && (
                 <div className="flex justify-between text-[#8C7A6B] dark:text-[#E6CA9E]">
                   <span>Luxury Gift Packaging</span>
-                  <span>+ Rs. 150</span>
+                  <span>+ NPR 150</span>
                 </div>
               )}
               {discount > 0 && (
                 <div className="flex justify-between text-emerald-700 dark:text-emerald-400 font-medium">
                   <span>Promo Discount</span>
-                  <span>- Rs. {discount.toLocaleString()}</span>
+                  <span>- NPR {discount.toLocaleString()}</span>
                 </div>
               )}
               <div className="flex justify-between text-[#736C65] dark:text-[#8C847E] text-[11px]">
                 <span>Estimated Delivery</span>
-                <span>KTM Valley: Rs. 120 (1–2 days) • Outside: Rs. 250 (3–7 days)</span>
+                <span>KTM Valley: NPR 120 (1–2 days) • Outside: NPR 250 (3–7 days)</span>
               </div>
             </div>
 
@@ -299,7 +299,7 @@ export const CartDrawer: React.FC = () => {
                 <span className="block text-[10px] text-[#8C7A6B] dark:text-[#A69E96]">Taxes included in NPR</span>
               </div>
               <span className="font-serif text-xl font-bold text-[#1C1B1A] dark:text-[#F5F2EB]">
-                Rs. {(subtotal + (giftPackaging ? 150 : 0) - discount).toLocaleString()}
+                NPR {(subtotal + (giftPackaging ? 150 : 0) - discount).toLocaleString()}
               </span>
             </div>
 

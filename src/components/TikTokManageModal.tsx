@@ -791,7 +791,7 @@ export const TikTokManageModal: React.FC = () => {
                   <optgroup label="Shop Collection">
                     {products.map((p) => (
                       <option key={p.id} value={p.id}>
-                        {p.title} — Rs. {p.price.toLocaleString()} ({p.category})
+                        {p.title} — NPR {p.price.toLocaleString()} ({p.category})
                       </option>
                     ))}
                   </optgroup>

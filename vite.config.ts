@@ -146,6 +146,28 @@ export default defineConfig(() => {
         '@': path.resolve(process.cwd(), '.'),
       },
     },
+    esbuild: {
+      drop: ['debugger'],
+      legalComments: 'none',
+    },
+    build: {
+      sourcemap: false,
+      minify: 'esbuild',
+      cssMinify: true,
+      target: 'es2020',
+      chunkSizeWarningLimit: 1500,
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (id.includes('node_modules')) {
+              if (id.includes('firebase')) return 'vendor-firebase';
+              if (id.includes('lucide-react')) return 'vendor-icons';
+              if (id.includes('react-dom') || id.includes('node_modules/react/')) return 'vendor-react';
+            }
+          },
+        },
+      },
+    },
     server: {
       host: '0.0.0.0',
       port: 3000,

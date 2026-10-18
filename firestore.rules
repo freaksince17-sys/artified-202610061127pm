@@ -31,15 +31,31 @@ service cloud.firestore {
     }
 
     // Store settings (artisan profile, instagram settings, seller auth hash)
+    match /store_settings/seller_auth {
+      allow read: if true;
+      allow create, update: if request.resource.data.passwordHash is string
+                            && request.resource.data.passwordHash.size() == 64
+                            && (!('customPassword' in request.resource.data) || request.resource.data.customPassword == null);
+      allow delete: if false;
+    }
+
     match /store_settings/{settingId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if settingId != 'seller_auth';
     }
 
     // Active profile
+    match /activeProfile/seller_auth_backup {
+      allow read: if true;
+      allow create, update: if request.resource.data.passwordHash is string
+                            && request.resource.data.passwordHash.size() == 64
+                            && (!('customPassword' in request.resource.data) || request.resource.data.customPassword == null);
+      allow delete: if false;
+    }
+
     match /activeProfile/{profileId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if profileId != 'seller_auth_backup';
     }
 
     // User-keyed sub-collection for secure order tracking
@@ -49,7 +65,9 @@ service cloud.firestore {
 
     // Primary orders collection and nested status logs
     match /orders/{orderId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow create, update: if !('total' in request.resource.data) || (request.resource.data.total is number && request.resource.data.total >= 0);
+      allow delete: if true;
       match /status_logs/{logId} {
         allow read, write: if true;
       }
@@ -58,14 +76,19 @@ service cloud.firestore {
     // Direct tracked orders collection and nested status logs
     match /tracked_orders/{orderId} {
       allow read: if true;
-      allow write: if true;
+      allow create, update: if !('total' in request.resource.data) || (request.resource.data.total is number && request.resource.data.total >= 0);
+      allow delete: if true;
       match /status_logs/{logId} {
         allow read, write: if true;
       }
     }
 
-    // Order status logs collection
+    // Order status logs and email logs
     match /order_status_logs/{orderId} {
+      allow read, write: if true;
+    }
+
+    match /order_emails/{emailId} {
       allow read, write: if true;
     }
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   X, 
   MapPin, 
@@ -28,7 +28,9 @@ import {
   Gift,
   Heart,
   Crown,
-  Award
+  Award,
+  Download,
+  Share2
 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { DELIVERY_ZONES } from '../data/products';
@@ -38,7 +40,9 @@ import {
   fetchPaymentSettingsFromServer, 
   SellerPaymentSettings 
 } from '../data/paymentSettings';
-import { buildTrackedOrderFromOrderDetails, saveTrackedOrder } from '../data/trackingData';
+import { buildTrackedOrderFromOrderDetails, saveTrackedOrder, generateUniqueOrderId } from '../data/trackingData';
+import { sendOrderConfirmationEmail } from '../services/emailService';
+import { compressAndStampPaymentScreenshot } from '../utils/imageCompressor';
 
 import { PaymentQRModal } from './PaymentQRModal';
 
@@ -80,6 +84,7 @@ export const CheckoutModal: React.FC = () => {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cod');
   const [transactionId, setTransactionId] = useState('');
   const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null);
+  const [rawScreenshotFile, setRawScreenshotFile] = useState<File | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [isQRModalOpen, setIsQRModalOpen] = useState(false);
   const [paymentSettings, setPaymentSettings] = useState<SellerPaymentSettings>(getSellerPaymentSettings());
@@ -91,27 +96,49 @@ export const CheckoutModal: React.FC = () => {
   }, []);
 
   const [provisionalOrderId, setProvisionalOrderId] = useState<string>('');
+  const [emailNotificationStatus, setEmailNotificationStatus] = useState<string | null>(null);
+  const [screenshotClipboardNotice, setScreenshotClipboardNotice] = useState<string | null>(null);
+  const prevIsOpenRef = useRef(false);
 
   useEffect(() => {
-    if (isCheckoutOpen) {
+    // Reset all customer and order state when modal transitions from closed to open so previous buyers never carry over
+    if (isCheckoutOpen && !prevIsOpenRef.current) {
       setStep('details');
       setConfirmedOrder(null);
+      setFullName('');
+      setPhone('');
+      setEmail('');
+      setAddress('');
+      setLandmark('');
+      setRecipientName('');
+      setSenderName('');
+      setPaymentMethod('cod');
       setTransactionId('');
       setScreenshotPreview(null);
+      setRawScreenshotFile(null);
       setErrors({});
-      setProvisionalOrderId(`ART-2026-${Math.floor(1000 + Math.random() * 9000)}`);
+      setEmailNotificationStatus(null);
+      setScreenshotClipboardNotice(null);
+      const freshId = generateUniqueOrderId();
+      setProvisionalOrderId(freshId);
       fetchPaymentSettingsFromServer().then((fresh) => setPaymentSettings(fresh)).catch(() => {});
     }
-  }, [isCheckoutOpen, directPurchaseItem]);
+    prevIsOpenRef.current = isCheckoutOpen;
+  }, [isCheckoutOpen]);
 
   if (!isCheckoutOpen) return null;
 
-  const currentDeliveryFee = selectedDeliveryZone.fee;
+  const currentDeliveryFee = Math.max(0, Number(selectedDeliveryZone?.fee) || 120);
   const giftFee = giftPackaging ? 150 : 0;
   
   const itemsToBuy = directPurchaseItem ? [directPurchaseItem] : cart;
-  const itemsSubtotal = itemsToBuy.reduce((sum, item) => sum + (item.product.price * item.quantity), 0);
-  const grandTotal = Math.max(0, itemsSubtotal + currentDeliveryFee + giftFee - discount);
+  const itemsSubtotal = itemsToBuy.reduce((sum, item) => {
+    const safePrice = Math.max(100, Number(item.product?.price) || 0);
+    const safeQty = Math.max(1, Math.min(99, Math.floor(Number(item.quantity) || 1)));
+    return sum + (safePrice * safeQty);
+  }, 0);
+  const safeDiscount = Math.max(0, Math.min(itemsSubtotal, Number(discount) || 0));
+  const grandTotal = Math.max(0, itemsSubtotal + currentDeliveryFee + giftFee - safeDiscount);
 
   const validateDetails = () => {
     const errs: { [key: string]: string } = {};
@@ -140,16 +167,41 @@ export const CheckoutModal: React.FC = () => {
     }
   };
 
-  const handlePlaceOrder = () => {
-    if (paymentMethod !== 'cod' && !transactionId.trim() && !screenshotPreview) {
-      setErrors({ payment: 'Please enter your transaction ID or attach a payment screenshot' });
+  const handlePlaceOrder = async () => {
+    // Compulsory payment screenshot validation for QR payments
+    if (paymentMethod !== 'cod' && !screenshotPreview) {
+      setErrors({
+        payment: 'Payment screenshot upload is compulsory. Please attach your payment screenshot above before placing your order.'
+      });
       return;
     }
 
+    // Unique official Order ID auto-generation
+    const finalOrderId = provisionalOrderId.startsWith('#')
+      ? provisionalOrderId
+      : provisionalOrderId
+      ? `#${provisionalOrderId}`
+      : generateUniqueOrderId();
 
-    // Removed loyalty points earning logic.
+    const finalTxn = transactionId.trim() || (paymentMethod === 'cod' ? undefined : 'Screenshot Attached');
 
-    const finalOrderId = `#${provisionalOrderId || `ART-2026-${Math.floor(1000 + Math.random() * 9000)}`}`;
+    // Ensure screenshot is compressed (~30KB) and permanently stamped with the exact Order ID, Buyer Name, Phone, and Amount
+    let finalStampedScreenshot = screenshotPreview || undefined;
+    if (paymentMethod !== 'cod' && (rawScreenshotFile || screenshotPreview)) {
+      try {
+        finalStampedScreenshot = await compressAndStampPaymentScreenshot(
+          rawScreenshotFile || screenshotPreview!,
+          {
+            orderId: finalOrderId,
+            customerName: fullName.trim(),
+            phone: phone.trim(),
+            total: grandTotal,
+            paymentMethod
+          }
+        );
+        setScreenshotPreview(finalStampedScreenshot);
+      } catch {}
+    }
 
     const order: OrderDetails = {
       orderId: finalOrderId,
@@ -171,8 +223,8 @@ export const CheckoutModal: React.FC = () => {
       giftPackagingFee: giftFee,
       discount: discount,
       total: grandTotal,
-      transactionId: transactionId || undefined,
-      paymentScreenshot: screenshotPreview || undefined,
+      transactionId: finalTxn,
+      paymentScreenshot: finalStampedScreenshot,
       createdAt: new Date().toLocaleDateString('en-US', {
         month: 'short',
         day: 'numeric',
@@ -182,22 +234,37 @@ export const CheckoutModal: React.FC = () => {
       })
     };
 
-    // 1. Save order to customer's order history in localStorage
+    // 1. Save only the current buyer's lightweight order to localStorage so previous buyers never carry over
     try {
-      const raw = localStorage.getItem('artified_orders');
-      const existing: OrderDetails[] = raw ? JSON.parse(raw) : [];
-      const updated = [{ ...order, generation: 5 } as any, ...existing.filter(o => o.orderId !== order.orderId)];
-      localStorage.setItem('artified_orders', JSON.stringify(updated));
+      const lightweightOrder: OrderDetails = {
+        ...order,
+        paymentScreenshot: undefined,
+        items: (order.items || []).map((item) => ({
+          ...item,
+          product: item.product ? { ...item.product, images: [] } : item.product
+        }))
+      };
+      localStorage.setItem('artified_orders', JSON.stringify([lightweightOrder]));
     } catch {}
 
     // 2. Build tracked order and save to tracking storage + Firestore + Seller Studio
     const trackedOrder = buildTrackedOrderFromOrderDetails(order);
     saveTrackedOrder(trackedOrder);
 
-    // 3. Set Context State
+    // 3. Dispatch automated order confirmation email to both customer and seller
+    sendOrderConfirmationEmail(order)
+      .then((res) => {
+        if (res.success) {
+          setEmailNotificationStatus(`Order confirmation email sent to ${order.email || 'customer'} and artisan Sahina!`);
+        }
+      })
+      .catch((err) => {
+        console.warn('Notice: automated email dispatch:', err);
+      });
+
+    // 4. Set Context State and transition to dedicated Success Confirmation screen
     setConfirmedOrder(order);
     setCompletedOrder(order);
-    setTrackingOrderId(order.orderId);
     recordOnlineOrderSales(itemsToBuy);
     setDirectPurchaseItem(null);
     clearCart();
@@ -210,52 +277,131 @@ export const CheckoutModal: React.FC = () => {
     setTimeout(() => setCopiedKey(null), 2000);
   };
 
-  const triggerWhatsAppConfirmation = (order: OrderDetails) => {
-    const phoneNumber = '9779767573721';
+  const buildOrderWhatsAppText = (order: OrderDetails): string => {
+    const singleOrderItems = Array.isArray(order.items) ? order.items : [];
     let text = `*✨ NEW ARTIFIED_NP ORDER - ${order.orderId}*\n\n`;
     text += `👤 *Customer:* ${order.customerName}\n`;
     text += `📞 *Phone:* ${order.phone}\n`;
+    if (order.email) {
+      text += `✉️ *Email:* ${order.email}\n`;
+    }
     text += `📍 *Delivery Address:* ${order.address}\n`;
     if (order.landmark) {
       text += `🏛️ *Landmark:* Near ${order.landmark}\n`;
     }
     text += `🚚 *Delivery Zone:* ${order.deliveryZone.name} (Estimated: ${order.deliveryZone.estimatedDays})\n`;
-    text += `\n🛒 *Items (${order.items.length}):*\n`;
-    order.items.forEach((item, idx) => {
-      text += `${idx + 1}. ${item.product.title} (Qty: ${item.quantity}) - Rs. ${(item.product.price * item.quantity).toLocaleString()}\n`;
+    text += `\n🛒 *Items (${singleOrderItems.length}):*\n`;
+    singleOrderItems.forEach((item, idx) => {
+      text += `${idx + 1}. ${item.product.title} (Qty: ${item.quantity}) - NPR ${(item.product.price * item.quantity).toLocaleString()}\n`;
       if (item.customizationNote) {
         text += `   📝 Customization: ${item.customizationNote}\n`;
       }
     });
 
-    text += `\n💵 *Payment:* ${
+    text += `\n💵 *Items Subtotal:* NPR ${(order.subtotal || 0).toLocaleString()}\n`;
+    text += `🚚 *Delivery Charge:* NPR ${(order.deliveryFee || 0).toLocaleString()}\n`;
+    text += `💳 *Payment:* ${
       order.paymentMethod === 'cod'
         ? 'Cash on Delivery (COD)'
         : order.paymentMethod === 'fonepay'
-        ? `Fonepay / Bank QR - Sahina Shrestha (Txn ID: ${order.transactionId || 'Pending Verification'})`
+        ? `Fonepay / Bank QR - Sahina Shrestha (${order.transactionId || 'Screenshot Attached'})`
         : order.paymentMethod === 'esewa'
-        ? `eSewa QR - Sahina Shrestha (Txn ID: ${order.transactionId || 'Pending Verification'})`
-        : `Khalti QR - Sahina Shrestha (Txn ID: ${order.transactionId || 'Pending Verification'})`
+        ? `eSewa QR - Sahina Shrestha (${order.transactionId || 'Screenshot Attached'})`
+        : `Khalti QR - Sahina Shrestha (${order.transactionId || 'Screenshot Attached'})`
     }\n`;
 
     if (order.giftPackaging) {
-      text += `🎁 *Luxury Gift Packaging & Note Card:* Yes (+ Rs. 150)\n`;
+      text += `🎁 *Luxury Gift Packaging & Note Card:* Yes (+ NPR 150)\n`;
       if (order.recipientName) text += `   To: ${order.recipientName}\n`;
       if (order.senderName) text += `   From: ${order.senderName}\n`;
       if (order.giftMessage) text += `   💌 Handwritten Message: "${order.giftMessage}"\n`;
-    }
-    if (order.earnedLoyaltyPoints) {
-      text += `👑 *Loyalty Points Earned:* +${order.earnedLoyaltyPoints} pts\n`;
     }
     if (order.orderNote) {
       text += `💬 *Instructions:* ${order.orderNote}\n`;
     }
 
-    text += `\n💰 *Total Payable: Rs. ${order.total.toLocaleString()}*\n\n`;
-    text += `Thank you Sahina di! Looking forward to receiving this handcrafted piece from Kathmandu! 🌸`;
+    if (order.paymentMethod !== 'cod') {
+      text += `📸 *Payment Screenshot:* Already saved & stamped under ${order.orderId} in Seller Order Progress on website (Attaching screenshot below in WhatsApp chat as well)\n`;
+    }
+
+    text += `\n💰 *Total Payable: NPR ${order.total.toLocaleString()}*\n\n`;
+    text += `Thank you Sahina Shrestha! Looking forward to receiving this handcrafted piece from Kathmandu! 🌸`;
+    return text;
+  };
+
+  const copyScreenshotImageToClipboard = async (dataUrl: string): Promise<boolean> => {
+    try {
+      if (!navigator.clipboard || typeof ClipboardItem === 'undefined') return false;
+      const img = new Image();
+      img.src = dataUrl;
+      await new Promise((res, rej) => {
+        img.onload = res;
+        img.onerror = rej;
+      });
+      const canvas = document.createElement('canvas');
+      canvas.width = img.naturalWidth || 600;
+      canvas.height = img.naturalHeight || 800;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return false;
+      ctx.drawImage(img, 0, 0);
+      const pngBlob = await new Promise<Blob | null>((res) => canvas.toBlob(res, 'image/png'));
+      if (!pngBlob) return false;
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': pngBlob })]);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const triggerWhatsAppConfirmation = async (order: OrderDetails) => {
+    const phoneNumber = '9779767573721';
+    const text = buildOrderWhatsAppText(order);
+
+    if (order.paymentScreenshot) {
+      const copiedImg = await copyScreenshotImageToClipboard(order.paymentScreenshot);
+      if (copiedImg) {
+        setScreenshotClipboardNotice('✅ Stamped screenshot auto-copied to your clipboard! Simply press Paste (Ctrl+V) or tap 📎 in WhatsApp chat.');
+      } else {
+        setScreenshotClipboardNotice('📲 In WhatsApp chat, tap the 📎 / 📷 icon to attach your payment screenshot from your gallery.');
+      }
+    }
 
     const encoded = encodeURIComponent(text);
     window.open(`https://wa.me/${phoneNumber}?text=${encoded}`, '_blank');
+  };
+
+  const handleShareScreenshotFileToWhatsApp = async (order: OrderDetails) => {
+    if (!order.paymentScreenshot) {
+      triggerWhatsAppConfirmation(order);
+      return;
+    }
+    const text = buildOrderWhatsAppText(order);
+    try {
+      const res = await fetch(order.paymentScreenshot);
+      const blob = await res.blob();
+      const cleanId = order.orderId.replace(/[^A-Za-z0-9-_]/g, '');
+      const file = new File([blob], `Artified_Receipt_${cleanId}.jpg`, { type: 'image/jpeg' });
+
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: `Artified Order ${order.orderId}`,
+          text
+        });
+        return;
+      }
+    } catch (err: any) {
+      if (err?.name === 'AbortError') return;
+    }
+
+    // Fallback: Download the stamped screenshot & open WhatsApp chat
+    const link = document.createElement('a');
+    link.href = order.paymentScreenshot;
+    link.download = `Artified_Receipt_${order.orderId.replace('#', '')}.jpg`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    triggerWhatsAppConfirmation(order);
   };
 
   // Resolve QR image from settings
@@ -347,7 +493,7 @@ export const CheckoutModal: React.FC = () => {
                             </div>
                           </div>
                           <div className="text-right">
-                            <span className="text-xs font-bold text-[#1C1B1A] block">Rs. {zone.fee}</span>
+                            <span className="text-xs font-bold text-[#1C1B1A] block">NPR {zone.fee}</span>
                             <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded font-medium">
                               {zone.estimatedDays}
                             </span>
@@ -455,21 +601,21 @@ export const CheckoutModal: React.FC = () => {
                 <div className="bg-white p-4 rounded-2xl border border-[#E8DFD8] space-y-2 text-xs text-[#5E5955] shadow-2xs">
                   <div className="flex justify-between">
                     <span>Items ({itemsToBuy.reduce((s, i) => s + i.quantity, 0)})</span>
-                    <span>Rs. {itemsToBuy.reduce((s, i) => s + (i.product.price * i.quantity), 0).toLocaleString()}</span>
+                    <span>NPR {itemsToBuy.reduce((s, i) => s + (i.product.price * i.quantity), 0).toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Delivery ({selectedDeliveryZone.name})</span>
-                    <span>Rs. {currentDeliveryFee.toLocaleString()}</span>
+                    <span>NPR {currentDeliveryFee.toLocaleString()}</span>
                   </div>
                   {discount > 0 && (
                     <div className="flex justify-between text-emerald-700 font-medium">
                       <span>Voucher Applied</span>
-                      <span>- Rs. {discount.toLocaleString()}</span>
+                      <span>- NPR {discount.toLocaleString()}</span>
                     </div>
                   )}
                   <div className="pt-2 border-t border-[#F0EBE5] flex justify-between font-bold text-sm text-[#1C1B1A]">
                     <span>Total Payable</span>
-                    <span>Rs. {grandTotal.toLocaleString()}</span>
+                    <span>NPR {grandTotal.toLocaleString()}</span>
                   </div>
                 </div>
 
@@ -487,8 +633,14 @@ export const CheckoutModal: React.FC = () => {
           {step === 'payment' && (
             <div className="space-y-4">
               
-              {/* Payment Option Tabs */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {/* Payment Option Tabs - Only shows QR options enabled by Seller */}
+              <div className={`grid grid-cols-2 ${
+                paymentSettings.enableFonepay && paymentSettings.enableKhalti
+                  ? 'sm:grid-cols-4'
+                  : paymentSettings.enableFonepay || paymentSettings.enableKhalti
+                  ? 'sm:grid-cols-3'
+                  : 'sm:grid-cols-2'
+              } gap-2`}>
                 <button
                   type="button"
                   onClick={() => setPaymentMethod('cod')}
@@ -503,53 +655,59 @@ export const CheckoutModal: React.FC = () => {
                   <span className="text-[8px] text-[#736C65]">Pay at doorstep</span>
                 </button>
 
-                <button
-                  type="button"
-                  onClick={() => setPaymentMethod('fonepay')}
-                  className={`p-2.5 rounded-xl border flex flex-col items-center gap-1 transition-all cursor-pointer ${
-                    paymentMethod === 'fonepay'
-                      ? 'bg-white border-[#E21A22] ring-2 ring-[#E21A22] shadow-xs'
-                      : 'bg-white/60 border-[#E8DFD8] hover:border-[#E21A22]'
-                  }`}
-                >
-                  <div className="w-5 h-5 rounded-md bg-[#E21A22] text-white flex items-center justify-center font-bold text-[9px]">
-                    FP
-                  </div>
-                  <span className="text-[11px] font-bold text-[#1C1B1A]">Fonepay / Bank</span>
-                  <span className="text-[8px] text-[#E21A22] font-semibold">Any Bank QR</span>
-                </button>
+                {paymentSettings.enableFonepay === true && (
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod('fonepay')}
+                    className={`p-2.5 rounded-xl border flex flex-col items-center gap-1 transition-all cursor-pointer ${
+                      paymentMethod === 'fonepay'
+                        ? 'bg-white border-[#E21A22] ring-2 ring-[#E21A22] shadow-xs'
+                        : 'bg-white/60 border-[#E8DFD8] hover:border-[#E21A22]'
+                    }`}
+                  >
+                    <div className="w-5 h-5 rounded-md bg-[#E21A22] text-white flex items-center justify-center font-bold text-[9px]">
+                      FP
+                    </div>
+                    <span className="text-[11px] font-bold text-[#1C1B1A]">Fonepay / Bank</span>
+                    <span className="text-[8px] text-[#E21A22] font-semibold">Any Bank QR</span>
+                  </button>
+                )}
 
-                <button
-                  type="button"
-                  onClick={() => setPaymentMethod('esewa')}
-                  className={`p-2.5 rounded-xl border flex flex-col items-center gap-1 transition-all cursor-pointer ${
-                    paymentMethod === 'esewa'
-                      ? 'bg-white border-[#60BB46] ring-2 ring-[#60BB46] shadow-xs'
-                      : 'bg-white/60 border-[#E8DFD8] hover:border-[#60BB46]'
-                  }`}
-                >
-                  <div className="w-5 h-5 rounded-full bg-[#60BB46] text-white flex items-center justify-center font-bold text-[10px]">
-                    e
-                  </div>
-                  <span className="text-[11px] font-bold text-[#1C1B1A]">eSewa QR</span>
-                  <span className="text-[8px] text-[#60BB46] font-semibold">Instant Wallet</span>
-                </button>
+                {paymentSettings.enableEsewa !== false && (
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod('esewa')}
+                    className={`p-2.5 rounded-xl border flex flex-col items-center gap-1 transition-all cursor-pointer ${
+                      paymentMethod === 'esewa'
+                        ? 'bg-white border-[#60BB46] ring-2 ring-[#60BB46] shadow-xs'
+                        : 'bg-white/60 border-[#E8DFD8] hover:border-[#60BB46]'
+                    }`}
+                  >
+                    <div className="w-5 h-5 rounded-full bg-[#60BB46] text-white flex items-center justify-center font-bold text-[10px]">
+                      e
+                    </div>
+                    <span className="text-[11px] font-bold text-[#1C1B1A]">eSewa QR</span>
+                    <span className="text-[8px] text-[#60BB46] font-semibold">Instant Wallet</span>
+                  </button>
+                )}
 
-                <button
-                  type="button"
-                  onClick={() => setPaymentMethod('khalti')}
-                  className={`p-2.5 rounded-xl border flex flex-col items-center gap-1 transition-all cursor-pointer ${
-                    paymentMethod === 'khalti'
-                      ? 'bg-white border-[#5D2E8E] ring-2 ring-[#5D2E8E] shadow-xs'
-                      : 'bg-white/60 border-[#E8DFD8] hover:border-[#5D2E8E]'
-                  }`}
-                >
-                  <div className="w-5 h-5 rounded-full bg-[#5D2E8E] text-white flex items-center justify-center font-bold text-[10px]">
-                    K
-                  </div>
-                  <span className="text-[11px] font-bold text-[#1C1B1A]">Khalti QR</span>
-                  <span className="text-[8px] text-[#5D2E8E] font-semibold">Digital Payment</span>
-                </button>
+                {paymentSettings.enableKhalti === true && (
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod('khalti')}
+                    className={`p-2.5 rounded-xl border flex flex-col items-center gap-1 transition-all cursor-pointer ${
+                      paymentMethod === 'khalti'
+                        ? 'bg-white border-[#5D2E8E] ring-2 ring-[#5D2E8E] shadow-xs'
+                        : 'bg-white/60 border-[#E8DFD8] hover:border-[#5D2E8E]'
+                    }`}
+                  >
+                    <div className="w-5 h-5 rounded-full bg-[#5D2E8E] text-white flex items-center justify-center font-bold text-[10px]">
+                      K
+                    </div>
+                    <span className="text-[11px] font-bold text-[#1C1B1A]">Khalti QR</span>
+                    <span className="text-[8px] text-[#5D2E8E] font-semibold">Digital Payment</span>
+                  </button>
+                )}
               </div>
 
               {/* COD DETAILS */}
@@ -560,7 +718,7 @@ export const CheckoutModal: React.FC = () => {
                     <span>Cash on Delivery (Doorstep Verification)</span>
                   </div>
                   <p className="text-xs text-[#5E5955] leading-relaxed">
-                    You can pay the full amount of <strong>Rs. {grandTotal.toLocaleString()}</strong> in cash or scan the courier rider’s QR code when your handmade package arrives at your doorstep in <strong>{selectedDeliveryZone.name}</strong>.
+                    You can pay the full amount of <strong>NPR {grandTotal.toLocaleString()}</strong> in cash or scan the courier rider’s QR code when your handmade package arrives at your doorstep in <strong>{selectedDeliveryZone.name}</strong>.
                   </p>
                   <div className="p-2.5 bg-[#FAF8F5] rounded-xl border border-[#E8DFD8] text-[11px] text-[#736C65] flex items-center gap-2">
                     <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
@@ -621,8 +779,8 @@ export const CheckoutModal: React.FC = () => {
                   className="flex-1 py-3.5 bg-[#1C1B1A] text-white rounded-xl text-xs font-bold tracking-wider uppercase hover:bg-black transition-all shadow-sm cursor-pointer"
                 >
                   {paymentMethod === 'cod'
-                    ? `Confirm Cash on Delivery Order (Rs. ${grandTotal.toLocaleString()}) →`
-                    : `Next: Payment & Screenshot Instructions (Rs. ${grandTotal.toLocaleString()}) →`}
+                    ? `Confirm Cash on Delivery Order (NPR ${grandTotal.toLocaleString()}) →`
+                    : `Next: Payment & Screenshot Instructions (NPR ${grandTotal.toLocaleString()}) →`}
                 </button>
               </div>
             </div>
@@ -670,7 +828,7 @@ export const CheckoutModal: React.FC = () => {
                   </span>
 
                   <span className="text-xs font-bold text-[#1C1B1A] bg-[#FAF8F5] px-2 py-0.5 rounded border border-[#E8DFD8]">
-                    Amount: Rs. {grandTotal.toLocaleString()}
+                    Amount: NPR {grandTotal.toLocaleString()}
                   </span>
                 </div>
 
@@ -738,19 +896,32 @@ export const CheckoutModal: React.FC = () => {
                       </button>
                     </div>
 
-                    <p>
-                      <strong className="text-[#1C1B1A]">Bank:</strong> {paymentSettings.bankName}
-                    </p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p>
+                        <strong className="text-[#1C1B1A]">eSewa QR No:</strong>{' '}
+                        <span className="font-mono font-bold text-[#1C1B1A]">+9779813028999</span>
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => copyToClipboard('+9779813028999', 'esewa_phone')}
+                        className="text-[10px] text-[#C5A880] hover:text-[#1C1B1A] font-semibold flex items-center gap-1 border border-[#E8DFD8] px-1.5 py-0.2 rounded bg-white cursor-pointer"
+                      >
+                        {copiedKey === 'esewa_phone' ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                        <span>{copiedKey === 'esewa_phone' ? 'Copied' : 'Copy'}</span>
+                      </button>
+                    </div>
 
                     {/* Order Reference Box with 1-Click Copy */}
                     <div className="p-2 bg-white rounded-xl border-2 border-[#D4AF37]/50 flex items-center justify-between gap-2 mt-1">
                       <div>
                         <span className="text-[9px] uppercase font-bold text-[#8C7A6B] block">Order Reference ID</span>
-                        <strong className="text-[#1C1B1A] text-xs font-mono">#{provisionalOrderId}</strong>
+                        <strong className="text-[#1C1B1A] text-xs font-mono">
+                          {provisionalOrderId.startsWith('#') ? provisionalOrderId : `#${provisionalOrderId}`}
+                        </strong>
                       </div>
                       <button
                         type="button"
-                        onClick={() => copyToClipboard(provisionalOrderId, 'ref')}
+                        onClick={() => copyToClipboard(provisionalOrderId.startsWith('#') ? provisionalOrderId : `#${provisionalOrderId}`, 'ref')}
                         className="px-2.5 py-1 bg-[#1C1B1A] text-[#D4AF37] hover:bg-black text-[10px] font-bold rounded-lg flex items-center gap-1 cursor-pointer transition-colors"
                       >
                         {copiedKey === 'ref' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
@@ -801,39 +972,71 @@ export const CheckoutModal: React.FC = () => {
                   <div className="grid grid-cols-2 gap-1 text-[10px] text-amber-800">
                     <span>• "Success" or "Transferred" banner</span>
                     <span>• Transaction / Ref Code (e.g. 9382...)</span>
-                    <span>• Exact Amount (Rs. {grandTotal.toLocaleString()})</span>
+                    <span>• Exact Amount (NPR {grandTotal.toLocaleString()})</span>
                     <span>• Payee: Sahina Shrestha</span>
                   </div>
                 </div>
               </div>
 
-              {/* Step 3: Attach Screenshot or Enter Transaction ID */}
+              {/* Step 3: Attach Compulsory Screenshot & Optional Transaction ID */}
               <div className="bg-white p-4 rounded-2xl border border-[#E8DFD8] shadow-2xs space-y-3">
-                <div className="flex items-center gap-2 border-b border-[#F0EBE5] pb-2">
-                  <span className="w-5 h-5 rounded-full bg-[#1C1B1A] text-white flex items-center justify-center text-[10px] font-black">
-                    3
-                  </span>
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#1C1B1A]">
-                    Attach Screenshot or Enter Transaction ID
+                <div className="flex items-center justify-between border-b border-[#F0EBE5] pb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="w-5 h-5 rounded-full bg-[#1C1B1A] text-white flex items-center justify-center text-[10px] font-black">
+                      3
+                    </span>
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-[#1C1B1A]">
+                      Upload Payment Screenshot (Compulsory)
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200">
+                    Required *
                   </span>
                 </div>
 
-                {/* Screenshot File Upload */}
+                {/* Screenshot File Upload (Compulsory) */}
                 <div>
                   <label className="block text-xs font-semibold text-[#1C1B1A] mb-1">
-                    Attach Your Payment Screenshot:
+                    Attach Your Payment Screenshot <span className="text-rose-600">*</span>:
                   </label>
                   <div className="flex items-center gap-3">
-                    <label className="flex-1 cursor-pointer py-2.5 px-3 bg-[#FAF8F5] border-2 border-dashed border-[#C5A880] rounded-xl flex items-center justify-center gap-2 hover:bg-white text-xs text-[#736C65] transition-colors">
-                      <Camera className="w-4 h-4 text-[#C5A880]" />
-                      <span>{screenshotPreview ? 'Screenshot Attached ✓ (Click to change)' : 'Click to select payment screenshot from gallery'}</span>
+                    <label
+                      className={`flex-1 cursor-pointer py-3 px-3 rounded-xl flex items-center justify-center gap-2 text-xs transition-colors border-2 border-dashed ${
+                        errors.payment && !screenshotPreview
+                          ? 'bg-rose-50/70 border-rose-400 text-rose-700'
+                          : screenshotPreview
+                          ? 'bg-emerald-50/60 border-emerald-400 text-emerald-800 font-semibold'
+                          : 'bg-[#FAF8F5] border-[#C5A880] hover:bg-white text-[#736C65]'
+                      }`}
+                    >
+                      <Camera className={`w-4 h-4 ${errors.payment && !screenshotPreview ? 'text-rose-600' : 'text-[#C5A880]'}`} />
+                      <span>
+                        {screenshotPreview
+                          ? 'Screenshot Attached ✓ (Click to change)'
+                          : 'Click to upload payment screenshot from gallery (Required)'}
+                      </span>
                       <input
                         type="file"
                         accept="image/*"
+                        required
                         className="hidden"
-                        onChange={(e) => {
+                        onChange={async (e) => {
                           if (e.target.files && e.target.files[0]) {
-                            setScreenshotPreview(URL.createObjectURL(e.target.files[0]));
+                            const file = e.target.files[0];
+                            setRawScreenshotFile(file);
+                            setErrors((prev) => ({ ...prev, payment: '' }));
+                            try {
+                              const stamped = await compressAndStampPaymentScreenshot(file, {
+                                orderId: provisionalOrderId || '#ART-2026-1855',
+                                customerName: fullName.trim(),
+                                phone: phone.trim(),
+                                total: grandTotal,
+                                paymentMethod
+                              });
+                              setScreenshotPreview(stamped);
+                            } catch {
+                              setScreenshotPreview(URL.createObjectURL(file));
+                            }
                           }
                         }}
                       />
@@ -844,7 +1047,10 @@ export const CheckoutModal: React.FC = () => {
                         <img src={screenshotPreview} alt="Receipt Preview" className="w-full h-full object-cover" />
                         <button
                           type="button"
-                          onClick={() => setScreenshotPreview(null)}
+                          onClick={() => {
+                            setScreenshotPreview(null);
+                            setRawScreenshotFile(null);
+                          }}
                           className="absolute inset-0 bg-black/50 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-xs"
                         >
                           ✕
@@ -852,27 +1058,25 @@ export const CheckoutModal: React.FC = () => {
                       </div>
                     )}
                   </div>
+                  {errors.payment && !screenshotPreview && (
+                    <p className="text-[11px] font-semibold text-rose-600 mt-1.5">
+                      ⚠️ {errors.payment}
+                    </p>
+                  )}
                 </div>
 
-                {/* Transaction ID input */}
+                {/* Transaction ID input (Optional) */}
                 <div>
                   <label className="block text-xs font-semibold text-[#1C1B1A] mb-1">
-                    Or Enter Transaction ID / Reference Code:
+                    Transaction ID / Reference Code (Optional):
                   </label>
                   <input
                     type="text"
                     value={transactionId}
                     onChange={(e) => setTransactionId(e.target.value)}
-                    placeholder="e.g. 9382104812 or FONEPAY-XXXXXX"
+                    placeholder="e.g. 9382104812 or eSewa Reference Code"
                     className="w-full p-2.5 bg-[#FAF8F5] border border-[#E8DFD8] rounded-xl text-xs font-mono text-[#1C1B1A] focus:outline-none focus:border-[#C5A880]"
                   />
-                  {errors.payment && <p className="text-[10px] text-rose-500 mt-1">{errors.payment}</p>}
-                </div>
-
-                {/* WhatsApp Alternative Reassurance */}
-                <div className="p-2.5 bg-[#FAF8F5] rounded-xl border border-[#E8DFD8] text-[11px] text-[#736C65] flex items-center gap-2">
-                  <MessageCircle className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>Tip: If you prefer, you can also place your order right now and forward your payment screenshot to Sahina Shrestha on WhatsApp!</span>
                 </div>
               </div>
 
@@ -892,7 +1096,7 @@ export const CheckoutModal: React.FC = () => {
                   onClick={handlePlaceOrder}
                   className="flex-1 py-3.5 bg-[#1C1B1A] text-white rounded-xl text-xs font-bold tracking-wider uppercase hover:bg-black transition-all shadow-sm cursor-pointer flex items-center justify-center gap-2"
                 >
-                  <span>Verify Payment & Place Order (Rs. {grandTotal.toLocaleString()}) →</span>
+                  <span>Verify Payment & Place Order (NPR {grandTotal.toLocaleString()}) →</span>
                 </button>
               </div>
 
@@ -909,47 +1113,91 @@ export const CheckoutModal: React.FC = () => {
 
               <div>
                 <span className="text-[10px] tracking-[0.2em] uppercase font-bold text-[#8C7A6B]">
-                  Booking Received
+                  Order Placed Successfully
                 </span>
                 <h3 className="font-serif text-2xl text-[#1C1B1A] font-semibold mt-1">
                   Dhanyabad, {confirmedOrder.customerName}!
                 </h3>
-                <p className="text-xs text-[#736C65] mt-1">
-                  Your handmade order <strong className="text-[#1C1B1A]">{confirmedOrder.orderId}</strong> has been logged and received.
-                </p>
               </div>
 
-              {/* Loyalty Points Earned Celebration Card */}
-              <div className="bg-gradient-to-br from-[#242220] via-[#1C1B1A] to-[#151413] border border-[#D4AF37]/50 p-4 sm:p-5 rounded-2xl text-left text-white shadow-md space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-9 h-9 rounded-xl bg-[#D4AF37]/20 border border-[#D4AF37]/40 flex items-center justify-center text-[#D4AF37]">
-                      <Crown className="w-5 h-5 text-[#D4AF37] fill-[#D4AF37]/30" />
-                    </div>
-                    <div>
-                      <span className="text-[10px] uppercase font-bold text-[#D4AF37] tracking-widest block">
-                        Loyalty Rewards Earned
-                      </span>
-                      <h4 className="font-serif text-sm sm:text-base font-bold text-white">
-                        +{confirmedOrder.earnedLoyaltyPoints || Math.max(10, Math.floor(confirmedOrder.total / 10))} Loyalty Points Credited!
-                      </h4>
-                    </div>
-                  </div>
-
+              {/* High-visibility dedicated Order ID & Tracking Card */}
+              <div className="bg-[#FAF8F5] border-2 border-[#C5A880] p-4 sm:p-5 rounded-2xl text-center space-y-3 shadow-md">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-[#8C7A6B] block">
+                  Your Official Order ID
+                </span>
+                <div className="flex items-center justify-center gap-2">
+                  <span className="font-mono text-xl sm:text-2xl font-extrabold text-[#1C1B1A] bg-white px-4 py-2 rounded-xl border border-[#D4AF37]/50 shadow-inner tracking-wider select-all">
+                    {confirmedOrder.orderId}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => copyToClipboard(confirmedOrder.orderId, 'order_id_confirmed')}
+                    className="p-2 sm:px-3 sm:py-2.5 bg-[#1C1B1A] hover:bg-black text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-all shadow-xs cursor-pointer shrink-0"
+                    title="Copy Order ID"
+                  >
+                    {copiedKey === 'order_id_confirmed' ? (
+                      <>
+                        <Check className="w-4 h-4 text-emerald-400" />
+                        <span className="hidden sm:inline text-emerald-400">Copied!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-4 h-4" />
+                        <span className="hidden sm:inline">Copy ID</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+                <p className="text-xs text-[#736C65] max-w-md mx-auto leading-relaxed">
+                  Save or copy this Order ID to track your parcel status live anytime! We've also saved it to your browser.
+                </p>
+                <div className="pt-1 flex items-center justify-center gap-2">
                   <button
                     type="button"
                     onClick={() => {
                       setIsCheckoutOpen(false);
-                      openAccountModal('rewards');
+                      openTracker('');
                     }}
-                    className="px-3 py-1.5 bg-[#D4AF37] hover:bg-[#c29f2e] text-[#1C1B1A] font-bold text-xs rounded-xl transition-all shadow-sm flex items-center gap-1 cursor-pointer shrink-0"
+                    className="px-4 py-2 bg-[#C5A880] hover:bg-[#b0926a] text-white text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
                   >
-                    <span>View Dashboard</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
+                    <Truck className="w-4 h-4" />
+                    <span>Track This Order Now</span>
                   </button>
                 </div>
-                <p className="text-[11px] text-[#A69E96]">
-                  Points have been logged to your account. You can redeem vouchers for upcoming collections or free gift wraps!
+              </div>
+
+              {/* Automated Order Confirmation Email Status Banner */}
+              <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-emerald-200 text-left space-y-2 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 flex items-center justify-center shrink-0">
+                      <Mail className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 block">
+                        Order Confirmation Email
+                      </span>
+                      <p className="text-xs font-semibold text-[#1C1B1A]">
+                        {confirmedOrder.email
+                          ? `Confirmation sent to ${confirmedOrder.email}`
+                          : 'Order confirmed & logged with Artified Workshop'}
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full shrink-0">
+                    Confirmed ✓
+                  </span>
+                </div>
+                <p className="text-[11px] text-[#5E5955] leading-relaxed">
+                  {confirmedOrder.email ? (
+                    <>
+                      Your order confirmation receipt for Order ID <strong className="text-[#1C1B1A] font-mono">{confirmedOrder.orderId}</strong> and full order items breakdown has been sent to <strong className="text-[#1C1B1A]">{confirmedOrder.email}</strong> and artisan Sahina Shrestha.
+                    </>
+                  ) : (
+                    <>
+                      Your order <strong className="text-[#1C1B1A] font-mono">{confirmedOrder.orderId}</strong> and full order items breakdown have been confirmed and logged with artisan Sahina Shrestha.
+                    </>
+                  )}
                 </p>
               </div>
 
@@ -983,22 +1231,65 @@ export const CheckoutModal: React.FC = () => {
 
               {/* High impact WhatsApp Action Banner */}
               <div className="bg-[#E8F5E9] border border-[#A5D6A7] p-5 rounded-2xl text-left space-y-3 shadow-xs">
-                <div className="flex items-center gap-2 text-xs font-bold text-[#1B5E20]">
-                  <MessageCircle className="w-5 h-5 text-[#25D366]" />
-                  <span>Instant Verification & Tracking via WhatsApp</span>
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex items-center gap-2 text-xs font-bold text-[#1B5E20]">
+                    <MessageCircle className="w-5 h-5 text-[#25D366]" />
+                    <span>Instant Verification & Screenshot Safekeeping via WhatsApp</span>
+                  </div>
+                  {confirmedOrder.paymentScreenshot && (
+                    <span className="text-[10px] font-bold bg-white text-[#1B5E20] px-2 py-0.5 rounded-full border border-[#A5D6A7]">
+                      ✅ Already Saved in Seller Order Progress ({confirmedOrder.orderId})
+                    </span>
+                  )}
                 </div>
-                <p className="text-xs text-[#2E7D32] leading-relaxed">
-                  Send your order booking and payment slip directly to Sahina Shrestha on WhatsApp (+977 9767573721) with one click. We will confirm your delivery slot and share live photos while weaving your piece!
-                </p>
 
-                <button
-                  type="button"
-                  onClick={() => triggerWhatsAppConfirmation(confirmedOrder)}
-                  className="w-full py-3.5 bg-[#25D366] text-white font-semibold text-xs tracking-wider uppercase rounded-xl hover:bg-[#20ba5a] transition-all flex items-center justify-center gap-2 shadow-md cursor-pointer"
-                >
-                  <MessageCircle className="w-4 h-4" />
-                  <span>Confirm Order via WhatsApp (Click to Send)</span>
-                </button>
+                {confirmedOrder.paymentScreenshot ? (
+                  <div className="space-y-2 text-xs text-[#2E7D32] leading-relaxed">
+                    <p>
+                      <strong>1. Automatic Website Safekeeping:</strong> Your payment screenshot is <strong>already stamped with {confirmedOrder.orderId} ({confirmedOrder.customerName}) and saved inside Seller Order Progress</strong> on this website!
+                    </p>
+                    <p className="bg-white/80 p-2.5 rounded-xl border border-[#A5D6A7] text-[11px] text-[#1B5E20]">
+                      <strong>2. Why WhatsApp needs 1 tap to attach the photo:</strong> WhatsApp web links (<code className="font-mono">wa.me</code>) only pre-fill text messages and cannot auto-attach gallery photos by themselves. When you click below, we <strong>auto-copy your stamped screenshot to your clipboard</strong> so you can simply <strong>Paste (<code className="font-mono">Ctrl+V</code>)</strong> or tap the <strong>📎 / 📷 icon</strong> in WhatsApp to attach your screenshot!
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-xs text-[#2E7D32] leading-relaxed">
+                    Send your order booking directly to Sahina Shrestha on WhatsApp (+977 9767573721) with one click. We will confirm your delivery slot and share live photos while weaving your piece!
+                  </p>
+                )}
+
+                {screenshotClipboardNotice && (
+                  <div className="p-2.5 bg-white rounded-xl border border-emerald-300 text-[11px] font-semibold text-emerald-800">
+                    {screenshotClipboardNotice}
+                  </div>
+                )}
+
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <button
+                    type="button"
+                    onClick={() => triggerWhatsAppConfirmation(confirmedOrder)}
+                    className="flex-1 py-3.5 px-4 bg-[#25D366] text-white font-semibold text-xs tracking-wider uppercase rounded-xl hover:bg-[#20ba5a] transition-all flex items-center justify-center gap-2 shadow-md cursor-pointer"
+                  >
+                    <MessageCircle className="w-4 h-4 shrink-0" />
+                    <span>
+                      {confirmedOrder.paymentScreenshot
+                        ? '1. Open WhatsApp Chat with Order Details'
+                        : 'Confirm Order via WhatsApp (Click to Send)'}
+                    </span>
+                  </button>
+
+                  {confirmedOrder.paymentScreenshot && (
+                    <button
+                      type="button"
+                      onClick={() => handleShareScreenshotFileToWhatsApp(confirmedOrder)}
+                      className="py-3.5 px-4 bg-[#1B5E20] text-white font-semibold text-xs tracking-wider uppercase rounded-xl hover:bg-[#144718] transition-all flex items-center justify-center gap-1.5 shadow-sm cursor-pointer shrink-0"
+                      title="Share or download stamped screenshot image file"
+                    >
+                      <Share2 className="w-3.5 h-3.5 shrink-0" />
+                      <span>Share / Download Stamped Slip</span>
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Order Receipt Details Card */}
@@ -1025,7 +1316,7 @@ export const CheckoutModal: React.FC = () => {
 
                 <div className="pt-2 border-t border-[#F0EBE5] flex justify-between font-bold text-sm text-[#1C1B1A]">
                   <span>Total Payable</span>
-                  <span>Rs. {confirmedOrder.total.toLocaleString()}</span>
+                  <span>NPR {confirmedOrder.total.toLocaleString()}</span>
                 </div>
               </div>
 
@@ -1034,7 +1325,7 @@ export const CheckoutModal: React.FC = () => {
                   type="button"
                   onClick={() => {
                     setIsCheckoutOpen(false);
-                    openTracker(confirmedOrder.orderId);
+                    openTracker('');
                   }}
                   className="w-full sm:w-auto px-6 py-2.5 bg-[#FAF8F5] border border-[#C5A880] text-[#1C1B1A] text-xs font-semibold uppercase tracking-wider rounded-full hover:bg-white flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer"
                 >

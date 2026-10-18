@@ -22,7 +22,7 @@ export function buildProductSeoMetadata(product: Product): ProductSeoData {
   const formattedPrice = product.price.toLocaleString();
   
   // 1. High-CTR Page Title: includes exact product name, transparent NPR pricing, and brand keyword (50-60 chars)
-  const title = `${product.title} (Rs. ${formattedPrice}) | Artified Nepal`;
+  const title = `${product.title} (NPR ${formattedPrice}) | Artified Nepal`;
 
   // 2. High-CTR Meta Description: includes pricing, artisan provenance, materials, and delivery assurance (135-155 chars)
   const cleanSnippet = (product.description || product.subtitle || '')
@@ -33,7 +33,7 @@ export function buildProductSeoMetadata(product: Product): ProductSeoData {
     ? cleanSnippet.substring(0, 70).trim() + '...' 
     : cleanSnippet;
 
-  const description = `Shop handmade ${product.title} in Nepal for Rs. ${formattedPrice}. ${shortSnippet} Handcrafted in Kathmandu with doorstep delivery across Nepal.`.substring(0, 160);
+  const description = `Shop handmade ${product.title} in Nepal for NPR ${formattedPrice}. ${shortSnippet} Handcrafted in Kathmandu with doorstep delivery across Nepal.`.substring(0, 160);
 
   const canonicalUrl = `${BASE_URL}/?product=${encodeURIComponent(product.id)}`;
   

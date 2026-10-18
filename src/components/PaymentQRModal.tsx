@@ -43,24 +43,33 @@ export const PaymentQRModal: React.FC<PaymentQRModalProps> = ({
   bankName,
   branch,
   amount,
-  orderId = 'ART-2026-5526',
+  orderId = '#ART-2026-1000',
   referenceNumber,
-  paymentMethod = 'fonepay',
+  paymentMethod = 'esewa',
   onTransactionCopied,
   onPaymentConfirmed
 }) => {
-  const [activeTab, setActiveTab] = useState<'fonepay' | 'esewa' | 'khalti'>(
-    paymentMethod === 'all' ? 'fonepay' : paymentMethod
-  );
+  const [settings, setSettings] = useState<SellerPaymentSettings>(getSellerPaymentSettings());
+  const [activeTab, setActiveTab] = useState<'fonepay' | 'esewa' | 'khalti'>(() => {
+    const initial = paymentMethod === 'all' ? 'esewa' : paymentMethod;
+    if (initial === 'fonepay' && !settings.enableFonepay) return 'esewa';
+    if (initial === 'khalti' && !settings.enableKhalti) return 'esewa';
+    return initial;
+  });
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [enteredTxnId, setEnteredTxnId] = useState('');
-  const [settings, setSettings] = useState<SellerPaymentSettings>(getSellerPaymentSettings());
 
   useEffect(() => {
-    if (paymentMethod && paymentMethod !== 'all' && (paymentMethod === 'fonepay' || paymentMethod === 'esewa' || paymentMethod === 'khalti')) {
-      setActiveTab(paymentMethod);
+    if (paymentMethod && paymentMethod !== 'all') {
+      if (paymentMethod === 'fonepay' && settings.enableFonepay) {
+        setActiveTab('fonepay');
+      } else if (paymentMethod === 'khalti' && settings.enableKhalti) {
+        setActiveTab('khalti');
+      } else {
+        setActiveTab('esewa');
+      }
     }
-  }, [paymentMethod]);
+  }, [paymentMethod, settings.enableFonepay, settings.enableKhalti]);
 
   useEffect(() => {
     setSettings(getSellerPaymentSettings());
@@ -99,7 +108,7 @@ export const PaymentQRModal: React.FC<PaymentQRModalProps> = ({
     const allText = `*Artified Nepal Payment Details*\n` +
       `Payee: ${currentAccountName}\n` +
       `Phone/Wallet ID: ${currentPhone}\n` +
-      `Bank: ${currentBankName}\n` +
+      `eSewa QR No: +9779813028999\n` +
       `Branch: ${currentBranch}\n` +
       `Reference ID: ${displayRef}\n` +
       (amount ? `Amount: NPR ${amount.toLocaleString()}\n` : '') +
@@ -109,7 +118,7 @@ export const PaymentQRModal: React.FC<PaymentQRModalProps> = ({
 
   const handleOpenWhatsApp = () => {
     const text = encodeURIComponent(
-      `Namaste Sahina di! 🌸\n\nI am making a direct payment for Artified Order *${displayRef}*.\n` +
+      `Namaste Sahina Shrestha! 🌸\n\nI am making a direct payment for Artified Order *${displayRef}*.\n` +
       (amount ? `Amount: NPR ${amount.toLocaleString()}\n` : '') +
       `Account: ${currentAccountName}\n\n` +
       (enteredTxnId ? `My Transaction ID is: *${enteredTxnId}*\n` : 'Here is my payment screenshot confirmation:\n')
@@ -154,52 +163,58 @@ export const PaymentQRModal: React.FC<PaymentQRModalProps> = ({
           </button>
         </div>
 
-        {/* Channel Switcher */}
+        {/* Channel Switcher - Only shows channels enabled by Seller */}
         <div className="p-2 sm:px-4 bg-white border-b border-[#E8DFD8] flex items-center justify-center gap-1.5 shrink-0">
-          <button
-            type="button"
-            onClick={() => setActiveTab('fonepay')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-              activeTab === 'fonepay'
-                ? 'bg-[#E21A22] text-white shadow-2xs'
-                : 'bg-[#FAF8F5] text-[#5E5955] hover:bg-[#F0EBE5]'
-            }`}
-          >
-            <span className="w-4 h-4 rounded bg-white text-[#E21A22] font-black text-[9px] flex items-center justify-center">
-              FP
-            </span>
-            <span>Fonepay / Any Bank</span>
-          </button>
+          {settings.enableFonepay === true && (
+            <button
+              type="button"
+              onClick={() => setActiveTab('fonepay')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                activeTab === 'fonepay'
+                  ? 'bg-[#E21A22] text-white shadow-2xs'
+                  : 'bg-[#FAF8F5] text-[#5E5955] hover:bg-[#F0EBE5]'
+              }`}
+            >
+              <span className="w-4 h-4 rounded bg-white text-[#E21A22] font-black text-[9px] flex items-center justify-center">
+                FP
+              </span>
+              <span>Fonepay / Any Bank</span>
+            </button>
+          )}
 
-          <button
-            type="button"
-            onClick={() => setActiveTab('esewa')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-              activeTab === 'esewa'
-                ? 'bg-[#60BB46] text-white shadow-2xs'
-                : 'bg-[#FAF8F5] text-[#5E5955] hover:bg-[#F0EBE5]'
-            }`}
-          >
-            <span className="w-4 h-4 rounded-full bg-white text-[#60BB46] font-black text-[9px] flex items-center justify-center">
-              e
-            </span>
-            <span>eSewa QR</span>
-          </button>
+          {settings.enableEsewa !== false && (
+            <button
+              type="button"
+              onClick={() => setActiveTab('esewa')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                activeTab === 'esewa'
+                  ? 'bg-[#60BB46] text-white shadow-2xs'
+                  : 'bg-[#FAF8F5] text-[#5E5955] hover:bg-[#F0EBE5]'
+              }`}
+            >
+              <span className="w-4 h-4 rounded-full bg-white text-[#60BB46] font-black text-[9px] flex items-center justify-center">
+                e
+              </span>
+              <span>eSewa QR</span>
+            </button>
+          )}
 
-          <button
-            type="button"
-            onClick={() => setActiveTab('khalti')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-              activeTab === 'khalti'
-                ? 'bg-[#5D2E8E] text-white shadow-2xs'
-                : 'bg-[#FAF8F5] text-[#5E5955] hover:bg-[#F0EBE5]'
-            }`}
-          >
-            <span className="w-4 h-4 rounded-full bg-white text-[#5D2E8E] font-black text-[9px] flex items-center justify-center">
-              K
-            </span>
-            <span>Khalti QR</span>
-          </button>
+          {settings.enableKhalti === true && (
+            <button
+              type="button"
+              onClick={() => setActiveTab('khalti')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                activeTab === 'khalti'
+                  ? 'bg-[#5D2E8E] text-white shadow-2xs'
+                  : 'bg-[#FAF8F5] text-[#5E5955] hover:bg-[#F0EBE5]'
+              }`}
+            >
+              <span className="w-4 h-4 rounded-full bg-white text-[#5D2E8E] font-black text-[9px] flex items-center justify-center">
+                K
+              </span>
+              <span>Khalti QR</span>
+            </button>
+          )}
         </div>
 
         {/* Modal Scrollable Body */}
@@ -296,7 +311,7 @@ export const PaymentQRModal: React.FC<PaymentQRModalProps> = ({
             </div>
 
             <p className="text-[11px] text-[#736C65] max-w-sm pt-1">
-              Scan using <strong>Global Smart, Nabil, NIC Asia, Prabhu, eSewa, or Khalti</strong>. 
+              Scan using <strong>{activeTab === 'esewa' ? 'your eSewa app' : activeTab === 'fonepay' ? 'Fonepay / Mobile Banking' : 'Khalti'}</strong>. 
               Zero payment gateway fees are charged.
             </p>
           </div>
@@ -358,14 +373,14 @@ export const PaymentQRModal: React.FC<PaymentQRModalProps> = ({
 
               <div className="p-2 bg-[#FAF8F5] rounded-xl border border-[#E8DFD8] flex items-center justify-between">
                 <div>
-                  <span className="text-[9px] uppercase font-bold text-[#8C7A6B] block">Bank / Network</span>
-                  <span className="text-[#1C1B1A] text-[11px] font-medium block truncate max-w-[170px]">{currentBankName}</span>
+                  <span className="text-[9px] uppercase font-bold text-[#8C7A6B] block">eSewa QR Number</span>
+                  <strong className="text-[#1C1B1A] text-[11px] font-mono">+9779813028999</strong>
                 </div>
                 <button
                   type="button"
-                  onClick={() => copyToClipboard(currentBankName, 'bank')}
+                  onClick={() => copyToClipboard('+9779813028999', 'bank')}
                   className="p-1 hover:bg-white rounded text-[#8C7A6B] hover:text-[#1C1B1A]"
-                  title="Copy Bank Name"
+                  title="Copy eSewa QR Number"
                 >
                   {copiedKey === 'bank' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
                 </button>
@@ -406,7 +421,7 @@ export const PaymentQRModal: React.FC<PaymentQRModalProps> = ({
                 type="text"
                 value={enteredTxnId}
                 onChange={(e) => setEnteredTxnId(e.target.value)}
-                placeholder="e.g. 9382104812 or FONEPAY-XXXX"
+                placeholder="e.g. 9382104812 or eSewa Reference Code"
                 className="flex-1 px-3 py-1.5 bg-[#FAF8F5] border border-[#E8DFD8] rounded-xl text-xs font-mono text-[#1C1B1A] focus:outline-none focus:border-[#C5A880]"
               />
               <button

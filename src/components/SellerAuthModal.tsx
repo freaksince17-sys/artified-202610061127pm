@@ -2,29 +2,38 @@ import React, { useState } from 'react';
 import { Lock, KeyRound, Sparkles, X, Check, ShieldCheck, HelpCircle, Key, Loader2 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useAuthPersistence } from '../hooks/useAuthPersistence';
+import { getSellerAuthLockoutRemainingSeconds } from '../utils/sellerAuthService';
 import { SellerChangePasswordModal } from './SellerChangePasswordModal';
 
 export const SellerAuthModal: React.FC = () => {
   const { isSellerAuthModalOpen, setIsSellerAuthModalOpen, setIsSellerMode } = useCart();
-  const { hasCustomSellerPassword, verifyPasswordHash } = useAuthPersistence();
+  const { verifyPasswordHash } = useAuthPersistence();
   const [pin, setPin] = useState('');
   const [error, setError] = useState(false);
+  const [lockoutSec, setLockoutSec] = useState(0);
   const [success, setSuccess] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
 
   if (!isSellerAuthModalOpen) return null;
 
-  const hasCustom = hasCustomSellerPassword;
-
   const handleUnlock = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isVerifying) return;
+
+    const remainingLock = getSellerAuthLockoutRemainingSeconds();
+    if (remainingLock > 0) {
+      setLockoutSec(remainingLock);
+      setError(true);
+      return;
+    }
+
     setIsVerifying(true);
     setError(false);
+    setLockoutSec(0);
 
     try {
-      // Full multi-layer async verification against Firestore server, Auth state, and hash
+      // Full multi-layer async verification against salted SHA-256 hash
       const isValid = await verifyPasswordHash(pin);
       if (isValid) {
         setError(false);
@@ -37,6 +46,7 @@ export const SellerAuthModal: React.FC = () => {
           setIsVerifying(false);
         }, 400);
       } else {
+        setLockoutSec(getSellerAuthLockoutRemainingSeconds());
         setError(true);
         setIsVerifying(false);
       }
@@ -81,7 +91,7 @@ export const SellerAuthModal: React.FC = () => {
         </div>
 
         <p className="text-xs text-[#5E5955] leading-relaxed mb-5">
-          Enter your private studio passcode to edit product photos, descriptions, prices, and beadwork materials directly on the storefront.
+          Enter your private studio passcode to manage orders, payment QR settings, product photos, and pricing.
         </p>
 
         <form onSubmit={handleUnlock} className="space-y-4">
@@ -99,7 +109,8 @@ export const SellerAuthModal: React.FC = () => {
                   setError(false);
                 }}
                 autoFocus
-                placeholder={hasCustom ? "Enter your secure passcode" : "Enter passcode (default: 1234)"}
+                autoComplete="current-password"
+                placeholder="Enter your secure studio passcode"
                 className={`w-full pl-10 pr-4 py-2.5 bg-white border text-sm rounded-xl focus:outline-none transition-colors ${
                   error 
                     ? 'border-rose-400 focus:ring-1 focus:ring-rose-400' 
@@ -109,9 +120,9 @@ export const SellerAuthModal: React.FC = () => {
             </div>
             {error && (
               <p className="text-xs text-rose-600 mt-1.5 font-medium">
-                {hasCustom 
-                  ? 'Incorrect passcode. Please check your secure password.' 
-                  : 'Incorrect passcode. Default studio passcode is 1234.'}
+                {lockoutSec > 0
+                  ? `Too many failed attempts. Locked for ${lockoutSec}s for security.`
+                  : 'Incorrect passcode. Please check your secure studio password.'}
               </p>
             )}
             {success && (
@@ -124,7 +135,7 @@ export const SellerAuthModal: React.FC = () => {
 
           <div className="flex items-center justify-between text-[11px] pt-0.5">
             <span className="text-[#8C7A6B]">
-              {hasCustom ? '🔒 Custom password active' : '🔑 Using default passcode'}
+              🔒 SHA-256 Encrypted Protection
             </span>
             <button
               type="button"

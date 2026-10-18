@@ -116,7 +116,7 @@ export const RestockNotifyModal: React.FC<RestockNotifyModalProps> = ({
                 {product.title}
               </h4>
               <p className="text-xs font-semibold text-[#8C7A6B]">
-                Rs. {product.price.toLocaleString()}
+                NPR {product.price.toLocaleString()}
               </p>
             </div>
           </div>

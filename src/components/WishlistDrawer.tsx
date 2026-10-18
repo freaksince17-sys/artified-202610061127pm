@@ -78,11 +78,11 @@ export const WishlistDrawer: React.FC = () => {
   const handleShareWhatsApp = () => {
     const shareUrl = getWishlistShareUrl();
     const itemsText = wishlistedProducts
-      .map((p, idx) => `${idx + 1}. ${p.title} (Rs. ${p.price.toLocaleString()})`)
+      .map((p, idx) => `${idx + 1}. ${p.title} (NPR ${p.price.toLocaleString()})`)
       .join('\n');
     const totalPrice = wishlistedProducts.reduce((sum, p) => sum + p.price, 0);
 
-    const message = `Namaste! ✨ Check out my curated wishlist of handmade pearl pieces from Artified Nepal:\n\n${itemsText}\n\nTotal: Rs. ${totalPrice.toLocaleString()} • Handcrafted in Kathmandu\n\nTake a look at my saved pieces here:\n${shareUrl}`;
+    const message = `Namaste! ✨ Check out my curated wishlist of handmade pearl pieces from Artified Nepal:\n\n${itemsText}\n\nTotal: NPR ${totalPrice.toLocaleString()} • Handcrafted in Kathmandu\n\nTake a look at my saved pieces here:\n${shareUrl}`;
     const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`;
     window.open(whatsappUrl, '_blank');
   };
@@ -348,7 +348,7 @@ export const WishlistDrawer: React.FC = () => {
                       </div>
 
                       <p className="text-xs font-semibold text-[#1C1B1A] dark:text-[#F5F2EB] mt-0.5">
-                        Rs. {product.price.toLocaleString()}
+                        NPR {product.price.toLocaleString()}
                       </p>
                       <p className="text-[10px] text-[#8C7A6B] dark:text-[#A69E96] capitalize">
                         {product.category.replace('-', ' ')}

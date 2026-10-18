@@ -30,14 +30,14 @@ const FAQ_ITEMS: FAQItem[] = [
     id: 'ship-1',
     category: 'shipping',
     question: 'How long does delivery take inside Kathmandu Valley and across Nepal?',
-    answer: 'Kathmandu Valley: Rs. 120 (1 to 2 days doorstep delivery). Outside Valley: Rs. 250 to 300 (can increase depending on location/weight, 3 to 7 days delivery via express courier).',
+    answer: 'Kathmandu Valley: NPR 120 (1 to 2 days doorstep delivery). Outside Valley: NPR 250 to 300 (can increase depending on location/weight, 3 to 7 days delivery via express courier).',
     badge: 'Fast Dispatch'
   },
   {
     id: 'ship-2',
     category: 'shipping',
     question: 'What payment methods are supported for orders in Nepal?',
-    answer: 'We offer Cash on Delivery (COD) across the Kathmandu Valley and selected major cities. For nationwide orders, we accept instant digital wallet payments via eSewa and Khalti with QR code verification at checkout.',
+    answer: 'We offer Cash on Delivery (COD) across the Kathmandu Valley and selected major cities. For nationwide orders, we accept instant digital wallet payments via eSewa QR with screenshot verification at checkout.',
     badge: 'COD & eSewa'
   },
   {

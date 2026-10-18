@@ -110,7 +110,7 @@ export const INITIAL_CUSTOMER_REVIEWS: CustomerReviewWithPhoto[] = [
     location: 'Kathmandu, Nepal',
     rating: 4.5,
     reviewTitle: 'Kathmandu store gako thie, clean handwork',
-    comment: 'Bag size verify garna Kathmandu store mai gaeko thie. Sahina didi le bag dekhawnu bhayo ra nylon cord le kasari tie gareko samjhawnu bhayo. Finish clean cha with zero loose threads. Fonepay QR bata direct pay gare. Local handmade brand support garna paawda khushi lagyo!',
+    comment: 'Bag size verify garna Kathmandu store mai gaeko thie. Sahina didi le bag dekhawnu bhayo ra nylon cord le kasari tie gareko samjhawnu bhayo. Finish clean cha with zero loose threads. eSewa QR bata direct pay gare. Local handmade brand support garna paawda khushi lagyo!',
     productName: 'Caviar Pearl Bag',
     date: '3 weeks ago',
     verifiedPurchase: true,
@@ -563,20 +563,20 @@ export const CustomerReviews: React.FC = () => {
                   onChange={(e) => setProductName(e.target.value)}
                   className="w-full p-2.5 bg-[#FAF8F5] border border-[#E8DFD8] rounded-xl focus:outline-none focus:border-[#C5A880] text-xs text-[#1C1B1A]"
                 >
-                  <option value="Red Pearl Beaded Bag">Red Pearl Beaded Bag (Rs. 2,499)</option>
-                  <option value="Caviar Pearl Bag">Caviar Pearl Bag (Rs. 2,499)</option>
-                  <option value="Round Pearl Bag">Round Pearl Bag (Rs. 2,499)</option>
-                  <option value="Pearl Beaded Bag">Pearl Beaded Bag (Rs. 2,499)</option>
-                  <option value="Pearl Beaded Adjustable Choker">Pearl Beaded Adjustable Choker (Rs. 599)</option>
-                  <option value="3 Layer Pearl Rose Necklace">3 Layer Pearl Rose Necklace (Rs. 599)</option>
-                  <option value="5 layer pearl necklace with earrings">5 layer pearl necklace with earrings (Rs. 899)</option>
-                  <option value="Three Layer Pearl Necklace with Earrings">Three Layer Pearl Necklace with Earrings (Rs. 599)</option>
-                  <option value="Two Layer Pearl Choker">Two Layer Pearl Choker (Rs. 399)</option>
-                  <option value="3 Layer Pearl Beaded Choker">3 Layer Pearl Beaded Choker (Rs. 499)</option>
-                  <option value="Crystal Bead Bracelets with Heart Clasp">Crystal Bead Bracelets with Heart Clasp (Rs. 299)</option>
-                  <option value="Pearl Beaded Keyring Set Of 4">Pearl Beaded Keyring Set Of 4 (Rs. 499)</option>
-                  <option value="Lustrous Pearl Hoop Earrings">Lustrous Pearl Hoop Earrings (Rs. 199)</option>
-                  <option value="Handmade Macrame Plant Hanger">Handmade Macrame Plant Hanger (Rs. 599)</option>
+                  <option value="Red Pearl Beaded Bag">Red Pearl Beaded Bag (NPR 2,499)</option>
+                  <option value="Caviar Pearl Bag">Caviar Pearl Bag (NPR 2,499)</option>
+                  <option value="Round Pearl Bag">Round Pearl Bag (NPR 2,499)</option>
+                  <option value="Pearl Beaded Bag">Pearl Beaded Bag (NPR 2,499)</option>
+                  <option value="Pearl Beaded Adjustable Choker">Pearl Beaded Adjustable Choker (NPR 599)</option>
+                  <option value="3 Layer Pearl Rose Necklace">3 Layer Pearl Rose Necklace (NPR 599)</option>
+                  <option value="5 layer pearl necklace with earrings">5 layer pearl necklace with earrings (NPR 899)</option>
+                  <option value="Three Layer Pearl Necklace with Earrings">Three Layer Pearl Necklace with Earrings (NPR 599)</option>
+                  <option value="Two Layer Pearl Choker">Two Layer Pearl Choker (NPR 399)</option>
+                  <option value="3 Layer Pearl Beaded Choker">3 Layer Pearl Beaded Choker (NPR 499)</option>
+                  <option value="Crystal Bead Bracelets with Heart Clasp">Crystal Bead Bracelets with Heart Clasp (NPR 299)</option>
+                  <option value="Pearl Beaded Keyring Set Of 4">Pearl Beaded Keyring Set Of 4 (NPR 499)</option>
+                  <option value="Lustrous Pearl Hoop Earrings">Lustrous Pearl Hoop Earrings (NPR 199)</option>
+                  <option value="Handmade Macrame Plant Hanger">Handmade Macrame Plant Hanger (NPR 599)</option>
                 </select>
               </div>
 

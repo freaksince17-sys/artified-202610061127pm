@@ -557,23 +557,6 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigateSection }) => {
                     </span>
                   </button>
                 )}
-
-                {/* Care Guide helper */}
-                <button
-                  onClick={() => {
-                    setActiveNavTab('home');
-                    setMobileMenuOpen(false);
-                    setTimeout(() => {
-                      const el = document.getElementById('care-section');
-                      if (el) el.scrollIntoView({ behavior: 'smooth' });
-                    }, 350);
-                  }}
-                  aria-label="Read care guide"
-                  className="flex items-center justify-between py-2.5 text-xs font-medium tracking-wider uppercase text-[#736C65] dark:text-[#A69E96] border-b border-[#F0EBE5] dark:border-[#262422]"
-                >
-                  <span>Care Guide</span>
-                  <ChevronRight className="w-4 h-4 text-[#8C847E]" />
-                </button>
               </div>
             </div>
 

@@ -36,8 +36,8 @@ import { compressImage } from '../utils/imageCompressor';
 import { sanitizeForFirestore } from '../utils/firestoreSanitizer';
 import { sanitizeReviewItem, getProductReviews, isProductBestSeller } from '../utils/productStats';
 
-import { buildTrackedOrderFromOrderDetails, syncTrackedOrdersFromServer } from '../data/trackingData';
-import { saveOrderToFirestore, seedDemoOrdersToFirestore } from '../services/orderTrackingService';
+import { buildTrackedOrderFromOrderDetails, syncTrackedOrdersFromServer, syncOrdersFromFirestore } from '../data/trackingData';
+import { saveOrderToFirestore } from '../services/orderTrackingService';
 import { 
   triggerRestockNotifications, 
   getCustomerRestockAlerts, 
@@ -716,20 +716,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
           });
 
           if (cloudProducts.length > 0) {
-            setProducts((prev) => {
-              // Reconcile: bundled code & current state vs cloud items
-              const reconciled = reconcileProductCatalog(cloudProducts, prev);
-              try {
-                localStorage.setItem('artified_products_custom', JSON.stringify(reconciled));
-              } catch {}
-              // Also sync to server JSON disk for offline fallback
-              fetch('/api/products', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(reconciled),
-              }).catch(() => {});
-              return reconciled;
-            });
+            setProducts((prev) => reconcileProductCatalog(cloudProducts, prev));
             setIsCloudSynced(true);
             setSyncStatusText('🟢 Synced with Cloud Firestore (artified-staging)');
             return;
@@ -759,24 +746,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
 
         if (Array.isArray(items) && items.length > 0) {
-          setProducts((prev) => {
-            const reconciled = reconcileProductCatalog(items, prev);
-            try {
-              localStorage.setItem('artified_products_custom', JSON.stringify(reconciled));
-            } catch {}
-
-            // Seed Firestore with these products so they are permanently backed up in cloud database
-            try {
-              const batch = writeBatch(db);
-              reconciled.forEach((p) => {
-                const prodRef = doc(db, 'products', p.id);
-                batch.set(prodRef, p, { merge: true });
-              });
-              batch.commit().catch(() => {});
-            } catch {}
-
-            return reconciled;
-          });
+          setProducts((prev) => reconcileProductCatalog(items, prev));
         }
       } catch {}
     };
@@ -897,8 +867,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       })
       .catch(() => {});
 
-    // 8. Seed demo orders to Firestore for real-time tracking sync
-    seedDemoOrdersToFirestore().catch(() => {});
+    // 8. Synchronize live orders from Firestore for real-time tracking across devices
+    syncOrdersFromFirestore().catch(() => {});
   }, []);
 
   const [artisanProfile, setArtisanProfile] = useState<ArtisanProfileData>(() => getArtisanProfile());
@@ -968,13 +938,14 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const saved = localStorage.getItem('artified_products_custom');
       if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          const reconciled = reconcileProductCatalog(parsed, PRODUCTS);
-          try {
-            localStorage.setItem('artified_products_custom', JSON.stringify(reconciled));
-          } catch {}
-          return reconciled.map(sanitizeProduct);
+        if (saved.length > 500000) {
+          localStorage.removeItem('artified_products_custom');
+        } else {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            const reconciled = reconcileProductCatalog(parsed, PRODUCTS);
+            return reconciled.map(sanitizeProduct);
+          }
         }
       }
     } catch {}
@@ -1927,12 +1898,16 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setCompletedOrderState(order);
     if (order) {
       try {
-        const existingRaw = localStorage.getItem('artified_orders');
-        const existing: OrderDetails[] = existingRaw ? JSON.parse(existingRaw) : [];
-        // Prepend new order stamped with current generation and purgeEpochId
+        const lightweightOrder: OrderDetails = {
+          ...order,
+          paymentScreenshot: undefined,
+          items: (order.items || []).map((item) => ({
+            ...item,
+            product: item.product ? { ...item.product, images: [] } : item.product
+          }))
+        };
         const updated = [
-          { ...order, generation: 6, purgeEpochId: 'artified_clean_slate_v6' } as any,
-          ...existing.filter((o) => o.orderId !== order.orderId)
+          { ...lightweightOrder, generation: 6, purgeEpochId: 'artified_clean_slate_v6' } as any
         ];
         localStorage.setItem('artified_orders', JSON.stringify(updated));
       } catch (e) {
@@ -1950,10 +1925,10 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const openTracker = (orderId?: string) => {
-    if (orderId) {
-      setTrackingOrderId(orderId);
-    } else if (!trackingOrderId && completedOrder?.orderId) {
-      setTrackingOrderId(completedOrder.orderId);
+    if (orderId && orderId.trim()) {
+      setTrackingOrderId(orderId.trim());
+    } else {
+      setTrackingOrderId('');
     }
     setIsTrackerOpen(true);
   };
@@ -2119,49 +2094,49 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const calculatedDiscount = Math.round(subtotal * 0.1);
       setDiscount(calculatedDiscount);
       setPromoCode(clean);
-      setPromoSuccess(`10% discount voucher applied (-Rs. ${calculatedDiscount.toLocaleString()})`);
+      setPromoSuccess(`10% discount voucher applied (-NPR ${calculatedDiscount.toLocaleString()})`);
       setPromoError(null);
     } else if (clean === 'NEPALFIRST' || clean === 'BAROQUE250') {
       const calculatedDiscount = Math.min(subtotal, 250);
       setDiscount(calculatedDiscount);
       setPromoCode(clean);
-      setPromoSuccess(`Special member voucher applied (-Rs. 250)`);
+      setPromoSuccess(`Special member voucher applied (-NPR 250)`);
       setPromoError(null);
     } else if (clean === 'PEARL100') {
       const calculatedDiscount = Math.min(subtotal, 100);
       setDiscount(calculatedDiscount);
       setPromoCode(clean);
-      setPromoSuccess(`Loyalty voucher applied (-Rs. 100)`);
+      setPromoSuccess(`Loyalty voucher applied (-NPR 100)`);
       setPromoError(null);
     } else if (clean === 'ATELIER500') {
       const calculatedDiscount = Math.min(subtotal, 500);
       setDiscount(calculatedDiscount);
       setPromoCode(clean);
-      setPromoSuccess(`VIP Atelier voucher applied (-Rs. 500)`);
+      setPromoSuccess(`VIP Atelier voucher applied (-NPR 500)`);
       setPromoError(null);
     } else if (clean === 'FREEGIFT') {
       setGiftPackaging(true);
       setDiscount(GIFT_PACKAGING_COST);
       setPromoCode(clean);
-      setPromoSuccess(`Complimentary Luxury Gift Wrap voucher applied! (Saved Rs. 150)`);
+      setPromoSuccess(`Complimentary Luxury Gift Wrap voucher applied! (Saved NPR 150)`);
       setPromoError(null);
     } else if (clean === 'WELCOME50') {
       const calculatedDiscount = Math.min(subtotal, 50);
       setDiscount(calculatedDiscount);
       setPromoCode(clean);
-      setPromoSuccess(`Welcome voucher applied (-Rs. 50)`);
+      setPromoSuccess(`Welcome voucher applied (-NPR 50)`);
       setPromoError(null);
     } else if (clean === 'REFER250' || clean.startsWith('REFER')) {
       const calculatedDiscount = Math.min(subtotal, 250);
       setDiscount(calculatedDiscount);
       setPromoCode(clean);
-      setPromoSuccess(`🎁 Referral Reward voucher applied (-Rs. 250)`);
+      setPromoSuccess(`🎁 Referral Reward voucher applied (-NPR 250)`);
       setPromoError(null);
     } else if (clean === 'FRIEND10' || clean.startsWith('ART-')) {
       const calculatedDiscount = Math.round(subtotal * 0.1);
       setDiscount(calculatedDiscount);
       setPromoCode(clean);
-      setPromoSuccess(`🎉 Friend Invitation voucher applied (10% OFF: -Rs. ${calculatedDiscount.toLocaleString()})`);
+      setPromoSuccess(`🎉 Friend Invitation voucher applied (10% OFF: -NPR ${calculatedDiscount.toLocaleString()})`);
       setPromoError(null);
     } else {
       setPromoError('Invalid promo code. Try "TIKTOK10", "PEARL100", or redeem points in Rewards');

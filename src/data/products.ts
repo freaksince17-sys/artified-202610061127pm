@@ -27,7 +27,7 @@ export const DELIVERY_ZONES: DeliveryZone[] = [
     area: 'Pokhara, Chitwan, Butwal, Biratnagar, Dharan & all other districts across Nepal',
     fee: 250,
     estimatedDays: '3 to 7 days',
-    description: 'Rs. 250 to 300 (may increase depending on weight/location), 3 to 7 days'
+    description: 'NPR 250 to 300 (may increase depending on weight/location), 3 to 7 days'
   }
 ];
 
@@ -121,11 +121,11 @@ export const TIKTOK_REELS: TikTokReel[] = (SAVED_TIKTOK_REELS as unknown as TikT
 export const FAQS = [
   {
     q: 'How long does delivery take inside and outside Kathmandu Valley?',
-    a: 'Kathmandu Valley: Rs. 120 (1 to 2 days doorstep delivery). Outside Valley: Rs. 250 to 300 (can increase depending on location/weight, 3 to 7 days delivery via courier).'
+    a: 'Kathmandu Valley: NPR 120 (1 to 2 days doorstep delivery). Outside Valley: NPR 250 to 300 (can increase depending on location/weight, 3 to 7 days delivery via courier).'
   },
   {
-    q: 'How do I pay with eSewa, Khalti, or Cash on Delivery (COD)?',
-    a: 'We offer Cash on Delivery (COD) within Kathmandu Valley and major cities. For eSewa and Khalti, you can scan our official QR code during checkout or transfer directly, and paste your transaction ID or send screenshot via WhatsApp.'
+    q: 'How do I pay with eSewa QR or Cash on Delivery (COD)?',
+    a: 'We offer Cash on Delivery (COD) within Kathmandu Valley and major cities. For eSewa QR, you can scan our official QR code during checkout and upload your payment screenshot for instant verification.'
   },
   {
     q: 'Where is your store located and can I pick up in person?',

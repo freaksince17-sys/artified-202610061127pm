@@ -302,7 +302,7 @@ export const GlobalSearchBar: React.FC<GlobalSearchBarProps> = ({
                         </h4>
                         <div className="flex items-center gap-2 mt-0.5">
                           <span className="text-xs font-mono font-bold text-[#1C1B1A]">
-                            Rs. {product.price.toLocaleString()}
+                            NPR {product.price.toLocaleString()}
                           </span>
                           <span className="text-[10px] text-[#8C7A6B] bg-[#FAF8F5] px-1.5 py-0.2 rounded border border-[#E8DFD8] uppercase tracking-wider">
                             {product.category.replace('-', ' ')}

@@ -1,1 +1,500 @@
-{}
+{
+  "ART-2026-1852": {
+    "orderId": "#ART-2026-1852",
+    "legacyOrderId": "#ART-2026-615397",
+    "customerName": "Lamar Anzelov",
+    "phone": "9803726980",
+    "deliveryAddress": "20",
+    "deliveryZoneName": "Kathmandu Valley",
+    "paymentMethodText": "Cash on Delivery (COD)",
+    "paymentStatus": "Pay on Delivery",
+    "items": [
+      {
+        "title": "Caviar Pearl Bag",
+        "quantity": 1,
+        "image": "",
+        "price": 3000
+      }
+    ],
+    "subtotal": 3000,
+    "deliveryFee": 120,
+    "total": 3120,
+    "orderPlacedDate": "Oct 18, 2026, 03:46 PM",
+    "estimatedDeliveryDate": "1 to 2 days",
+    "currentPhase": "confirmed",
+    "progressPercentage": 25,
+    "artisanName": "Sahina Shrestha",
+    "artisanRole": "Founder and Creator",
+    "studioLocation": "Artified Workshop, Kathmandu, Nepal",
+    "liveCraftNotes": "Your order was received and confirmed! Sahina Shrestha has reserved the required luster pearls and high-strength threads. Handcrafting is scheduled at our Kathmandu workshop.",
+    "milestones": [
+      {
+        "stage": "confirmed",
+        "label": "Order Confirmed & Paid",
+        "description": "Order confirmed and verified. Materials and pearls reserved at Kathmandu workshop.",
+        "timestamp": "Oct 18, 2026, 03:46 PM",
+        "location": "Artified Workshop, Kathmandu",
+        "completed": false,
+        "current": true
+      },
+      {
+        "stage": "handcrafting_and_packaging",
+        "label": "Handcrafting & Packaging",
+        "description": "Handcrafted with precision by Sahina Shrestha & team, inspected for quality, and packaged in luxury dust pouch.",
+        "timestamp": "Upcoming",
+        "location": "Craft Bench, Kathmandu, Nepal",
+        "completed": false,
+        "current": false
+      },
+      {
+        "stage": "out_for_delivery",
+        "label": "Out for Delivery",
+        "description": "Handed over to express courier rider for safe doorstep transit.",
+        "timestamp": "Estimated: 1 to 2 days",
+        "location": "Kathmandu Valley Logistics Hub",
+        "completed": false,
+        "current": false
+      },
+      {
+        "stage": "delivered",
+        "label": "Delivered",
+        "description": "Safely delivered to customer with happiness, care card, and 48-hour check guarantee.",
+        "timestamp": "Expected 1 to 2 days",
+        "location": "20",
+        "completed": false,
+        "current": false
+      }
+    ],
+    "generation": 6,
+    "purgeEpochId": "artified_clean_slate_v6",
+    "statusRevision": 6,
+    "updatedAt": "2026-10-18T11:29:34.277Z",
+    "docId": "ART-2026-1852",
+    "sessionToken": "buyer_1792243411984_0ztkhmibwn"
+  },
+  "ART-2026-1853": {
+    "orderId": "#ART-2026-1853",
+    "legacyOrderId": "#ART-2026-423390",
+    "customerName": "Lamar Anzelov",
+    "phone": "9803726980",
+    "deliveryAddress": "20",
+    "deliveryZoneName": "Kathmandu Valley",
+    "paymentMethodText": "Cash on Delivery (COD)",
+    "paymentStatus": "Pay on Delivery",
+    "items": [
+      {
+        "quantity": 1,
+        "image": "",
+        "price": 2800,
+        "title": "Pearl Beaded Bag"
+      }
+    ],
+    "subtotal": 2800,
+    "deliveryFee": 120,
+    "total": 2920,
+    "orderPlacedDate": "Oct 18, 2026, 04:05 PM",
+    "estimatedDeliveryDate": "1 to 2 days",
+    "currentPhase": "out_for_delivery",
+    "progressPercentage": 85,
+    "artisanName": "Sahina Shrestha",
+    "artisanRole": "Founder and Creator",
+    "studioLocation": "Artified Workshop, Kathmandu, Nepal",
+    "liveCraftNotes": "Your handcrafted piece has been dispatched from our Kathmandu workshop and is out for doorstep delivery!",
+    "milestones": [
+      {
+        "stage": "confirmed",
+        "label": "Order Confirmed & Paid",
+        "description": "Order confirmed and verified. Materials and pearls reserved at Kathmandu workshop.",
+        "timestamp": "Oct 18, 2026, 04:05 PM",
+        "location": "Artified Workshop, Kathmandu",
+        "completed": true,
+        "current": false
+      },
+      {
+        "stage": "handcrafting_and_packaging",
+        "label": "Handcrafting & Packaging",
+        "description": "Handcrafted with precision by Sahina Shrestha & team, inspected for quality, and packaged in luxury dust pouch.",
+        "timestamp": "Completed",
+        "location": "Craft Bench, Kathmandu, Nepal",
+        "completed": true,
+        "current": false
+      },
+      {
+        "stage": "out_for_delivery",
+        "label": "Out for Delivery",
+        "description": "Handed over to express courier rider for safe doorstep transit.",
+        "timestamp": "On Route Today",
+        "location": "Kathmandu Valley Logistics Hub",
+        "completed": false,
+        "current": true
+      },
+      {
+        "stage": "delivered",
+        "label": "Delivered",
+        "description": "Safely delivered to customer with happiness, care card, and 48-hour check guarantee.",
+        "timestamp": "Expected 1 to 2 days",
+        "location": "20",
+        "completed": false,
+        "current": false
+      }
+    ],
+    "generation": 6,
+    "purgeEpochId": "artified_clean_slate_v6",
+    "statusRevision": 8,
+    "updatedAt": "2026-10-18T11:32:45.558Z",
+    "sessionToken": "buyer_1792243411984_0ztkhmibwn",
+    "docId": "ART-2026-1853"
+  },
+  "ART-2026-1854": {
+    "orderId": "#ART-2026-1854",
+    "customerName": "Najirk",
+    "phone": "9760303781",
+    "deliveryAddress": "23",
+    "deliveryZoneName": "Kathmandu Valley",
+    "paymentMethodText": "Cash on Delivery (COD)",
+    "paymentStatus": "Pay on Delivery",
+    "items": [
+      {
+        "title": "Beaded Pearl Layer Necklace With Earring Set",
+        "image": "",
+        "quantity": 1,
+        "price": 800
+      }
+    ],
+    "subtotal": 800,
+    "deliveryFee": 120,
+    "total": 920,
+    "orderPlacedDate": "Oct 18, 2026, 05:21 PM",
+    "estimatedDeliveryDate": "1 to 2 days",
+    "currentPhase": "out_for_delivery",
+    "progressPercentage": 85,
+    "artisanName": "Sahina Shrestha",
+    "artisanRole": "Founder and Creator",
+    "studioLocation": "Artified Workshop, Kathmandu, Nepal",
+    "liveCraftNotes": "Your handcrafted piece has been dispatched from our Kathmandu workshop and is out for doorstep delivery!",
+    "milestones": [
+      {
+        "stage": "confirmed",
+        "label": "Order Confirmed & Paid",
+        "description": "Order confirmed and verified. Materials and pearls reserved at Kathmandu workshop.",
+        "timestamp": "Oct 18, 2026, 05:21 PM",
+        "location": "Artified Workshop, Kathmandu",
+        "completed": true,
+        "current": false
+      },
+      {
+        "stage": "handcrafting_and_packaging",
+        "label": "Handcrafting & Packaging",
+        "description": "Handcrafted with precision by Sahina Shrestha & team, inspected for quality, and packaged in luxury dust pouch.",
+        "timestamp": "Completed",
+        "location": "Craft Bench, Kathmandu, Nepal",
+        "completed": true,
+        "current": false
+      },
+      {
+        "stage": "out_for_delivery",
+        "label": "Out for Delivery",
+        "description": "Handed over to express courier rider for safe doorstep transit.",
+        "timestamp": "On Route Today",
+        "location": "Kathmandu Valley Logistics Hub",
+        "completed": false,
+        "current": true
+      },
+      {
+        "stage": "delivered",
+        "label": "Delivered",
+        "description": "Safely delivered to customer with happiness, care card, and 48-hour check guarantee.",
+        "timestamp": "Expected 1 to 2 days",
+        "location": "23",
+        "completed": false,
+        "current": false
+      }
+    ],
+    "updatedAt": "2026-10-18T12:05:38.714Z",
+    "generation": 6,
+    "purgeEpochId": "artified_clean_slate_v6",
+    "statusRevision": 3
+  },
+  "ART-2026-1855": {
+    "orderId": "#ART-2026-1855",
+    "customerName": "Najirk",
+    "phone": "9760303781",
+    "deliveryAddress": "23",
+    "deliveryZoneName": "Kathmandu Valley",
+    "paymentMethodText": "eSewa (Txn: Pending WhatsApp Verification)",
+    "paymentStatus": "Paid & Verified",
+    "items": [
+      {
+        "title": "Handmade Macrame Plant Hanger (flower pot not included)",
+        "image": "",
+        "quantity": 1,
+        "price": 850
+      }
+    ],
+    "subtotal": 850,
+    "deliveryFee": 120,
+    "total": 970,
+    "orderPlacedDate": "Oct 18, 2026, 05:27 PM",
+    "estimatedDeliveryDate": "1 to 2 days",
+    "currentPhase": "confirmed",
+    "progressPercentage": 25,
+    "artisanName": "Sahina Shrestha",
+    "artisanRole": "Founder and Creator",
+    "studioLocation": "Artified Workshop, Kathmandu, Nepal",
+    "liveCraftNotes": "Your order was received and confirmed! Sahina Shrestha has reserved the required luster pearls and high-strength threads. Handcrafting is scheduled at our Kathmandu workshop.",
+    "milestones": [
+      {
+        "stage": "confirmed",
+        "label": "Order Confirmed & Paid",
+        "description": "Order confirmed and verified. Materials and pearls reserved at Kathmandu workshop.",
+        "timestamp": "Oct 18, 2026, 05:27 PM",
+        "location": "Artified Workshop, Kathmandu",
+        "completed": false,
+        "current": true
+      },
+      {
+        "stage": "handcrafting_and_packaging",
+        "label": "Handcrafting & Packaging",
+        "description": "Handcrafted with precision by Sahina Shrestha & team, inspected for quality, and packaged in luxury dust pouch.",
+        "timestamp": "Upcoming",
+        "location": "Craft Bench, Kathmandu, Nepal",
+        "completed": false,
+        "current": false
+      },
+      {
+        "stage": "out_for_delivery",
+        "label": "Out for Delivery",
+        "description": "Handed over to express courier rider for safe doorstep transit.",
+        "timestamp": "Estimated: 1 to 2 days",
+        "location": "Kathmandu Valley Logistics Hub",
+        "completed": false,
+        "current": false
+      },
+      {
+        "stage": "delivered",
+        "label": "Delivered",
+        "description": "Safely delivered to customer with happiness, care card, and 48-hour check guarantee.",
+        "timestamp": "Expected 1 to 2 days",
+        "location": "Kathmandu Valley",
+        "completed": false,
+        "current": false
+      }
+    ],
+    "updatedAt": "2026-10-18T11:42:48.894Z",
+    "generation": 6,
+    "purgeEpochId": "artified_clean_slate_v6",
+    "statusRevision": 1
+  },
+  "ART-2026-1856": {
+    "orderId": "#ART-2026-1856",
+    "customerName": "anihas",
+    "phone": "9703303781",
+    "deliveryAddress": "20",
+    "deliveryZoneName": "Kathmandu Valley",
+    "paymentMethodText": "eSewa (Txn: Screenshot Attached)",
+    "paymentStatus": "Paid & Verified",
+    "items": [
+      {
+        "title": "Marble Beaded Hand Bag",
+        "image": "",
+        "quantity": 1,
+        "price": 2800
+      }
+    ],
+    "subtotal": 2800,
+    "deliveryFee": 120,
+    "total": 2920,
+    "orderPlacedDate": "Oct 18, 2026, 05:53 PM",
+    "estimatedDeliveryDate": "1 to 2 days",
+    "currentPhase": "confirmed",
+    "progressPercentage": 25,
+    "artisanName": "Sahina Shrestha",
+    "artisanRole": "Founder and Creator",
+    "studioLocation": "Artified Workshop, Kathmandu, Nepal",
+    "liveCraftNotes": "Your order was received and confirmed! Sahina Shrestha has reserved the required luster pearls and high-strength threads. Handcrafting is scheduled at our Kathmandu workshop.",
+    "milestones": [
+      {
+        "stage": "confirmed",
+        "label": "Order Confirmed & Paid",
+        "description": "Order confirmed and verified. Materials and pearls reserved at Kathmandu workshop.",
+        "timestamp": "Oct 18, 2026, 05:53 PM",
+        "location": "Artified Workshop, Kathmandu",
+        "completed": false,
+        "current": true
+      },
+      {
+        "stage": "handcrafting_and_packaging",
+        "label": "Handcrafting & Packaging",
+        "description": "Handcrafted with precision by Sahina Shrestha & team, inspected for quality, and packaged in luxury dust pouch.",
+        "timestamp": "Upcoming",
+        "location": "Craft Bench, Kathmandu, Nepal",
+        "completed": false,
+        "current": false
+      },
+      {
+        "stage": "out_for_delivery",
+        "label": "Out for Delivery",
+        "description": "Handed over to express courier rider for safe doorstep transit.",
+        "timestamp": "Estimated: 1 to 2 days",
+        "location": "Kathmandu Valley Logistics Hub",
+        "completed": false,
+        "current": false
+      },
+      {
+        "stage": "delivered",
+        "label": "Delivered",
+        "description": "Safely delivered to customer with happiness, care card, and 48-hour check guarantee.",
+        "timestamp": "Expected 1 to 2 days",
+        "location": "Kathmandu Valley",
+        "completed": false,
+        "current": false
+      }
+    ],
+    "updatedAt": "2026-10-18T12:08:36.748Z",
+    "generation": 6,
+    "purgeEpochId": "artified_clean_slate_v6",
+    "statusRevision": 1
+  },
+  "ART-2026-1858": {
+    "orderId": "#ART-2026-1858",
+    "customerName": "hina",
+    "phone": "9700303781",
+    "deliveryAddress": "22",
+    "deliveryZoneName": "Kathmandu Valley",
+    "paymentMethodText": "eSewa QR (Txn: Screenshot Attached)",
+    "paymentStatus": "Paid & Verified",
+    "paymentScreenshot": "data:image/jpeg;base64,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",
+    "items": [
+      {
+        "title": "Pearl Beaded Keyring Set Of 4",
+        "image": "",
+        "quantity": 1,
+        "price": 600
+      }
+    ],
+    "subtotal": 600,
+    "deliveryFee": 120,
+    "total": 720,
+    "orderPlacedDate": "Oct 18, 2026, 06:16 PM",
+    "estimatedDeliveryDate": "1 to 2 days",
+    "currentPhase": "confirmed",
+    "progressPercentage": 25,
+    "artisanName": "Sahina Shrestha",
+    "artisanRole": "Founder and Creator",
+    "studioLocation": "Artified Workshop, Kathmandu, Nepal",
+    "liveCraftNotes": "Your order was received and confirmed! Sahina Shrestha has reserved the required luster pearls and high-strength threads. Handcrafting is scheduled at our Kathmandu workshop.",
+    "milestones": [
+      {
+        "stage": "confirmed",
+        "label": "Order Confirmed & Paid",
+        "description": "Order confirmed and verified. Materials and pearls reserved at Kathmandu workshop.",
+        "timestamp": "Oct 18, 2026, 06:16 PM",
+        "location": "Artified Workshop, Kathmandu",
+        "completed": false,
+        "current": true
+      },
+      {
+        "stage": "handcrafting_and_packaging",
+        "label": "Handcrafting & Packaging",
+        "description": "Handcrafted with precision by Sahina Shrestha & team, inspected for quality, and packaged in luxury dust pouch.",
+        "timestamp": "Upcoming",
+        "location": "Craft Bench, Kathmandu, Nepal",
+        "completed": false,
+        "current": false
+      },
+      {
+        "stage": "out_for_delivery",
+        "label": "Out for Delivery",
+        "description": "Handed over to express courier rider for safe doorstep transit.",
+        "timestamp": "Estimated: 1 to 2 days",
+        "location": "Kathmandu Valley Logistics Hub",
+        "completed": false,
+        "current": false
+      },
+      {
+        "stage": "delivered",
+        "label": "Delivered",
+        "description": "Safely delivered to customer with happiness, care card, and 48-hour check guarantee.",
+        "timestamp": "Expected 1 to 2 days",
+        "location": "Kathmandu Valley",
+        "completed": false,
+        "current": false
+      }
+    ],
+    "updatedAt": "2026-10-18T12:31:09.962Z",
+    "generation": 6,
+    "purgeEpochId": "artified_clean_slate_v6",
+    "statusRevision": 1
+  },
+  "ART-2026-1859": {
+    "orderId": "#ART-2026-1859",
+    "customerName": "nisha",
+    "phone": "9860980726",
+    "deliveryAddress": "23",
+    "deliveryZoneName": "Kathmandu Valley",
+    "paymentMethodText": "eSewa QR (Txn: Screenshot Attached)",
+    "paymentStatus": "Paid & Verified",
+    "paymentScreenshot": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/4gHYSUNDX1BST0ZJTEUAAQEAAAHIAAAAAAQwAABtbnRyUkdCIFhZWiAH4AABAAEAAAAAAABhY3NwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAA9tYAAQAAAADTLQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAlkZXNjAAAA8AAAACRyWFlaAAABFAAAABRnWFlaAAABKAAAABRiWFlaAAABPAAAABR3dHB0AAABUAAAABRyVFJDAAABZAAAAChnVFJDAAABZAAAAChiVFJDAAABZAAAAChjcHJ0AAABjAAAADxtbHVjAAAAAAAAAAEAAAAMZW5VUwAAAAgAAAAcAHMAUgBHAEJYWVogAAAAAAAAb6IAADj1AAADkFhZWiAAAAAAAABimQAAt4UAABjaWFlaIAAAAAAAACSgAAAPhAAAts9YWVogAAAAAAAA9tYAAQAAAADTLXBhcmEAAAAAAAQAAAACZmYAAPKnAAANWQAAE9AAAApbAAAAAAAAAABtbHVjAAAAAAAAAAEAAAAMZW5VUwAAACAAAAAcAEcAbwBvAGcAbABlACAASQBuAGMALgAgADIAMAAxADb/2wBDAAoHCAkIBgoJCAkMCwoMDxoRDw4ODx8WGBMaJSEnJiQhJCMpLjsyKSw4LCMkM0Y0OD0/QkNCKDFITUhATTtBQj//2wBDAQsMDA8NDx4RER4/KiQqPz8/Pz8/Pz8/Pz8/Pz8/Pz8/Pz8/Pz8/Pz8/Pz8/Pz8/Pz8/Pz8/Pz8/Pz8/Pz8/Pz//wAARCAGoAXQDASIAAhEBAxEB/8QAGwABAAIDAQEAAAAAAAAAAAAAAAUGAQMEAgf/xABCEAABBAEDAgMECAMHBAEFAQABAAIDBBEFEiETMQZBURQiYXEVFjJUgZGj0jNCoQcjQ1JiwfAkseHxkhdTcoKi0f/EABgBAQEBAQEAAAAAAAAAAAAAAAABAgME/8QAMREBAAIABAUEAQMEAQUAAAAAAAERAhIh8AMxQVGRIlJh0RMjcYGhscHhBBQkMmLx/9oADAMBAAIRAxEAPwD5W5wZxjLv6Ba3Pc7uT8lhFlWEWUQYRZRBhFlEGEWUQYRZRBhFlEGEWUQYRZRBhFlEGEWUQYRZRBhFlEGEWUQYRZRBhFlEGEWUQYRZRBhFlEGEWUQYRZRBhFlEGWvc3sT8lsa4P4xh39CtSINyL03dI3cBz2KKK50RFUEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREGyOUsbgeqLWiKIiIgiIgIiICIiAiIgIiICIiAiIgIiICIiAiIgIiICIiAiIgIiICIiAiIgIiICIiAiIgIiICIiAiIgIiICIiAiIgIiICIiAiIgIiICIiAiIgIiICIstaXODWjJKDCKShqsjGXAOd8VvAx2WczVIZFNImYyoVFMkZ7rRNVZIMtAa74JmKRqLLmlri1wwQsLTIiIgIiICIiAiIgIiICIiAiIgIiICIiAiIgIiICIiAiIgIiICIiAiIgIiICIiAiIgLroNBkc4/yhci7dO/xPw/3Unksc3aiIubbLWue4NY0uceAAMko5rmOLXtLXDggjBCnPCYEd21ccOKtZ8gPx/5lb9flhj1inqMtZtiKxWbI6NxwHHGP/wDFjN6qay6Wrskb4nbZWOY7GcOGCvKnvFGp0tQsM9khaSACZ+QTx9nB9FArWGZmLlJip0cF9oEjXD+YLkXbqP8Ah/j/ALLiXWOTnPMREVQREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAXbp3+J+H+64l26d/ifh/upPJY5u1T3hv6I6c30j0/aMjp9bOzH4f7qBVh8OadWtUbFiWq65KyRrBA2TbgH+b/AJ6Lhj/8XXBzdes+3/Rcvsf0f7Dx1PYcZx5bv/CaN7f9Fxe2fR/sPPT9uxnH+n/ylCrBV8S6lpUD90M8Do2gnsSAcfhyuDxYRHerU2nirWZGR8f/AFhc419LpOnqZ8SfRGyH6O6ftGT1OjnZj8f9lAoi7YYqKcpm5txaj/h/j/suJduo/wCH+P8AsuJdY5Oc8xERVBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBddBwEjmn+YLkWWuLXBzTghSVTK9wzSwOLoZXxuIxljiD/RckNpkgw4hrvit4OeyxMN29tke2TqNe4PBzuB5z81h73SPL3uLnHuSckrCKAiwTjutE1pkYw0hzvgqNF9wMjWj+ULkWXOLnFzjklYW4YERFUE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SX+G10TgX/IY5U5Jrmn9Cx0oZGST53DoMySZd+4vzu7ADb2Xga7Vf7W2YWP+onncJAAXMa9oAxzyeMEZ7eaubH2TLh7om3pdypO2GSB5ednDWHhzxkNPH2vh8FybHb9m07s4245z6KyM1nTPaWb22xBBJXkiw1pc7ps24POBng8KvTSNktySgua1zy4HzAJWsMzM6piiIi4d0WhX5L8VNrIzNI7Ba2RrzH6l4aSW4z5hcs2n3YJDHNUnY7cG4dG4HJ7Dt54OFKv1ao23RsZlszQTh8k74GxPcwY4OHHceCdxOVihf0yq58b323w+0RWGOELWuJbuy0jeQByOefkpGLF1WsLgg0q5NWsWBC9kNdpL3vYQMggFucd+ey8WdOs17EMDo3meVocIhE8O58sEDJ+WR8VL2NZozV53BtkTyV3QNZgbADIX7s5zk8cY/Na/pHT4rFJ8T7T2w13V37oWsIB3e833zyN3b4d1IxYuxWHvvT/aFsQTVpjFZhkhkHdkjS0j8CtanGGhfnjjmmlbUqVSzqyPYyRzvecPdycjJxgZ4UIO66YZualmYp2z6Tfgkkjkru3xyNjc1pDjucMtAx3zjyXhumag6d0DaNkzMxujELtwzyMjCsLfE1QyOe+GUuNlzg7a0/3ZDwMgnBcOoeO3AC0xahUnqXhYvTCLbC1nTrRxPIDnEtaxrsY5znPn2XKMePrDc4cPSUCKNw132BUnMLCQ+QRna0jvk9gvduk6rBWm60crLDC5pj3cYOCDkDnKmfpyi6C491d0dmyJ922Fjsl/2TvJ3ADtgDnv8FHahYpS6ZSgryTulrtc13Uha1py4u7hx9cdlqMWK4uEmMOuqMREXRzEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQemtLhkIt8LjHHggc8oorW+PPvM59R6LUrL9bte+//AKMf7U+t2vff/wBGP9q53xvbHmfpr099+VaR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",
+    "items": [
+      {
+        "title": "Silk Scrunchies Set of 4",
+        "image": "",
+        "quantity": 1,
+        "price": 300
+      }
+    ],
+    "subtotal": 300,
+    "deliveryFee": 120,
+    "total": 420,
+    "orderPlacedDate": "Oct 18, 2026, 06:42 PM",
+    "estimatedDeliveryDate": "1 to 2 days",
+    "currentPhase": "confirmed",
+    "progressPercentage": 25,
+    "artisanName": "Sahina Shrestha",
+    "artisanRole": "Founder and Creator",
+    "studioLocation": "Artified Workshop, Kathmandu, Nepal",
+    "liveCraftNotes": "Your order was received and confirmed! Sahina Shrestha has reserved the required luster pearls and high-strength threads. Handcrafting is scheduled at our Kathmandu workshop.",
+    "milestones": [
+      {
+        "stage": "confirmed",
+        "label": "Order Confirmed & Paid",
+        "description": "Order confirmed and verified. Materials and pearls reserved at Kathmandu workshop.",
+        "timestamp": "Oct 18, 2026, 06:42 PM",
+        "location": "Artified Workshop, Kathmandu",
+        "completed": false,
+        "current": true
+      },
+      {
+        "stage": "handcrafting_and_packaging",
+        "label": "Handcrafting & Packaging",
+        "description": "Handcrafted with precision by Sahina Shrestha & team, inspected for quality, and packaged in luxury dust pouch.",
+        "timestamp": "Upcoming",
+        "location": "Craft Bench, Kathmandu, Nepal",
+        "completed": false,
+        "current": false
+      },
+      {
+        "stage": "out_for_delivery",
+        "label": "Out for Delivery",
+        "description": "Handed over to express courier rider for safe doorstep transit.",
+        "timestamp": "Estimated: 1 to 2 days",
+        "location": "Kathmandu Valley Logistics Hub",
+        "completed": false,
+        "current": false
+      },
+      {
+        "stage": "delivered",
+        "label": "Delivered",
+        "description": "Safely delivered to customer with happiness, care card, and 48-hour check guarantee.",
+        "timestamp": "Expected 1 to 2 days",
+        "location": "Kathmandu Valley",
+        "completed": false,
+        "current": false
+      }
+    ],
+    "updatedAt": "2026-10-18T12:57:55.453Z",
+    "generation": 6,
+    "purgeEpochId": "artified_clean_slate_v6",
+    "statusRevision": 1
+  }
+}

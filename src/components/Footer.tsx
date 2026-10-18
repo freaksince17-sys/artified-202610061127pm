@@ -23,6 +23,7 @@ import {
 import { useCart } from '../context/CartContext';
 import { useLanguage } from '../context/LanguageContext';
 import { ArtifiedLogo } from './ArtifiedLogo';
+import { getSellerPaymentSettings, SellerPaymentSettings } from '../data/paymentSettings';
 
 export const Footer: React.FC = () => {
   const { 
@@ -41,6 +42,13 @@ export const Footer: React.FC = () => {
   const isNe = language === 'ne';
   const [emailInput, setEmailInput] = useState('');
   const [subscribed, setSubscribed] = useState(false);
+  const [paymentSettings, setPaymentSettings] = useState<SellerPaymentSettings>(getSellerPaymentSettings());
+
+  React.useEffect(() => {
+    const handleUpdate = () => setPaymentSettings(getSellerPaymentSettings());
+    window.addEventListener('artified_payment_settings_updated', handleUpdate);
+    return () => window.removeEventListener('artified_payment_settings_updated', handleUpdate);
+  }, []);
 
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -205,22 +213,12 @@ export const Footer: React.FC = () => {
             </ul>
           </div>
 
-          {/* Column 3: Client Care & Policies */}
+          {/* Column 3: Client Care */}
           <div>
             <h5 className="text-xs font-bold uppercase tracking-[0.18em] text-[#C5A880] mb-4">
               Client Care
             </h5>
             <ul className="space-y-2.5 text-xs text-[#A69E96]">
-              <li>
-                <button
-                  type="button"
-                  onClick={openOrderFAQsModal}
-                  className="hover:text-white text-[#D4AF37] font-semibold transition-colors flex items-center gap-1.5 cursor-pointer text-left"
-                >
-                  <HelpCircle className="w-3.5 h-3.5" />
-                  <span>Order FAQs & Policies (Shipping, Durability, Returns)</span>
-                </button>
-              </li>
               {isReferralVisible && (
                 <li>
                   <button
@@ -287,15 +285,21 @@ export const Footer: React.FC = () => {
                 <span className="px-2 py-0.5 bg-[#2B2927] text-white text-[10px] rounded border border-[#3E3A36]">
                   Cash on Delivery (COD)
                 </span>
-                <span className="px-2 py-0.5 bg-[#60BB46]/20 text-[#82d66a] text-[10px] rounded border border-[#60BB46]/40 font-semibold">
-                  eSewa
-                </span>
-                <span className="px-2 py-0.5 bg-[#5D2E8E]/20 text-[#a379d4] text-[10px] rounded border border-[#5D2E8E]/40 font-semibold">
-                  Khalti
-                </span>
-                <span className="px-2 py-0.5 bg-[#2B2927] text-white text-[10px] rounded border border-[#3E3A36]">
-                  Fonepay QR
-                </span>
+                {paymentSettings.enableEsewa !== false && (
+                  <span className="px-2 py-0.5 bg-[#60BB46]/20 text-[#82d66a] text-[10px] rounded border border-[#60BB46]/40 font-semibold">
+                    eSewa QR
+                  </span>
+                )}
+                {paymentSettings.enableKhalti === true && (
+                  <span className="px-2 py-0.5 bg-[#5D2E8E]/20 text-[#a379d4] text-[10px] rounded border border-[#5D2E8E]/40 font-semibold">
+                    Khalti
+                  </span>
+                )}
+                {paymentSettings.enableFonepay === true && (
+                  <span className="px-2 py-0.5 bg-[#2B2927] text-white text-[10px] rounded border border-[#3E3A36]">
+                    Fonepay QR
+                  </span>
+                )}
               </div>
             </div>
           </div>

@@ -623,7 +623,7 @@ export const SellerProductModal: React.FC = () => {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-[#1C1B1A] mb-1">
-                  Price (Rs.) *
+                  Price (NPR) *
                 </label>
                 <input
                   type="number"
@@ -637,7 +637,7 @@ export const SellerProductModal: React.FC = () => {
 
               <div>
                 <label className="block text-xs font-semibold text-[#1C1B1A] mb-1">
-                  Original Price (Rs.)
+                  Original Price (NPR)
                 </label>
                 <input
                   type="number"

@@ -257,53 +257,59 @@ export const QRDiagnosticModal: React.FC<QRDiagnosticModalProps> = ({
 
         {/* Tab Channel Switcher */}
         <div className="p-2 sm:px-4 bg-white border-b border-[#E8DFD8] flex items-center justify-center gap-2 shrink-0">
-          <button
-            type="button"
-            onClick={() => {
-              setActiveTab('esewa');
-              setHttpStatusResult(null);
-              setScanResult(null);
-            }}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-              activeTab === 'esewa'
-                ? 'bg-[#60BB46] text-white shadow-2xs'
-                : 'bg-[#FAF8F5] text-[#5E5955] hover:bg-[#F0EBE5]'
-            }`}
-          >
-            eSewa QR
-          </button>
+          {settings.enableEsewa !== false && (
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('esewa');
+                setHttpStatusResult(null);
+                setScanResult(null);
+              }}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                activeTab === 'esewa'
+                  ? 'bg-[#60BB46] text-white shadow-2xs'
+                  : 'bg-[#FAF8F5] text-[#5E5955] hover:bg-[#F0EBE5]'
+              }`}
+            >
+              eSewa QR
+            </button>
+          )}
 
-          <button
-            type="button"
-            onClick={() => {
-              setActiveTab('fonepay');
-              setHttpStatusResult(null);
-              setScanResult(null);
-            }}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-              activeTab === 'fonepay'
-                ? 'bg-[#E21A22] text-white shadow-2xs'
-                : 'bg-[#FAF8F5] text-[#5E5955] hover:bg-[#F0EBE5]'
-            }`}
-          >
-            Fonepay QR
-          </button>
+          {settings.enableFonepay === true && (
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('fonepay');
+                setHttpStatusResult(null);
+                setScanResult(null);
+              }}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                activeTab === 'fonepay'
+                  ? 'bg-[#E21A22] text-white shadow-2xs'
+                  : 'bg-[#FAF8F5] text-[#5E5955] hover:bg-[#F0EBE5]'
+              }`}
+            >
+              Fonepay QR
+            </button>
+          )}
 
-          <button
-            type="button"
-            onClick={() => {
-              setActiveTab('khalti');
-              setHttpStatusResult(null);
-              setScanResult(null);
-            }}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-              activeTab === 'khalti'
-                ? 'bg-[#5D2E8E] text-white shadow-2xs'
-                : 'bg-[#FAF8F5] text-[#5E5955] hover:bg-[#F0EBE5]'
-            }`}
-          >
-            Khalti QR
-          </button>
+          {settings.enableKhalti === true && (
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('khalti');
+                setHttpStatusResult(null);
+                setScanResult(null);
+              }}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                activeTab === 'khalti'
+                  ? 'bg-[#5D2E8E] text-white shadow-2xs'
+                  : 'bg-[#FAF8F5] text-[#5E5955] hover:bg-[#F0EBE5]'
+              }`}
+            >
+              Khalti QR
+            </button>
+          )}
         </div>
 
         {/* Scrollable Diagnostic Content */}

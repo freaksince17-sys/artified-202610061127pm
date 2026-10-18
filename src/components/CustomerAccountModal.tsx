@@ -222,11 +222,11 @@ export const CustomerAccountModal: React.FC<CustomerAccountModalProps> = ({
                   Points
                 </span>
                 <span className="text-xs text-[#A69E96] bg-[#2B2927] px-2 py-0.5 rounded-md border border-[#4A4541]">
-                  ≈ Rs. {account.pointsBalance} value
+                  ≈ NPR {account.pointsBalance} value
                 </span>
               </div>
               <p className="text-[11px] text-[#A69E96] mt-1">
-                Earn 1 point for every Rs. 10 spent. Redeem anytime at checkout!
+                Earn 1 point for every NPR 10 spent. Redeem anytime at checkout!
               </p>
             </div>
 
@@ -275,7 +275,7 @@ export const CustomerAccountModal: React.FC<CustomerAccountModalProps> = ({
                 <Gift className="w-4 h-4" />
               </div>
               <div className="text-xs">
-                <p className="font-bold text-[#1C1B1A]">Give 10%, Get Rs. 250 Off</p>
+                <p className="font-bold text-[#1C1B1A]">Give 10%, Get NPR 250 Off</p>
                 <p className="text-[10px] text-[#736C65]">Invite friends & bridesmaids to shop handmade pearls</p>
               </div>
             </div>
@@ -473,7 +473,7 @@ export const CustomerAccountModal: React.FC<CustomerAccountModalProps> = ({
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px] text-[#5E5955]">
                   <div className="p-2 bg-white rounded-xl border border-[#E8DFD8]">
                     <strong className="block text-[#1C1B1A]">Every Purchase</strong>
-                    <span>1 pt for every Rs. 10 spent on any handmade bag or choker.</span>
+                    <span>1 pt for every NPR 10 spent on any handmade bag or choker.</span>
                   </div>
                   <div className="p-2 bg-white rounded-xl border border-[#E8DFD8]">
                     <strong className="block text-[#1C1B1A]">Leave a Review</strong>

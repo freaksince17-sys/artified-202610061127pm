@@ -18,7 +18,7 @@ export const LOYALTY_TIERS_CONFIG: Record<
     bgBadge: 'bg-[#FAF8F5] text-[#8C7A6B] border border-[#E8DFD8]',
     multiplier: 1.0,
     perks: [
-      '1x Loyalty points on every purchase (1 pt per Rs. 10)',
+      '1x Loyalty points on every purchase (1 pt per NPR 10)',
       '100 Points Welcome Bonus upon sign-in',
       'Birthday Gift Wrap secret promo code',
       'Early preview of seasonal pearl drops'
@@ -57,34 +57,34 @@ export const AVAILABLE_LOYALTY_VOUCHERS: LoyaltyRewardVoucher[] = [
     title: 'Free Luxury Gift Wrap & Calligraphy Card',
     pointsCost: 150,
     discountAmount: 150,
-    description: 'Waives the Rs. 150 gift wrapping fee with satin ribbon and wax-sealed personal card.',
+    description: 'Waives the NPR 150 gift wrapping fee with satin ribbon and wax-sealed personal card.',
     type: 'free_gift_wrap'
   },
   {
     id: 'v-100',
     code: 'PEARL100',
-    title: 'Rs. 100 Off Storewide',
+    title: 'NPR 100 Off Storewide',
     pointsCost: 100,
     discountAmount: 100,
-    description: 'Instant Rs. 100 discount applied to any handmade bag or choker.',
+    description: 'Instant NPR 100 discount applied to any handmade bag or choker.',
     type: 'discount'
   },
   {
     id: 'v-250',
     code: 'BAROQUE250',
-    title: 'Rs. 250 Off Handcrafted Pieces',
+    title: 'NPR 250 Off Handcrafted Pieces',
     pointsCost: 250,
     discountAmount: 250,
-    description: 'Save Rs. 250 on orders above Rs. 1,000 across our Kathmandu catalog.',
+    description: 'Save NPR 250 on orders above NPR 1,000 across our Kathmandu catalog.',
     type: 'discount'
   },
   {
     id: 'v-500',
     code: 'ATELIER500',
-    title: 'Rs. 500 VIP Atelier Discount',
+    title: 'NPR 500 VIP Atelier Discount',
     pointsCost: 500,
     discountAmount: 500,
-    description: 'Exclusive Rs. 500 off luxury bags like Caviar, Round, and Red Pearl bags.',
+    description: 'Exclusive NPR 500 off luxury bags like Caviar, Round, and Red Pearl bags.',
     type: 'discount'
   }
 ];
@@ -154,7 +154,7 @@ export const saveLoyaltyAccount = (account: LoyaltyAccount): void => {
 
 /**
  * Earn points from completed purchase:
- * Base: 1 pt per Rs. 10 spent (10% reward value!).
+ * Base: 1 pt per NPR 10 spent (10% reward value!).
  * Multiplier applied based on tier.
  */
 export const earnPurchasePoints = (

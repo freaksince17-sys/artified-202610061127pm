@@ -11,6 +11,9 @@ export interface SellerPaymentSettings {
   fonepayQrImage?: string;
   esewaQrImage?: string;
   khaltiQrImage?: string;
+  enableEsewa?: boolean;
+  enableFonepay?: boolean;
+  enableKhalti?: boolean;
 }
 
 export const DEFAULT_PAYMENT_SETTINGS: SellerPaymentSettings = {
@@ -20,7 +23,10 @@ export const DEFAULT_PAYMENT_SETTINGS: SellerPaymentSettings = {
   branch: 'Kathmandu, Nepal',
   fonepayQrImage: '',
   esewaQrImage: '',
-  khaltiQrImage: ''
+  khaltiQrImage: '',
+  enableEsewa: true,
+  enableFonepay: false,
+  enableKhalti: false
 };
 
 export function getSellerPaymentSettings(): SellerPaymentSettings {
@@ -30,7 +36,10 @@ export function getSellerPaymentSettings(): SellerPaymentSettings {
       const parsed = JSON.parse(raw);
       return { 
         ...DEFAULT_PAYMENT_SETTINGS, 
-        ...parsed
+        ...parsed,
+        enableEsewa: parsed.enableEsewa ?? true,
+        enableFonepay: parsed.enableFonepay ?? false,
+        enableKhalti: parsed.enableKhalti ?? false
       };
     }
   } catch (e) {
@@ -114,7 +123,10 @@ export async function fetchPaymentSettingsFromServer(): Promise<SellerPaymentSet
         ...data,
         fonepayQrImage: data.fonepayQrImage || local.fonepayQrImage || '',
         esewaQrImage: data.esewaQrImage || local.esewaQrImage || '',
-        khaltiQrImage: data.khaltiQrImage || local.khaltiQrImage || ''
+        khaltiQrImage: data.khaltiQrImage || local.khaltiQrImage || '',
+        enableEsewa: data.enableEsewa ?? local.enableEsewa ?? true,
+        enableFonepay: data.enableFonepay ?? local.enableFonepay ?? false,
+        enableKhalti: data.enableKhalti ?? local.enableKhalti ?? false
       };
       localStorage.setItem('artified_payment_settings', JSON.stringify(merged));
       window.dispatchEvent(new CustomEvent('artified_payment_settings_updated', { detail: merged }));

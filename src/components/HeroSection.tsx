@@ -248,7 +248,7 @@ export const HeroSection: React.FC = () => {
                 </div>
                 <div className="truncate">
                   <h4 className="text-[11px] font-semibold text-[#1C1B1A] leading-tight truncate">Nepal Delivery</h4>
-                  <p className="text-[9px] text-[#736C65] truncate hidden sm:block">COD + eSewa / Khalti</p>
+                  <p className="text-[9px] text-[#736C65] truncate hidden sm:block">COD + eSewa QR</p>
                 </div>
               </div>
             </div>
@@ -287,7 +287,7 @@ export const HeroSection: React.FC = () => {
                     {featuredProduct?.title || "Pearl Beaded Handbag"}
                   </h3>
                   <p className="text-[11px] text-white/90">
-                    NPR Rs. {featuredProduct?.price ? featuredProduct.price.toLocaleString() : '2,499'} • In Stock
+                    NPR {featuredProduct?.price ? featuredProduct.price.toLocaleString() : '2,499'} • In Stock
                   </p>
                 </div>
               </div>
