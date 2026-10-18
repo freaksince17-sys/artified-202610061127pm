@@ -81,8 +81,8 @@ export function reconcileProductCatalog(candidateProducts?: Product[] | null, bu
           bundledItem.onlineSalesCount || 0
         );
 
-        // Candidate ONLY overwrites code props (price/title) if edited AFTER bundled date
-        if (candidateTime > bundledTime && candidate.price !== undefined && candidate.price > 0) {
+        // Authoritative bundled product price & definition always take precedence unless explicitly edited after build timestamp
+        if (candidateTime > bundledTime && candidate.price !== undefined && candidate.price > 0 && candidateTime > new Date(CATALOG_BUILD_TIMESTAMP).getTime()) {
           map.set(candidate.id, {
             ...bundledItem,
             ...candidate,
@@ -90,8 +90,7 @@ export function reconcileProductCatalog(candidateProducts?: Product[] | null, bu
             onlineSalesCount: mergedOnlineSales,
           });
         } else {
-          // Keep bundled code definition pure (title, description, price, photography),
-          // but seamlessly attach real customer reviews and sales stats from Firestore
+          // Force authoritative bundled code definition (price, title, photography, description)
           map.set(candidate.id, {
             ...bundledItem,
             customReviews: mergedReviews,
