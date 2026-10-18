@@ -54,8 +54,8 @@ export const SellerCatalogListModal: React.FC = () => {
     setSyncSuccessMsg(null);
     try {
       await forceSyncAllToCloud();
-      setSyncSuccessMsg('All edits synced! Open on your smartphone to see the updates.');
-      setTimeout(() => setSyncSuccessMsg(null), 4000);
+      setSyncSuccessMsg('All pieces permanently saved to Cloud Firestore! Custom prices and titles will never revert.');
+      setTimeout(() => setSyncSuccessMsg(null), 5000);
     } catch {
       setSyncSuccessMsg('Sync error occurred. Please check network.');
     } finally {
@@ -247,11 +247,11 @@ export const SellerCatalogListModal: React.FC = () => {
               type="button"
               onClick={handleForceSync}
               disabled={isSyncing}
-              className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium bg-white text-[#2B2927] border border-[#D5C9BE] rounded-lg hover:bg-[#FAF8F5] transition-colors disabled:opacity-50 shadow-2xs cursor-pointer"
-              title="Click if you want to immediately push any laptop offline edits to smartphone"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-[#1C1B1A] text-white rounded-lg hover:bg-[#34312F] transition-colors disabled:opacity-50 shadow-xs cursor-pointer"
+              title="Permanently backup and lock all prices and names into Cloud Firestore (artified-staging)"
             >
-              <RefreshCw className={`w-3.5 h-3.5 text-[#C98A2C] ${isSyncing ? 'animate-spin' : ''}`} />
-              <span>{isSyncing ? 'Syncing...' : 'Sync Laptop to Smartphone'}</span>
+              <RefreshCw className={`w-3.5 h-3.5 text-[#D4AF37] ${isSyncing ? 'animate-spin' : ''}`} />
+              <span>{isSyncing ? 'Syncing to Firestore...' : 'Backup All to Cloud Firestore'}</span>
             </button>
           </div>
         </div>

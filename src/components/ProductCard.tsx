@@ -3,7 +3,7 @@ import { Heart, Eye, Star, Edit3, Scale, Bell } from 'lucide-react';
 import { Product } from '../types';
 import { useCart } from '../context/CartContext';
 import { useLanguage } from '../context/LanguageContext';
-import { calculateTotalSold, isProductBestSeller, calculateReviewsCount } from '../utils/productStats';
+import { calculateTotalSold, isProductBestSeller, calculateReviewsCount, getDisplayOriginalPrice, calculateDiscountPercent } from '../utils/productStats';
 import { RestockNotifyModal } from './RestockNotifyModal';
 import { isProductWaitlisted } from '../utils/waitlistService';
 
@@ -83,11 +83,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, isSelected = 
     setCurrentSecImg(rawSecondary);
   }, [rawPrimary, rawSecondary]);
 
-  const displayOriginalPrice = product.originalPrice && product.originalPrice > product.price
-    ? product.originalPrice
-    : Math.round((product.price * 1.2) / 50) * 50;
-
-  const discountPercent = Math.max(5, Math.round(((displayOriginalPrice - product.price) / displayOriginalPrice) * 100));
+  const displayOriginalPrice = getDisplayOriginalPrice(product);
+  const discountPercent = calculateDiscountPercent(product);
 
   return (
     <div
@@ -240,8 +237,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, isSelected = 
       {/* Product Details - Modeled directly on high-density reference style */}
       <div className="p-1.5 sm:p-2 flex-1 flex flex-col justify-between bg-white dark:bg-[#161514]">
         <div>
-          {/* Title - Clean single line */}
-          <h3 className="text-[11px] sm:text-xs font-normal text-[#1C1B1A] dark:text-[#E8E2D9] leading-tight line-clamp-1 group-hover:text-[#C5A880] dark:group-hover:text-[#D4AF37] transition-colors">
+          {/* Title - Full title displayed completely without truncation */}
+          <h3 className="text-[11px] sm:text-xs font-normal text-[#1C1B1A] dark:text-[#E8E2D9] leading-snug group-hover:text-[#C5A880] dark:group-hover:text-[#D4AF37] transition-colors break-words" title={product.title}>
             {product.title}
           </h3>
 

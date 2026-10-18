@@ -11,13 +11,14 @@ import {
 } from 'lucide-react';
 import { ProductCard } from './ProductCard';
 import { useCart } from '../context/CartContext';
-import { isProductBestSeller } from '../utils/productStats';
+import { isProductBestSeller, calculateDiscountPercent } from '../utils/productStats';
 import { GlobalSearchBar } from './GlobalSearchBar';
 
-type SortOption = 'featured' | 'newest' | 'price-asc' | 'price-desc' | 'name-asc' | 'name-desc';
+type SortOption = 'featured' | 'discount-desc' | 'newest' | 'price-asc' | 'price-desc' | 'name-asc' | 'name-desc';
 
 const SORT_OPTIONS: { id: SortOption; label: string }[] = [
   { id: 'featured', label: 'Sort by' },
+  { id: 'discount-desc', label: '% Discount' },
   { id: 'newest', label: 'Newest' },
   { id: 'price-asc', label: 'Price (low to high)' },
   { id: 'price-desc', label: 'Price (high to low)' },
@@ -104,7 +105,16 @@ export const ProductGrid: React.FC = () => {
     }
 
     // Sort by requested options
-    if (sortBy === 'newest') {
+    if (sortBy === 'discount-desc') {
+      result.sort((a, b) => {
+        const discA = calculateDiscountPercent(a);
+        const discB = calculateDiscountPercent(b);
+        if (discB !== discA) {
+          return discB - discA; // Highest percentage discount appears first
+        }
+        return a.price - b.price; // Secondary sort by price
+      });
+    } else if (sortBy === 'newest') {
       result.sort((a, b) => {
         if (a.isNewArrival === b.isNewArrival) return 0;
         return a.isNewArrival ? -1 : 1;

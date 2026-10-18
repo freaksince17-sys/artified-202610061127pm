@@ -114,6 +114,8 @@ async function startServer() {
       });
 
       fs.writeFileSync(productsJsonPath, JSON.stringify(cleanedProducts, null, 2), 'utf-8');
+      const publicProductsPath = path.resolve(process.cwd(), 'public/products.json');
+      fs.writeFileSync(publicProductsPath, JSON.stringify(cleanedProducts, null, 2), 'utf-8');
 
       // Auto-refresh public/sitemap.xml so Googlebot always has latest product URLs
       try {

@@ -6,7 +6,7 @@
   <!-- 1. Primary Storefront Homepage -->
   <url>
     <loc>https://www.artified.com.np/</loc>
-    <lastmod>2026-10-12</lastmod>
+    <lastmod>2026-10-18</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
@@ -14,43 +14,43 @@
   <!-- 2. Curated Product Collections / Categories -->
   <url>
     <loc>https://www.artified.com.np/?category=all</loc>
-    <lastmod>2026-10-12</lastmod>
+    <lastmod>2026-10-18</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
     <loc>https://www.artified.com.np/?category=pearl-bags</loc>
-    <lastmod>2026-10-12</lastmod>
+    <lastmod>2026-10-18</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
     <loc>https://www.artified.com.np/?category=pearl-necklaces</loc>
-    <lastmod>2026-10-12</lastmod>
+    <lastmod>2026-10-18</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
     <loc>https://www.artified.com.np/?category=macrame</loc>
-    <lastmod>2026-10-12</lastmod>
+    <lastmod>2026-10-18</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
     <loc>https://www.artified.com.np/?category=accessories</loc>
-    <lastmod>2026-10-12</lastmod>
+    <lastmod>2026-10-18</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://www.artified.com.np/?category=new-arrivals</loc>
-    <lastmod>2026-10-12</lastmod>
+    <lastmod>2026-10-18</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://www.artified.com.np/?category=best-sellers</loc>
-    <lastmod>2026-10-12</lastmod>
+    <lastmod>2026-10-18</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.8</priority>
   </url>
@@ -58,25 +58,25 @@
   <!-- 3. Key Brand Story & Customer Care Sections -->
   <url>
     <loc>https://www.artified.com.np/#meet-artisan</loc>
-    <lastmod>2026-10-12</lastmod>
+    <lastmod>2026-10-18</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://www.artified.com.np/#customer-reviews</loc>
-    <lastmod>2026-10-12</lastmod>
+    <lastmod>2026-10-18</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://www.artified.com.np/#instagram-journal</loc>
-    <lastmod>2026-10-12</lastmod>
+    <lastmod>2026-10-18</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://www.artified.com.np/#workshops</loc>
-    <lastmod>2026-10-12</lastmod>
+    <lastmod>2026-10-18</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
@@ -84,7 +84,7 @@
   <!-- 4. Individual Handcrafted Products (With Google Image Metadata) -->
   <url>
     <loc>https://www.artified.com.np/?product=apsara-layered-pearl-collar</loc>
-    <lastmod>2026-10-12</lastmod>
+    <lastmod>2026-10-18</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -95,7 +95,7 @@
   </url>
   <url>
     <loc>https://www.artified.com.np/?product=chandra-baroque-pearl-choker</loc>
-    <lastmod>2026-10-12</lastmod>
+    <lastmod>2026-10-18</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -106,7 +106,7 @@
   </url>
   <url>
     <loc>https://www.artified.com.np/?product=lalitpur-bloom-pearl-tote</loc>
-    <lastmod>2026-10-12</lastmod>
+    <lastmod>2026-10-18</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -117,7 +117,7 @@
   </url>
   <url>
     <loc>https://www.artified.com.np/?product=maya-aurelia-pearl-bag</loc>
-    <lastmod>2026-10-12</lastmod>
+    <lastmod>2026-10-18</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -128,7 +128,7 @@
   </url>
   <url>
     <loc>https://www.artified.com.np/?product=tara-micro-pearl-clutch</loc>
-    <lastmod>2026-10-12</lastmod>
+    <lastmod>2026-10-18</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -144,7 +144,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/?product=art-1790333862243-jt5hs</loc>
-    <lastmod>2026-10-12</lastmod>
+    <lastmod>2026-10-18</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -155,7 +155,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/?product=art-1790325037121-9xbrf</loc>
-    <lastmod>2026-10-12</lastmod>
+    <lastmod>2026-10-18</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -166,7 +166,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/?product=art-1790324281944-pmbwp</loc>
-    <lastmod>2026-10-12</lastmod>
+    <lastmod>2026-10-18</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -177,7 +177,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/?product=art-1790324546687-yv635</loc>
-    <lastmod>2026-10-12</lastmod>
+    <lastmod>2026-10-18</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -188,7 +188,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/?product=art-1790322203088-a18e2</loc>
-    <lastmod>2026-10-12</lastmod>
+    <lastmod>2026-10-18</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -199,7 +199,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/?product=art-1790334477287-j6dmv</loc>
-    <lastmod>2026-10-12</lastmod>
+    <lastmod>2026-10-18</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -210,7 +210,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/?product=art-1790333088486-tfyux</loc>
-    <lastmod>2026-10-12</lastmod>
+    <lastmod>2026-10-18</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -221,7 +221,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/?product=art-1790323549756-24tl6</loc>
-    <lastmod>2026-10-12</lastmod>
+    <lastmod>2026-10-18</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -232,18 +232,18 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/?product=art-1790339383059-2rnmf</loc>
-    <lastmod>2026-10-12</lastmod>
+    <lastmod>2026-10-18</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
       <image:loc>https://www.artified.com.np/og-image.jpg</image:loc>
-      <image:title>Crystal Bead Bracelets with Heart Clasp</image:title>
+      <image:title>Crystal Bead Bracelets with Magnetic Heart Clasp</image:title>
       <image:caption>Celebrate a special bond with this beautiful Magnetic Heart Connection Couple Bracelet Set, designed as a meaningful accessory for couples and loved ones. Featuring smooth 8mm beads, a slightly stretchy design, and matching magnetic heart charms, these bracelets symbolize attraction, connection, and togetherness. Made with agate, howlite, and stainless steel, they make a thoughtful gift for anniversaries, birthdays, weddings, engagements, Valentine’s Day, or any memorable occasion.</image:caption>
     </image:image>
   </url>
   <url>
     <loc>https://www.artified.com.np/?product=art-1790325879806-igc0d</loc>
-    <lastmod>2026-10-12</lastmod>
+    <lastmod>2026-10-18</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -254,18 +254,18 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/?product=art-1790338448845-1fpyt</loc>
-    <lastmod>2026-10-12</lastmod>
+    <lastmod>2026-10-18</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
       <image:loc>https://www.artified.com.np/og-image.jpg</image:loc>
-      <image:title>Freshwater Pearl Dainty Elegance Necklace Set</image:title>
+      <image:title>Elegance Multi-Strand Pearl Choker Set</image:title>
       <image:caption>Add effortless elegance to your jewellery collection with this beautiful freshwater pearl necklace set, carefully designed with delicate detailing for a refined finish. Its graceful style can complement both simple casual outfits and sophisticated formal looks, making it a versatile statement piece that requires no additional layering. Handmade in Nepal with an adjustable backside for a personalized fit, it also makes a thoughtful gift for girlfriends, best friends, mothers, sisters, bridesmaids, and special occasions.</image:caption>
     </image:image>
   </url>
   <url>
     <loc>https://www.artified.com.np/?product=art-1790323202380-nw0zi</loc>
-    <lastmod>2026-10-12</lastmod>
+    <lastmod>2026-10-18</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -276,7 +276,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/?product=art-1790340560909-u8pd5</loc>
-    <lastmod>2026-10-12</lastmod>
+    <lastmod>2026-10-18</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -287,18 +287,18 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/?product=art-1790321559072-ym8ui</loc>
-    <lastmod>2026-10-12</lastmod>
+    <lastmod>2026-10-18</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
       <image:loc>https://www.artified.com.np/og-image.jpg</image:loc>
-      <image:title>Pearl and Beads Embedded Hand Bag</image:title>
+      <image:title>Marble Beaded Hand Bag</image:title>
       <image:caption>This elegant handmade beaded bag features a rich blend of pearl white, smoky gray, and charcoal beads, creating a sophisticated monochrome look. Its intricate beadwork and matching beaded strap add texture, shine, and a luxurious handcrafted feel. The neutral color palette makes it versatile enough for both everyday styling and special occasions.</image:caption>
     </image:image>
   </url>
   <url>
     <loc>https://www.artified.com.np/?product=art-1790337745190-egjbv</loc>
-    <lastmod>2026-10-12</lastmod>
+    <lastmod>2026-10-18</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -309,7 +309,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/?product=art-1790336051475-r3dos</loc>
-    <lastmod>2026-10-12</lastmod>
+    <lastmod>2026-10-18</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -320,7 +320,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/?product=art-1790334939460-sj7ss</loc>
-    <lastmod>2026-10-12</lastmod>
+    <lastmod>2026-10-18</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -331,40 +331,40 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/?product=art-1790326308284-gd3uy</loc>
-    <lastmod>2026-10-12</lastmod>
+    <lastmod>2026-10-18</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
       <image:loc>https://www.artified.com.np/og-image.jpg</image:loc>
-      <image:title>Pearl Cascade Beaded Choker</image:title>
+      <image:title>Pearl Cascade Lattice Beaded Choker</image:title>
       <image:caption>Elevate your style with this elegant pearl beaded choker, featuring beautifully arranged pearl beads in a layered and graceful design. Handmade in Nepal, this versatile necklace is a perfect addition to any women’s fashion jewelry collection. Its sophisticated appearance makes it suitable for weddings, parties, festive celebrations, formal events, and everyday occasions. The adjustable backside allows you to customize the fit according to your preference, ensuring both comfort and elegance.</image:caption>
     </image:image>
   </url>
   <url>
     <loc>https://www.artified.com.np/?product=art-1790327324377-hhpsn</loc>
-    <lastmod>2026-10-12</lastmod>
+    <lastmod>2026-10-18</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
       <image:loc>https://www.artified.com.np/og-image.jpg</image:loc>
-      <image:title>Pearl Cascade Beaded Necklace</image:title>
+      <image:title>Pearl Cascade Graduated Beaded Choker</image:title>
       <image:caption>Enhance your jewelry collection with this stunning pearl beaded necklace, featuring multiple layers of beautifully arranged artificial pearls that capture the lustrous appearance of real pearls. The pearls are carefully strung on a durable thread and secured with a sturdy, easy-to-use clasp for comfortable and reliable wear. Its elegant and versatile design makes it perfect for formal events, parties, celebrations, or casual outings, effortlessly complementing any outfit while adding a sophisticated statement.</image:caption>
     </image:image>
   </url>
   <url>
     <loc>https://www.artified.com.np/?product=art-1790338888219-gysij</loc>
-    <lastmod>2026-10-12</lastmod>
+    <lastmod>2026-10-18</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
       <image:loc>https://www.artified.com.np/og-image.jpg</image:loc>
-      <image:title>Pearl Dewdrop Cascade Choker</image:title>
+      <image:title>Pearl Dewdrop Beaded Choker</image:title>
       <image:caption>Elevate your jewellery collection with the Pearl Dewdrop Cascade Choker, a beautifully handcrafted piece featuring delicate pearl beadwork and a graceful statement pearl pendant at the center. Handmade in Nepal, its elegant design blends timeless charm with modern sophistication, making it a beautiful choice for both traditional and contemporary outfits. The adjustable backside allows you to customize the fit according to your preference.</image:caption>
     </image:image>
   </url>
   <url>
     <loc>https://www.artified.com.np/?product=art-1790338084245-atu6j</loc>
-    <lastmod>2026-10-12</lastmod>
+    <lastmod>2026-10-18</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -375,7 +375,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/?product=art-1790333487706-sx4lk</loc>
-    <lastmod>2026-10-12</lastmod>
+    <lastmod>2026-10-18</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -386,7 +386,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/?product=art-1790323807676-ytboo</loc>
-    <lastmod>2026-10-12</lastmod>
+    <lastmod>2026-10-18</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -397,7 +397,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/?product=art-1790340220660-1ix2y</loc>
-    <lastmod>2026-10-12</lastmod>
+    <lastmod>2026-10-18</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -408,7 +408,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/?product=art-1790321852789-zvpym</loc>
-    <lastmod>2026-10-12</lastmod>
+    <lastmod>2026-10-18</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -419,18 +419,18 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/?product=art-1790339748217-gx4df</loc>
-    <lastmod>2026-10-12</lastmod>
+    <lastmod>2026-10-18</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
       <image:loc>https://www.artified.com.np/og-image.jpg</image:loc>
-      <image:title>Silk Serenity Luxe Scrunchie Set of 4</image:title>
+      <image:title>Silk Scrunchies Set of 4</image:title>
       <image:caption>Elevate your everyday hair styling with the Silk Serenity Luxe Scrunchie Set, featuring four beautiful shades to complement different outfits and moods. Made with smooth, hair-friendly silk fabric, these scrunchies provide a gentle hold while helping reduce friction, frizz, and hair breakage. Lightweight and comfortable, they are especially perfect for summer styling, keeping your hair neatly secured without compromising your hairstyle.</image:caption>
     </image:image>
   </url>
   <url>
     <loc>https://www.artified.com.np/?product=art-1790334149869-7te6x</loc>
-    <lastmod>2026-10-12</lastmod>
+    <lastmod>2026-10-18</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -441,7 +441,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/?product=art-1790336632322-nkqr5</loc>
-    <lastmod>2026-10-12</lastmod>
+    <lastmod>2026-10-18</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>

@@ -333,7 +333,7 @@ export const WishlistDrawer: React.FC = () => {
                             setIsWishlistOpen(false);
                             setQuickViewProduct(product);
                           }}
-                          className="font-serif text-sm font-medium text-[#1C1B1A] dark:text-[#F5F2EB] leading-snug line-clamp-1 cursor-pointer hover:text-[#C5A880] dark:hover:text-[#E6CA9E]"
+                          className="font-serif text-sm font-medium text-[#1C1B1A] dark:text-[#F5F2EB] leading-snug break-words cursor-pointer hover:text-[#C5A880] dark:hover:text-[#E6CA9E]"
                         >
                           {product.title}
                         </h4>

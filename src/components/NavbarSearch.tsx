@@ -332,7 +332,7 @@ export const NavbarSearch: React.FC<NavbarSearchProps> = ({ isOpen, onClose }) =
                             </span>
                           </div>
 
-                          <h5 className="font-serif text-xs sm:text-sm font-semibold text-[#1C1B1A] leading-snug line-clamp-1 group-hover:text-[#C5A880] transition-colors">
+                          <h5 className="font-serif text-xs sm:text-sm font-semibold text-[#1C1B1A] leading-snug break-words group-hover:text-[#C5A880] transition-colors">
                             {product.title}
                           </h5>
 

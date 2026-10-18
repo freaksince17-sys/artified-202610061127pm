@@ -26,6 +26,10 @@ async function run() {
 
   fs.writeFileSync(sitemapOutputPath, xml, 'utf-8');
 
+  // Also ensure public/products.json is synced for static hosting (e.g. GitHub Pages)
+  const publicProductsPath = path.resolve(rootDir, 'public/products.json');
+  fs.writeFileSync(publicProductsPath, raw, 'utf-8');
+
   console.log(`✅ [Sitemap Generator] Successfully generated ${sitemapOutputPath}!`);
   console.log(`📊 Indexed:`);
   console.log(`   - 1 Storefront Homepage`);

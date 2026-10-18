@@ -3,6 +3,7 @@ import { Product, CartItem, DeliveryZone, OrderDetails, TikTokReel, CraftStoryDa
 import { 
   DELIVERY_ZONES, 
   PRODUCTS, 
+  reconcileProductCatalog,
   TIKTOK_REELS, 
   DEFAULT_CRAFT_STORY,
   DEFAULT_INSTAGRAM_ITEMS,
@@ -21,6 +22,7 @@ import {
   collection, 
   doc, 
   getDoc, 
+  getDocs,
   writeBatch,
   getDocFromServer 
 } from 'firebase/firestore';
@@ -699,35 +701,87 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Fetch initial data from backend server database (products, reels, Instagram journal & settings)
   useEffect(() => {
-    // 1. Hydrate Products from server disk (always ensure complete 33 products are loaded)
-    fetch('/api/products')
-      .then((res) => res.json())
-      .then((items) => {
-        if (Array.isArray(items) && items.length > 0) {
-          let shouldAdopt = false;
-          try {
-            const localCustom = localStorage.getItem('artified_products_custom');
-            if (!localCustom) {
-              shouldAdopt = true;
-            } else {
-              const parsed = JSON.parse(localCustom);
-              if (!Array.isArray(parsed) || parsed.length < items.length) {
-                shouldAdopt = true;
-              }
+    // 1. Persistent Product Catalog Hydration (Cloud Firestore -> Local Storage -> Server Disk)
+    const hydrateCatalog = async () => {
+      try {
+        // Query Cloud Firestore collection 'products' (persisted across restarts & devices)
+        const snap = await getDocs(collection(db, 'products'));
+        if (!snap.empty) {
+          const cloudProducts: Product[] = [];
+          snap.forEach((d) => {
+            const data = d.data() as Product;
+            if (data && data.id && data.title) {
+              cloudProducts.push(sanitizeProduct(data));
             }
-          } catch {
-            shouldAdopt = true;
-          }
+          });
 
-          if (shouldAdopt) {
-            setProducts(items);
-            try {
-              localStorage.setItem('artified_products_custom', JSON.stringify(items));
-            } catch {}
+          if (cloudProducts.length > 0) {
+            setProducts((prev) => {
+              // Reconcile: bundled code & current state vs cloud items
+              const reconciled = reconcileProductCatalog(cloudProducts, prev);
+              try {
+                localStorage.setItem('artified_products_custom', JSON.stringify(reconciled));
+              } catch {}
+              // Also sync to server JSON disk for offline fallback
+              fetch('/api/products', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(reconciled),
+              }).catch(() => {});
+              return reconciled;
+            });
+            setIsCloudSynced(true);
+            setSyncStatusText('🟢 Synced with Cloud Firestore (artified-staging)');
+            return;
           }
         }
-      })
-      .catch(() => {});
+      } catch (fsErr) {
+        console.warn('Notice: Firestore product query:', fsErr);
+      }
+
+      // If Firestore collection was empty or offline, hydrate from /api/products or static /products.json
+      try {
+        let items: Product[] | null = null;
+        try {
+          const res = await fetch('/api/products');
+          if (res.ok) {
+            items = await res.json();
+          }
+        } catch {}
+
+        if (!items || !Array.isArray(items) || items.length === 0) {
+          try {
+            const staticRes = await fetch('/products.json');
+            if (staticRes.ok) {
+              items = await staticRes.json();
+            }
+          } catch {}
+        }
+
+        if (Array.isArray(items) && items.length > 0) {
+          setProducts((prev) => {
+            const reconciled = reconcileProductCatalog(items, prev);
+            try {
+              localStorage.setItem('artified_products_custom', JSON.stringify(reconciled));
+            } catch {}
+
+            // Seed Firestore with these products so they are permanently backed up in cloud database
+            try {
+              const batch = writeBatch(db);
+              reconciled.forEach((p) => {
+                const prodRef = doc(db, 'products', p.id);
+                batch.set(prodRef, p, { merge: true });
+              });
+              batch.commit().catch(() => {});
+            } catch {}
+
+            return reconciled;
+          });
+        }
+      } catch {}
+    };
+
+    hydrateCatalog();
 
     // 2. Hydrate TikTok Reels from server disk
     fetch('/api/tiktok-reels')
@@ -909,14 +963,18 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Social Media Showcase Tab State ('tiktok' | 'journal')
   const [activeSocialTab, setActiveSocialTab] = useState<'tiktok' | 'journal'>('tiktok');
 
-  // Products State - Guaranteed all 33 products loaded immediately without flickering default items
+  // Products State - Guaranteed all 33 products loaded immediately with authoritative prices reconciled
   const [products, setProducts] = useState<Product[]>(() => {
     try {
       const saved = localStorage.getItem('artified_products_custom');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length >= PRODUCTS.length) {
-          return parsed.map(sanitizeProduct);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const reconciled = reconcileProductCatalog(parsed, PRODUCTS);
+          try {
+            localStorage.setItem('artified_products_custom', JSON.stringify(reconciled));
+          } catch {}
+          return reconciled.map(sanitizeProduct);
         }
       }
     } catch {}
@@ -1252,30 +1310,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setSyncStatusText('🟢 Catalog Ready (Repository & Local Database)');
     setIsDataSyncing(false);
 
-    // Hydrate products from server JSON disk (src/data/products.json)
-    fetch('/api/products')
-      .then((res) => res.json())
-      .then((items) => {
-        if (Array.isArray(items) && items.length > 0) {
-          setProducts(items.map(sanitizeProduct));
-          try {
-            localStorage.setItem('artified_products_custom', JSON.stringify(items));
-          } catch {}
-        }
-      })
-      .catch(() => {
-        try {
-          const localRaw = localStorage.getItem('artified_products_custom');
-          if (localRaw) {
-            const parsed = JSON.parse(localRaw);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-              setProducts(parsed.map(sanitizeProduct));
-              return;
-            }
-          }
-        } catch {}
-        setProducts(PRODUCTS.map(sanitizeProduct));
-      });
+
 
     // Hydrate TikTok reels from server JSON disk
     fetch('/api/tiktok-reels')
@@ -1333,21 +1368,32 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const forceSyncAllToCloud = async () => {
-    setSyncStatusText('Saving all edits to repository...');
+    setSyncStatusText('Saving all edits to Cloud Firestore (artified-staging)...');
     try {
+      // 1. Batch sync all products to Cloud Firestore
+      const batch = writeBatch(db);
+      products.forEach((p) => {
+        const prodRef = doc(db, 'products', p.id);
+        batch.set(prodRef, p, { merge: true });
+      });
+      await batch.commit();
+
+      // 2. Also save to server JSON disk
       await fetch('/api/products', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(products),
       });
+
       try {
         localStorage.setItem('artified_products_custom', JSON.stringify(products));
       } catch {}
+
       setIsCloudSynced(true);
-      setSyncStatusText('🟢 Changes saved to repository (push to GitHub to deploy to www.artified.com.np)');
+      setSyncStatusText('🟢 All pieces permanently saved to Cloud Firestore (artified-staging)!');
     } catch (err) {
-      console.error('Failed to save to repository', err);
-      setSyncStatusText('⚠️ Saved to local browser storage');
+      console.error('Failed to save to Cloud Firestore', err);
+      setSyncStatusText('⚠️ Saved locally, cloud sync retry needed');
     }
   };
 
@@ -1402,9 +1448,14 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return img;
       })
     );
-    const cleanedProduct: Product = sanitizeProduct({ ...updated, images: cleanImages });
+    const nowIso = new Date().toISOString();
+    const cleanedProduct: Product = sanitizeProduct({ 
+      ...updated, 
+      images: cleanImages,
+      updatedAt: nowIso
+    });
 
-    // 2. Optimistic UI update
+    // 2. Optimistic UI update & Local Storage
     setProducts((prev) => {
       const next = prev.map((p) => (p.id === cleanedProduct.id ? cleanedProduct : p));
       try {
@@ -1419,6 +1470,16 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }).catch(() => {});
       return next;
     });
+
+    // 3. Permanent Cloud Firestore save
+    try {
+      const prodRef = doc(db, 'products', cleanedProduct.id);
+      await setDoc(prodRef, cleanedProduct, { merge: true });
+      setIsCloudSynced(true);
+      setSyncStatusText(`🟢 Saved "${cleanedProduct.title}" to Cloud Firestore`);
+    } catch (cloudErr) {
+      console.warn('Notice: Firestore save error, saved locally:', cloudErr);
+    }
 
     if (quickViewProduct?.id === cleanedProduct.id) {
       setQuickViewProduct(cleanedProduct);
@@ -1448,7 +1509,12 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return img;
       })
     );
-    const cleanedProduct: Product = sanitizeProduct({ ...newProduct, images: cleanImages });
+    const nowIso = new Date().toISOString();
+    const cleanedProduct: Product = sanitizeProduct({ 
+      ...newProduct, 
+      images: cleanImages,
+      updatedAt: nowIso
+    });
 
     setProducts((prev) => {
       const next = [cleanedProduct, ...prev];
@@ -1464,6 +1530,16 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }).catch(() => {});
       return next;
     });
+
+    // Permanent Cloud Firestore save
+    try {
+      const prodRef = doc(db, 'products', cleanedProduct.id);
+      await setDoc(prodRef, cleanedProduct, { merge: true });
+      setIsCloudSynced(true);
+      setSyncStatusText(`🟢 Added "${cleanedProduct.title}" to Cloud Firestore`);
+    } catch (cloudErr) {
+      console.warn('Notice: Firestore add error, saved locally:', cloudErr);
+    }
   };
 
   const duplicateProduct = async (id: string) => {
@@ -1516,7 +1592,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setProducts((prev) => {
       const next = prev.map((p) => {
         if (targetSet.has(p.id)) {
-          const updated = { ...p, isNewArrival: isNew };
+          const updated = { ...p, isNewArrival: isNew, updatedAt: new Date().toISOString() };
           updatedBatch.push(updated);
           return updated;
         }
@@ -1534,6 +1610,17 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }).catch(() => {});
       return next;
     });
+
+    try {
+      const batch = writeBatch(db);
+      updatedBatch.forEach((p) => {
+        const prodRef = doc(db, 'products', p.id);
+        batch.set(prodRef, { isNewArrival: isNew, updatedAt: p.updatedAt }, { merge: true });
+      });
+      await batch.commit();
+    } catch (cloudErr) {
+      console.warn('Notice: Firestore batch update error:', cloudErr);
+    }
   };
 
   const deleteProduct = async (id: string) => {
@@ -1552,18 +1639,42 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return next;
     });
 
+    // Delete from Cloud Firestore
+    try {
+      const prodRef = doc(db, 'products', id);
+      await deleteDoc(prodRef);
+      setSyncStatusText('🟢 Deleted piece from Cloud Firestore');
+    } catch (cloudErr) {
+      console.warn('Notice: Firestore delete error:', cloudErr);
+    }
+
     if (quickViewProduct?.id === id) {
       setQuickViewProduct(null);
     }
   };
 
+
   const resetProductsToDefault = async () => {
     try {
       localStorage.removeItem('artified_products_custom');
+      localStorage.setItem('artified_products_custom', JSON.stringify(PRODUCTS));
     } catch (e) {
       console.warn('Failed to remove custom products', e);
     }
     setProducts(PRODUCTS);
+    try {
+      fetch('/api/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(PRODUCTS),
+      }).catch(() => {});
+      const batch = writeBatch(db);
+      PRODUCTS.forEach((p) => {
+        const prodRef = doc(db, 'products', p.id);
+        batch.set(prodRef, p, { merge: true });
+      });
+      batch.commit().catch(() => {});
+    } catch {}
   };
 
   const openProductEditor = (product?: Product | null) => {

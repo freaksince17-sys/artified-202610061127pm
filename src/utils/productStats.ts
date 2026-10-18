@@ -1,6 +1,24 @@
 import { Product, ProductReviewItem } from '../types';
 
 /**
+ * Calculates original reference price before discount
+ */
+export function getDisplayOriginalPrice(product: Product): number {
+  return product.originalPrice && product.originalPrice > product.price
+    ? product.originalPrice
+    : Math.round((product.price * 1.2) / 50) * 50;
+}
+
+/**
+ * Calculates percentage discount on product
+ */
+export function calculateDiscountPercent(product: Product): number {
+  const displayOriginalPrice = getDisplayOriginalPrice(product);
+  if (!displayOriginalPrice || displayOriginalPrice <= product.price) return 0;
+  return Math.max(5, Math.round(((displayOriginalPrice - product.price) / displayOriginalPrice) * 100));
+}
+
+/**
  * Calculates total units sold by combining base/manual units sold + live online sales tracked
  */
 export function calculateTotalSold(product: Product): number {

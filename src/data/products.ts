@@ -36,6 +36,53 @@ export const PRODUCTS: Product[] = (SAVED_PRODUCTS as unknown as Product[]).map(
   customReviews: p.customReviews || PRODUCT_REVIEWS_MAP[p.id] || []
 }));
 
+export const CATALOG_BUILD_TIMESTAMP = '2026-10-18T05:30:00.000Z';
+
+/**
+ * Reconciles candidate products (from localStorage, Firestore, or API) against the authoritative bundled PRODUCTS.
+ * - Bundled products with their updated prices/names always take precedence over stale cached products.
+ * - Only if a candidate product has an updatedAt that is genuinely NEWER than the bundled version's updatedAt
+ *   (i.e., edited in live Seller Studio after this code build), will the candidate's changes be accepted.
+ * - Newly added custom products created by the seller (whose IDs are not in the bundled list) are preserved.
+ */
+export function reconcileProductCatalog(candidateProducts?: Product[] | null, bundled: Product[] = PRODUCTS): Product[] {
+  const map = new Map<string, Product>();
+
+  // 1. Initialize with authoritative bundled products
+  for (const item of bundled) {
+    if (item && item.id) {
+      map.set(item.id, { ...item });
+    }
+  }
+
+  // 2. Process candidate products
+  if (Array.isArray(candidateProducts) && candidateProducts.length > 0) {
+    for (const candidate of candidateProducts) {
+      if (!candidate || !candidate.id) continue;
+
+      if (!map.has(candidate.id)) {
+        // New custom product created by seller that isn't in bundled list
+        map.set(candidate.id, candidate);
+      } else {
+        const bundledItem = map.get(candidate.id)!;
+        const candidateTime = candidate.updatedAt ? new Date(candidate.updatedAt).getTime() : 0;
+        const bundledTime = bundledItem.updatedAt ? new Date(bundledItem.updatedAt).getTime() : 0;
+
+        // Candidate ONLY wins if it was edited AFTER the bundled product was created
+        if (candidateTime > bundledTime && candidate.price !== undefined && candidate.price > 0) {
+          map.set(candidate.id, {
+            ...bundledItem,
+            ...candidate,
+            customReviews: candidate.customReviews || bundledItem.customReviews,
+          });
+        }
+      }
+    }
+  }
+
+  return Array.from(map.values());
+}
+
 export const TESTIMONIALS: Testimonial[] = [
   {
     id: 't1',

@@ -35,6 +35,7 @@ export interface Product {
   images: string[];
   tags: string[];
   spotlights?: ArtisanalSpotlightPoint[];
+  updatedAt?: string;
 }
 
 export interface CartItem {
