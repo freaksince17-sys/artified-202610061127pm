@@ -14,10 +14,11 @@ import { useCart } from '../context/CartContext';
 import { isProductBestSeller, calculateDiscountPercent } from '../utils/productStats';
 import { GlobalSearchBar } from './GlobalSearchBar';
 
-type SortOption = 'featured' | 'discount-desc' | 'newest' | 'price-asc' | 'price-desc' | 'name-asc' | 'name-desc';
+type SortOption = 'featured' | 'rating-desc' | 'discount-desc' | 'newest' | 'price-asc' | 'price-desc' | 'name-asc' | 'name-desc';
 
 const SORT_OPTIONS: { id: SortOption; label: string }[] = [
   { id: 'featured', label: 'Sort by' },
+  { id: 'rating-desc', label: 'Product Rating' },
   { id: 'discount-desc', label: '% Discount' },
   { id: 'newest', label: 'Newest' },
   { id: 'price-asc', label: 'Price (low to high)' },
@@ -104,8 +105,17 @@ export const ProductGrid: React.FC = () => {
       result = result.filter((p) => p.isBestSeller || isProductBestSeller(p, bestsellerThreshold));
     }
 
-    // Sort by requested options
-    if (sortBy === 'discount-desc') {
+    // Sort by requested options (default is alphabetically arranged A-Z)
+    if (sortBy === 'rating-desc') {
+      result.sort((a, b) => {
+        const ratingA = Number(a.rating || 4.7);
+        const ratingB = Number(b.rating || 4.7);
+        if (ratingB !== ratingA) {
+          return ratingB - ratingA; // Highest rating product first
+        }
+        return a.title.localeCompare(b.title);
+      });
+    } else if (sortBy === 'discount-desc') {
       result.sort((a, b) => {
         const discA = calculateDiscountPercent(a);
         const discB = calculateDiscountPercent(b);
@@ -116,17 +126,18 @@ export const ProductGrid: React.FC = () => {
       });
     } else if (sortBy === 'newest') {
       result.sort((a, b) => {
-        if (a.isNewArrival === b.isNewArrival) return 0;
+        if (a.isNewArrival === b.isNewArrival) return a.title.localeCompare(b.title);
         return a.isNewArrival ? -1 : 1;
       });
     } else if (sortBy === 'price-asc') {
       result.sort((a, b) => a.price - b.price);
     } else if (sortBy === 'price-desc') {
       result.sort((a, b) => b.price - a.price);
-    } else if (sortBy === 'name-asc') {
-      result.sort((a, b) => a.title.localeCompare(b.title));
     } else if (sortBy === 'name-desc') {
       result.sort((a, b) => b.title.localeCompare(a.title));
+    } else {
+      // Default ('featured' / 'name-asc'): Alphabetically arranged A-Z
+      result.sort((a, b) => a.title.localeCompare(b.title));
     }
 
     return result;

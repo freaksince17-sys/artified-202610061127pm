@@ -8,7 +8,7 @@ import {
   CURRENT_PURGE_EPOCH
 } from '../services/orderTrackingService';
 import { db } from '../firebase';
-import { collection, getDocs, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs, onSnapshot } from 'firebase/firestore';
 import { getRealProductImage } from '../utils/productImages';
 import SAVED_TRACKED_ORDERS from './tracked_orders.json';
 
@@ -51,6 +51,11 @@ const RESCUED_RAW_LEGACY_COMPACT_IDS = new Set<string>([
  * In-memory set of deleted canonical Order IDs synced from Firestore `store_settings/deleted_orders`
  */
 const CLOUD_DELETED_CANONICAL_IDS = new Set<string>();
+
+/**
+ * In-memory map of highest progressive sequence number per year synced from Firestore `store_settings/order_sequence`
+ */
+const CLOUD_MAX_SEQUENCE: Record<number, number> = {};
 
 function getRawCompactKey(id: string): string {
   return (id || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
@@ -513,6 +518,10 @@ export function generateUniqueOrderId(): string {
     });
   } catch {}
 
+  if (CLOUD_MAX_SEQUENCE[year] && CLOUD_MAX_SEQUENCE[year] > maxSeq) {
+    maxSeq = CLOUD_MAX_SEQUENCE[year];
+  }
+
   if (activeCountForYear > 0) {
     try {
       const storedSeqRaw = localStorage.getItem(`artified_last_seq_${year}`);
@@ -532,7 +541,7 @@ export function generateUniqueOrderId(): string {
 /**
  * Persists an updated tracked order to browser storage, server disk, and Firestore.
  */
-export function saveTrackedOrder(order: TrackedOrderData): void {
+export async function saveTrackedOrder(order: TrackedOrderData): Promise<void> {
   try {
     const norm = normalizeOrderId(order.orderId);
     const canonical = getCanonicalOrderKey(norm);
@@ -545,6 +554,9 @@ export function saveTrackedOrder(order: TrackedOrderData): void {
       const orderYear = parseInt(seqMatch[1], 10);
       const orderSeq = parseInt(seqMatch[2], 10);
       if (!isNaN(orderYear) && !isNaN(orderSeq) && orderSeq < 100000) {
+        if (!CLOUD_MAX_SEQUENCE[orderYear] || orderSeq > CLOUD_MAX_SEQUENCE[orderYear]) {
+          CLOUD_MAX_SEQUENCE[orderYear] = orderSeq;
+        }
         try {
           const prevSeq = parseInt(localStorage.getItem(`artified_last_seq_${orderYear}`) || '0', 10);
           if (orderSeq > prevSeq) {
@@ -577,7 +589,7 @@ export function saveTrackedOrder(order: TrackedOrderData): void {
     const sanitized = sanitizeOrderItems({
       ...order,
       orderId: formattedOrderId,
-      paymentScreenshot: preservedScreenshot,
+      paymentScreenshot: preservedScreenshot || '',
       statusRevision: nextRev,
       updatedAt: nowIso
     });
@@ -585,10 +597,13 @@ export function saveTrackedOrder(order: TrackedOrderData): void {
     // Store lightweight item entries in localStorage and server disk (real images are resolved via getRealProductImage)
     const lightweightForStorage: TrackedOrderData & { generation: number; purgeEpochId: string; updatedAt: string; statusRevision: number } = {
       ...sanitized,
-      paymentScreenshot: preservedScreenshot,
+      paymentScreenshot: preservedScreenshot || '',
       items: (sanitized.items || []).map((it) => ({
-        ...it,
-        image: it.image && (it.image.includes('ibb.co') || (it.image.startsWith('data:') && it.image.length > 5000)) ? '' : it.image
+        title: it.title || 'Handcrafted Piece',
+        image: it.image && (it.image.includes('ibb.co') || (it.image.startsWith('data:') && it.image.length > 5000)) ? '' : (it.image || ''),
+        quantity: Number(it.quantity) || 1,
+        price: Number(it.price) || 0,
+        customization: it.customization || ''
       })),
       statusRevision: nextRev,
       updatedAt: nowIso,
@@ -619,13 +634,13 @@ export function saveTrackedOrder(order: TrackedOrderData): void {
       }).catch(() => {});
     } catch {}
 
-    // 4. Real-time Firestore sync
-    saveOrderToFirestore(lightweightForStorage).catch((err) => {
-      console.warn('Notice: Firestore order tracking save:', err);
-    });
-
     recordOrderStatusChange(sanitized.orderId, sanitized.currentPhase, sanitized.customerName);
     window.dispatchEvent(new CustomEvent('artified_order_updated', { detail: sanitized }));
+
+    // 4. Real-time Firestore sync (awaited so callers like CheckoutModal guarantee cloud persistence across browsers/incognito)
+    await saveOrderToFirestore(lightweightForStorage).catch((err) => {
+      console.warn('Notice: Firestore order tracking save:', err);
+    });
   } catch (e) {
     console.warn('Failed to save tracked order', e);
   }
@@ -928,12 +943,64 @@ export function getAllOrdersForSeller(): TrackedOrderData[] {
  */
 export async function syncOrdersFromFirestore(): Promise<TrackedOrderData[]> {
   try {
-    const snap = await getDocs(collection(db, 'orders'));
+    const [snap, deletedSnap, seqSnap] = await Promise.all([
+      getDocs(collection(db, 'orders')),
+      getDoc(doc(db, 'store_settings', 'deleted_orders')).catch(() => null),
+      getDoc(doc(db, 'store_settings', 'order_sequence')).catch(() => null)
+    ]);
+
+    if (deletedSnap && deletedSnap.exists()) {
+      const delData = deletedSnap.data();
+      if (delData && Array.isArray(delData.deletedIds)) {
+        registerCloudDeletedOrderIds(delData.deletedIds);
+      }
+    }
+
+    if (seqSnap && seqSnap.exists()) {
+      const seqData = seqSnap.data();
+      if (seqData && typeof seqData === 'object') {
+        Object.entries(seqData).forEach(([k, v]) => {
+          const m = k.match(/^lastSeq_(\d{4})$/);
+          if (m && typeof v === 'number' && v < 100000) {
+            const yr = parseInt(m[1], 10);
+            if (!CLOUD_MAX_SEQUENCE[yr] || v > CLOUD_MAX_SEQUENCE[yr]) {
+              CLOUD_MAX_SEQUENCE[yr] = v;
+            }
+            try {
+              const prev = parseInt(localStorage.getItem(`artified_last_seq_${yr}`) || '0', 10);
+              if (v > prev) {
+                localStorage.setItem(`artified_last_seq_${yr}`, String(v));
+              }
+            } catch {}
+          }
+        });
+      }
+    }
+
     const remoteList: TrackedOrderData[] = [];
     snap.forEach((docSnap) => {
       const data = docSnap.data() as TrackedOrderData;
-      if (data && data.orderId && !isOrderDeletedOrPurged(data.orderId, data)) {
-        remoteList.push(data);
+      if (data && data.orderId) {
+        const norm = normalizeOrderId(data.orderId);
+        const seqMatch = norm.match(/^ART-(\d{4})-(\d+)$/);
+        if (seqMatch) {
+          const yr = parseInt(seqMatch[1], 10);
+          const sq = parseInt(seqMatch[2], 10);
+          if (!isNaN(yr) && !isNaN(sq) && sq < 100000) {
+            if (!CLOUD_MAX_SEQUENCE[yr] || sq > CLOUD_MAX_SEQUENCE[yr]) {
+              CLOUD_MAX_SEQUENCE[yr] = sq;
+            }
+            try {
+              const prev = parseInt(localStorage.getItem(`artified_last_seq_${yr}`) || '0', 10);
+              if (sq > prev) {
+                localStorage.setItem(`artified_last_seq_${yr}`, String(sq));
+              }
+            } catch {}
+          }
+        }
+        if (!isOrderDeletedOrPurged(data.orderId, data)) {
+          remoteList.push(data);
+        }
       }
     });
 
@@ -989,8 +1056,21 @@ export function subscribeAllOrdersForSeller(onUpdate: (orders: TrackedOrderData[
         const remoteList: TrackedOrderData[] = [];
         snapshot.forEach((docSnap) => {
           const data = docSnap.data() as TrackedOrderData;
-          if (data && data.orderId && !isOrderDeletedOrPurged(data.orderId, data)) {
-            remoteList.push(data);
+          if (data && data.orderId) {
+            const norm = normalizeOrderId(data.orderId);
+            const seqMatch = norm.match(/^ART-(\d{4})-(\d+)$/);
+            if (seqMatch) {
+              const yr = parseInt(seqMatch[1], 10);
+              const sq = parseInt(seqMatch[2], 10);
+              if (!isNaN(yr) && !isNaN(sq) && sq < 100000) {
+                if (!CLOUD_MAX_SEQUENCE[yr] || sq > CLOUD_MAX_SEQUENCE[yr]) {
+                  CLOUD_MAX_SEQUENCE[yr] = sq;
+                }
+              }
+            }
+            if (!isOrderDeletedOrPurged(data.orderId, data)) {
+              remoteList.push(data);
+            }
           }
         });
 
@@ -1058,13 +1138,13 @@ export function buildTrackedOrderFromOrderDetails(order: OrderDetails): TrackedO
         ? `eSewa QR (Txn: ${order.transactionId || 'Screenshot Attached'})`
         : `Khalti QR (Txn: ${order.transactionId || 'Screenshot Attached'})`,
     paymentStatus: order.paymentMethod === 'cod' ? 'Pay on Delivery' : 'Paid & Verified',
-    paymentScreenshot: order.paymentScreenshot,
+    paymentScreenshot: order.paymentScreenshot || '',
     items: order.items.map((i) => ({
       title: i.product.title,
       image: getRealProductImage(i.product.title, i.product.images[0]),
       quantity: i.quantity,
       price: i.product.price,
-      customization: i.customizationNote,
+      customization: i.customizationNote || '',
     })),
     subtotal: order.subtotal,
     deliveryFee: order.deliveryFee,

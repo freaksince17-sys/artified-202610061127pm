@@ -2,14 +2,15 @@ import { db } from '../firebase';
 import { 
   doc, 
   getDoc, 
+  setDoc as fsSetDoc,
   collection, 
   getDocs,
   arrayUnion
 } from 'firebase/firestore';
 import {
-  safeSetDoc as setDoc,
   safeDeleteDoc as deleteDoc,
-  safeOnSnapshot as onSnapshot
+  safeOnSnapshot as onSnapshot,
+  stripUndefinedDeep
 } from '../utils/safeFirestore';
 import { TrackedOrderData, OrderProductionPhase } from '../types';
 import { 
@@ -75,19 +76,23 @@ export async function saveOrderToFirestore(order: TrackedOrderData, userSessionI
   const cleanOrder = sanitizeOrderItems(order);
   const sanitizedOrder: any = {
     ...cleanOrder,
+    paymentScreenshot: cleanOrder.paymentScreenshot || '',
     items: (cleanOrder.items || []).map((it) => ({
-      ...it,
-      image: it.image && (it.image.startsWith('data:') || it.image.includes('ibb.co')) ? '' : it.image
+      title: it.title || 'Handcrafted Piece',
+      image: it.image && (it.image.startsWith('data:') || it.image.includes('ibb.co')) ? '' : (it.image || ''),
+      quantity: Number(it.quantity) || 1,
+      price: Number(it.price) || 0,
+      customization: it.customization || ''
     }))
   };
-  if (sanitizedOrder.paymentScreenshot && typeof sanitizedOrder.paymentScreenshot === 'string' && sanitizedOrder.paymentScreenshot.length > 250000) {
+  if (sanitizedOrder.paymentScreenshot && typeof sanitizedOrder.paymentScreenshot === 'string' && sanitizedOrder.paymentScreenshot.length > 750000) {
     sanitizedOrder.paymentScreenshot = '';
   }
 
   const normId = normalizeOrderId(order.orderId);
   const formattedId = `#${normId}`;
 
-  const payload: TrackedOrderData & {
+  const rawPayload: TrackedOrderData & {
     docId: string;
     sessionToken: string;
     updatedAt: string;
@@ -105,35 +110,52 @@ export async function saveOrderToFirestore(order: TrackedOrderData, userSessionI
     purgeEpochId: CURRENT_PURGE_EPOCH
   };
 
+  const payload = stripUndefinedDeep(rawPayload);
+
   try {
-    // 1. Save to primary `orders` collection
     const orderDocRef = doc(db, ORDERS_COLLECTION, docId);
-    await setDoc(orderDocRef, payload, { merge: true });
-
-    // 2. Save to `tracked_orders` collection
     const mainDocRef = doc(db, TRACKED_ORDERS_COLLECTION, docId);
-    await setDoc(mainDocRef, payload, { merge: true });
-
-    // 3. Save status log entry in `order_status_logs`
     const statusLogRef = doc(db, ORDER_STATUS_LOGS_COLLECTION, docId);
-    await setDoc(
-      statusLogRef,
-      {
-        orderId: payload.orderId,
-        docId,
-        currentPhase: payload.currentPhase,
-        progressPercentage: payload.progressPercentage,
-        milestones: payload.milestones || [],
-        updatedAt: nowIso,
-        generation: CURRENT_ORDER_GENERATION,
-        purgeEpochId: CURRENT_PURGE_EPOCH
-      },
-      { merge: true }
-    );
-
-    // 4. Save to user-keyed sub-collection for customer order history
     const userSubDocRef = doc(db, 'users', sessionToken, 'tracked_orders', docId);
-    await setDoc(userSubDocRef, payload, { merge: true });
+
+    const statusLogPayload = stripUndefinedDeep({
+      orderId: payload.orderId,
+      docId,
+      currentPhase: payload.currentPhase,
+      progressPercentage: payload.progressPercentage,
+      milestones: payload.milestones || [],
+      updatedAt: nowIso,
+      generation: CURRENT_ORDER_GENERATION,
+      purgeEpochId: CURRENT_PURGE_EPOCH
+    });
+
+    const writePromises: Promise<any>[] = [
+      fsSetDoc(orderDocRef, payload, { merge: true }),
+      fsSetDoc(mainDocRef, payload, { merge: true }),
+      fsSetDoc(statusLogRef, statusLogPayload, { merge: true }),
+      fsSetDoc(userSubDocRef, payload, { merge: true })
+    ];
+
+    // Also persist progressive sequence number in store_settings/order_sequence for cross-incognito continuity
+    const seqMatch = normId.match(/^ART-(\d{4})-(\d+)$/);
+    if (seqMatch) {
+      const orderYear = parseInt(seqMatch[1], 10);
+      const orderSeq = parseInt(seqMatch[2], 10);
+      if (!isNaN(orderYear) && !isNaN(orderSeq) && orderSeq < 100000) {
+        writePromises.push(
+          fsSetDoc(
+            doc(db, 'store_settings', 'order_sequence'),
+            {
+              [`lastSeq_${orderYear}`]: orderSeq,
+              updatedAt: nowIso
+            },
+            { merge: true }
+          ).catch(() => {})
+        );
+      }
+    }
+
+    await Promise.all(writePromises);
   } catch (error) {
     console.warn('Notice: Firestore save error, saving locally:', error);
   }
@@ -163,7 +185,7 @@ export async function deleteOrderFromFirestore(rawOrderId: string): Promise<void
   }
 
   deletePromises.push(
-    setDoc(
+    fsSetDoc(
       doc(db, 'store_settings', 'deleted_orders'),
       {
         deletedIds: arrayUnion(...variants),
@@ -245,9 +267,9 @@ export function subscribeToTrackedOrder(
     onUpdate(sanitizeOrderItems(immediateOrder));
   }
 
-  // 2. Always fetch latest server disk `/api/tracked-orders` so any seller status updates from server are reflected immediately
+  // 2. Fetch latest server disk `/api/tracked-orders` when available (do not resolve null prematurely before Firestore responds)
   fetch('/api/tracked-orders')
-    .then((res) => res.json())
+    .then((res) => (res.ok ? res.json() : null))
     .then((serverMap) => {
       if (serverMap && typeof serverMap === 'object') {
         syncTrackedOrdersFromServer(serverMap);
@@ -255,8 +277,6 @@ export function subscribeToTrackedOrder(
         if (syncedOrder) {
           hasResolvedOrder = true;
           onUpdate(sanitizeOrderItems(syncedOrder));
-        } else if (!hasResolvedOrder) {
-          onUpdate(null);
         }
       }
     })
@@ -264,10 +284,10 @@ export function subscribeToTrackedOrder(
 
   const mainDocRef = doc(db, TRACKED_ORDERS_COLLECTION, docId);
 
-  // 3. Set up real-time listener on the `tracked_orders` Firestore document
+  // 3. Set up real-time listener on the `tracked_orders` Firestore document (with fallback to `orders` collection)
   const unsubTrackedDoc = onSnapshot(
     mainDocRef,
-    (snapshot) => {
+    async (snapshot) => {
       if (snapshot.exists()) {
         const data = snapshot.data() as TrackedOrderData;
 
@@ -277,6 +297,7 @@ export function subscribeToTrackedOrder(
         }
 
         const sanitized = sanitizeOrderItems(data);
+        syncTrackedOrdersFromServer({ [docId]: sanitized });
         const localCandidate = getTrackedOrder(orderIdInput);
 
         hasResolvedOrder = true;
@@ -286,6 +307,21 @@ export function subscribeToTrackedOrder(
           onUpdate(sanitized);
         }
       } else {
+        // Also check primary `orders` collection in Firestore
+        try {
+          const orderSnap = await getDoc(doc(db, ORDERS_COLLECTION, docId));
+          if (orderSnap.exists()) {
+            const data = orderSnap.data() as TrackedOrderData;
+            if (!isOrderDeletedOrPurged(data.orderId || docId, data)) {
+              const sanitized = sanitizeOrderItems(data);
+              syncTrackedOrdersFromServer({ [docId]: sanitized });
+              hasResolvedOrder = true;
+              onUpdate(sanitized);
+              return;
+            }
+          }
+        } catch {}
+
         const localOrder = getTrackedOrder(orderIdInput);
         if (localOrder) {
           hasResolvedOrder = true;

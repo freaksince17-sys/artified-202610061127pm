@@ -40,7 +40,7 @@ import {
   fetchPaymentSettingsFromServer, 
   SellerPaymentSettings 
 } from '../data/paymentSettings';
-import { buildTrackedOrderFromOrderDetails, saveTrackedOrder, generateUniqueOrderId } from '../data/trackingData';
+import { buildTrackedOrderFromOrderDetails, saveTrackedOrder, generateUniqueOrderId, syncOrdersFromFirestore } from '../data/trackingData';
 import { sendOrderConfirmationEmail } from '../services/emailService';
 import { compressAndStampPaymentScreenshot } from '../utils/imageCompressor';
 
@@ -121,6 +121,11 @@ export const CheckoutModal: React.FC = () => {
       setScreenshotClipboardNotice(null);
       const freshId = generateUniqueOrderId();
       setProvisionalOrderId(freshId);
+      syncOrdersFromFirestore()
+        .then(() => {
+          setProvisionalOrderId(generateUniqueOrderId());
+        })
+        .catch(() => {});
       fetchPaymentSettingsFromServer().then((fresh) => setPaymentSettings(fresh)).catch(() => {});
     }
     prevIsOpenRef.current = isCheckoutOpen;
@@ -247,9 +252,12 @@ export const CheckoutModal: React.FC = () => {
       localStorage.setItem('artified_orders', JSON.stringify([lightweightOrder]));
     } catch {}
 
-    // 2. Build tracked order and save to tracking storage + Firestore + Seller Studio
+    // 2. Build tracked order and save to tracking storage + Firestore + Seller Studio (await cloud sync with 3.5s max bound)
     const trackedOrder = buildTrackedOrderFromOrderDetails(order);
-    saveTrackedOrder(trackedOrder);
+    await Promise.race([
+      saveTrackedOrder(trackedOrder),
+      new Promise((resolve) => setTimeout(resolve, 3500))
+    ]);
 
     // 3. Dispatch automated order confirmation email to both customer and seller
     sendOrderConfirmationEmail(order)
