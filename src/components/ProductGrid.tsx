@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { ProductCard } from './ProductCard';
 import { useCart } from '../context/CartContext';
-import { isProductBestSeller, calculateDiscountPercent } from '../utils/productStats';
+import { isProductBestSeller, calculateDiscountPercent, calculateTotalSold } from '../utils/productStats';
 import { GlobalSearchBar } from './GlobalSearchBar';
 
 type SortOption = 'featured' | 'rating-desc' | 'discount-desc' | 'newest' | 'price-asc' | 'price-desc' | 'name-asc' | 'name-desc';
@@ -105,7 +105,7 @@ export const ProductGrid: React.FC = () => {
       result = result.filter((p) => p.isBestSeller || isProductBestSeller(p, bestsellerThreshold));
     }
 
-    // Sort by requested options (default is alphabetically arranged A-Z)
+    // Sort by requested options (default is most sold product placed first)
     if (sortBy === 'rating-desc') {
       result.sort((a, b) => {
         const ratingA = Number(a.rating || 4.7);
@@ -133,11 +133,20 @@ export const ProductGrid: React.FC = () => {
       result.sort((a, b) => a.price - b.price);
     } else if (sortBy === 'price-desc') {
       result.sort((a, b) => b.price - a.price);
+    } else if (sortBy === 'name-asc') {
+      result.sort((a, b) => a.title.localeCompare(b.title));
     } else if (sortBy === 'name-desc') {
       result.sort((a, b) => b.title.localeCompare(a.title));
     } else {
-      // Default ('featured' / 'name-asc'): Alphabetically arranged A-Z
-      result.sort((a, b) => a.title.localeCompare(b.title));
+      // Default ('featured'): Most sold products placed first
+      result.sort((a, b) => {
+        const soldA = calculateTotalSold(a);
+        const soldB = calculateTotalSold(b);
+        if (soldB !== soldA) {
+          return soldB - soldA; // Highest units sold appears first
+        }
+        return a.title.localeCompare(b.title);
+      });
     }
 
     return result;

@@ -701,11 +701,10 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Fetch initial data from backend server database (products, reels, Instagram journal & settings)
   useEffect(() => {
-    // 1. Persistent Product Catalog Hydration (Cloud Firestore -> Local Storage -> Server Disk)
-    const hydrateCatalog = async () => {
-      try {
-        // Query Cloud Firestore collection 'products' (persisted across restarts & devices)
-        const snap = await getDocs(collection(db, 'products'));
+    // 1. Persistent Product Catalog Hydration & Real-time Sync (Cloud Firestore)
+    let unsubscribeProducts: (() => void) | null = null;
+    try {
+      unsubscribeProducts = onSnapshot(collection(db, 'products'), (snap) => {
         if (!snap.empty) {
           const cloudProducts: Product[] = [];
           snap.forEach((d) => {
@@ -719,13 +718,16 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setProducts((prev) => reconcileProductCatalog(cloudProducts, prev));
             setIsCloudSynced(true);
             setSyncStatusText('🟢 Synced with Cloud Firestore (artified-staging)');
-            return;
           }
         }
-      } catch (fsErr) {
-        console.warn('Notice: Firestore product query:', fsErr);
-      }
+      }, (err) => {
+        console.warn('Notice: Firestore product snapshot listener:', err);
+      });
+    } catch (fsErr) {
+      console.warn('Notice: Firestore product query setup:', fsErr);
+    }
 
+    const hydrateCatalog = async () => {
       // If Firestore collection was empty or offline, hydrate from /api/products or static /products.json
       try {
         let items: Product[] | null = null;
@@ -869,6 +871,10 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // 8. Synchronize live orders from Firestore for real-time tracking across devices
     syncOrdersFromFirestore().catch(() => {});
+
+    return () => {
+      if (unsubscribeProducts) unsubscribeProducts();
+    };
   }, []);
 
   const [artisanProfile, setArtisanProfile] = useState<ArtisanProfileData>(() => getArtisanProfile());

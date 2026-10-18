@@ -68,12 +68,33 @@ export function reconcileProductCatalog(candidateProducts?: Product[] | null, bu
         const candidateTime = candidate.updatedAt ? new Date(candidate.updatedAt).getTime() : 0;
         const bundledTime = bundledItem.updatedAt ? new Date(bundledItem.updatedAt).getTime() : 0;
 
-        // Candidate ONLY wins if it was edited AFTER the bundled product was created
+        // Always attach live customer reviews and online sales from Firestore
+        const mergedReviews = [
+          ...(candidate.customReviews || []),
+          ...(bundledItem.customReviews || [])
+        ].filter((v, i, a) => a.findIndex((r) => r.id === v.id) === i);
+
+        const mergedOnlineSales = Math.max(
+          candidate.onlineSalesCount || 0,
+          bundledItem.onlineSalesCount || 0
+        );
+
+        // Candidate ONLY overwrites code props (price/title) if edited AFTER bundled date
         if (candidateTime > bundledTime && candidate.price !== undefined && candidate.price > 0) {
           map.set(candidate.id, {
             ...bundledItem,
             ...candidate,
-            customReviews: candidate.customReviews || bundledItem.customReviews,
+            customReviews: mergedReviews,
+            onlineSalesCount: mergedOnlineSales,
+          });
+        } else {
+          // Keep bundled code definition pure (title, description, price, photography),
+          // but seamlessly attach real customer reviews and sales stats from Firestore
+          map.set(candidate.id, {
+            ...bundledItem,
+            customReviews: mergedReviews,
+            onlineSalesCount: mergedOnlineSales,
+            ...(candidate.rating !== undefined ? { rating: candidate.rating } : {})
           });
         }
       }
