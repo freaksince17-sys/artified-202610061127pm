@@ -66,7 +66,9 @@ export function reconcileProductCatalog(candidateProducts?: Product[] | null, bu
       } else {
         const bundledItem = map.get(candidate.id)!;
         const candidateTime = candidate.updatedAt ? new Date(candidate.updatedAt).getTime() : 0;
-        const bundledTime = bundledItem.updatedAt ? new Date(bundledItem.updatedAt).getTime() : 0;
+        const bundledTime = bundledItem.updatedAt 
+          ? new Date(bundledItem.updatedAt).getTime() 
+          : new Date(CATALOG_BUILD_TIMESTAMP).getTime();
 
         // Always attach live customer reviews and online sales from Firestore
         const mergedReviews = [

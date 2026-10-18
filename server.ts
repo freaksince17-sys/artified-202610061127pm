@@ -43,9 +43,8 @@ async function startServer() {
         if (file.endsWith('.json')) {
           const srcFile = path.join(seedDataDir, file);
           const destFile = path.join(dataDir, file);
-          if (!fs.existsSync(destFile)) {
-            fs.copyFileSync(srcFile, destFile);
-          }
+          // Always copy latest codebase JSON files on server startup
+          fs.copyFileSync(srcFile, destFile);
         }
       }
     }
