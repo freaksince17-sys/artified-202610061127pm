@@ -105,6 +105,15 @@ export function reconcileProductCatalog(candidateProducts?: Product[] | null, bu
           candidate.onlineSalesCount || 0,
           bundledItem.onlineSalesCount || 0
         );
+        const mergedSoldCount =
+          candidate.soldCount !== undefined && candidate.soldCount > (bundledItem.soldCount || 0)
+            ? candidate.soldCount
+            : bundledItem.soldCount;
+        const mergedTotalSold = Math.max(
+          candidate.totalSold || 0,
+          bundledItem.totalSold || 0,
+          (mergedSoldCount !== undefined ? mergedSoldCount : 54) + mergedOnlineSales
+        );
 
         // Authoritative bundled product price & definition always take precedence unless explicitly edited after build timestamp
         if (candidateTime > bundledTime && candidate.price !== undefined && candidate.price > 0 && candidateTime > new Date(CATALOG_BUILD_TIMESTAMP).getTime()) {
@@ -112,14 +121,18 @@ export function reconcileProductCatalog(candidateProducts?: Product[] | null, bu
             ...bundledItem,
             ...candidate,
             customReviews: mergedReviews,
+            soldCount: candidate.soldCount !== undefined ? candidate.soldCount : mergedSoldCount,
             onlineSalesCount: mergedOnlineSales,
+            totalSold: mergedTotalSold,
           });
         } else {
           // Force authoritative bundled code definition (price, title, photography, description)
           map.set(candidate.id, {
             ...bundledItem,
             customReviews: mergedReviews,
+            soldCount: mergedSoldCount,
             onlineSalesCount: mergedOnlineSales,
+            totalSold: mergedTotalSold,
             ...(candidate.rating !== undefined ? { rating: candidate.rating } : {})
           });
         }

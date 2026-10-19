@@ -295,7 +295,7 @@ export const ProductDetailModal: React.FC = () => {
 
   if (!quickViewProduct) return null;
 
-  const product = quickViewProduct;
+  const product = products.find((p) => p.id === quickViewProduct.id) || quickViewProduct;
   const wishlisted = isWishlisted(product.id);
   const totalSold = calculateTotalSold(product);
   const isBestSeller = isProductBestSeller(product, bestsellerThreshold);
@@ -684,8 +684,8 @@ export const ProductDetailModal: React.FC = () => {
                   <span className="font-semibold text-[#1C1B1A]">{averageRating}</span>
                   <span className="text-[#A69E96]">({dynamicReviewsCount} customer reviews)</span>
                   <span className="text-zinc-300">•</span>
-                  <span className="text-emerald-700 font-medium bg-emerald-50 px-1.5 py-0.5 rounded text-[10px]">
-                    {totalSold} sold
+                  <span className="text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded text-[11px] border border-emerald-200/70">
+                    {isNe ? `${t('soldCount')}: ${totalSold}` : `Sold: ${totalSold}`}
                   </span>
                   {isBestSeller && (
                     <span className="px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wider uppercase bg-[#1C1B1A] text-[#E6C687] border border-[#C5A880]/40">

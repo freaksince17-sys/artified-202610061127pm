@@ -31,7 +31,7 @@ import { compressImage } from '../utils/imageCompressor';
 import { getFreshArtisanAvatarUrl } from '../utils/storageAssetUtils';
 
 export const MeetArtisanSection: React.FC = () => {
-  const { setActiveNavTab, isSellerMode, artisanProfile, updateArtisanProfile } = useCart();
+  const { setActiveNavTab, isSellerMode, artisanProfile, updateArtisanProfile, totalCreationsSold, products } = useCart();
   const { language } = useLanguage();
   const isNe = language === 'ne';
 
@@ -173,7 +173,11 @@ export const MeetArtisanSection: React.FC = () => {
               <span>Kathmandu, Nepal</span>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-[10px] sm:text-[11px] font-bold">
+                <ShoppingBag className="w-3 h-3 text-emerald-600" />
+                <span>{totalCreationsSold.toLocaleString()} Creations Sold</span>
+              </span>
               <span className="text-[11px] sm:text-xs font-semibold text-[#736C65] dark:text-[#A69E96]">
                 {profile.establishedText || 'Est. 2024 • 100% Handcrafted in Nepal'}
               </span>
@@ -339,6 +343,34 @@ export const MeetArtisanSection: React.FC = () => {
                   <span>{isNe ? 'सिर्जनाहरू हेर्नुहोस्' : 'Browse Creations'}</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </button>
+              </div>
+
+              {/* Live Atelier Creations Sold & Craft Highlights */}
+              <div className="grid grid-cols-3 gap-2.5 pt-1">
+                <div className="p-2.5 rounded-xl bg-[#FAF8F5] dark:bg-[#201F1D] border border-[#E8DFD8] dark:border-[#33302C] text-center">
+                  <span className="block font-serif text-base sm:text-lg font-bold text-emerald-700 dark:text-emerald-400">
+                    {totalCreationsSold.toLocaleString()}
+                  </span>
+                  <span className="text-[10px] text-[#736C65] dark:text-[#A69E96] font-semibold uppercase tracking-wider">
+                    Creations Sold
+                  </span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-[#FAF8F5] dark:bg-[#201F1D] border border-[#E8DFD8] dark:border-[#33302C] text-center">
+                  <span className="block font-serif text-base sm:text-lg font-bold text-[#1C1B1A] dark:text-[#FAF8F5]">
+                    {products.length}
+                  </span>
+                  <span className="text-[10px] text-[#736C65] dark:text-[#A69E96] font-semibold uppercase tracking-wider">
+                    Signature Designs
+                  </span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-[#FAF8F5] dark:bg-[#201F1D] border border-[#E8DFD8] dark:border-[#33302C] text-center">
+                  <span className="block font-serif text-base sm:text-lg font-bold text-[#1C1B1A] dark:text-[#FAF8F5]">
+                    100%
+                  </span>
+                  <span className="text-[10px] text-[#736C65] dark:text-[#A69E96] font-semibold uppercase tracking-wider">
+                    Handmade in Nepal
+                  </span>
+                </div>
               </div>
 
               {/* 24-Hour Easy Exchange Guarantee Banner */}

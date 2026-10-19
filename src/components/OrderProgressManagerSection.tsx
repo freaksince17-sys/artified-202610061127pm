@@ -40,10 +40,14 @@ import {
 } from '../data/trackingData';
 import { getRealProductImage, CAVIAR_PEARL_BAG_IMAGE } from '../utils/productImages';
 import { TrackedOrderData, OrderProductionPhase } from '../types';
+import { getCountedSalesOrderIds, resolveProductIdFromOrderItem } from '../services/productSalesService';
+import { calculateTotalSold } from '../utils/productStats';
+import { getCanonicalOrderKey } from '../data/trackingData';
 
 export const OrderProgressManagerSection: React.FC = () => {
-  const { isSellerMode, setIsSellerAuthModalOpen, setActiveNavTab } = useCart();
+  const { isSellerMode, setIsSellerAuthModalOpen, setActiveNavTab, trackOrderSalesInFirestore, products, totalCreationsSold } = useCart();
   const [orders, setOrders] = useState<TrackedOrderData[]>([]);
+  const [countedOrderKeys, setCountedOrderKeys] = useState<Set<string>>(() => getCountedSalesOrderIds());
   const [searchQuery, setSearchQuery] = useState('');
   
   // Tab: 'pending' (Confirmed, Handcrafting, Out for Delivery) vs 'completed' (Delivered)
@@ -100,9 +104,17 @@ export const OrderProgressManagerSection: React.FC = () => {
   useEffect(() => {
     const handleOrderUpdated = () => {
       setOrders(getAllOrdersForSeller());
+      setCountedOrderKeys(getCountedSalesOrderIds());
+    };
+    const handleSalesIncremented = () => {
+      setCountedOrderKeys(getCountedSalesOrderIds());
     };
     window.addEventListener('artified_order_updated', handleOrderUpdated);
-    return () => window.removeEventListener('artified_order_updated', handleOrderUpdated);
+    window.addEventListener('artified_sales_incremented', handleSalesIncremented);
+    return () => {
+      window.removeEventListener('artified_order_updated', handleOrderUpdated);
+      window.removeEventListener('artified_sales_incremented', handleSalesIncremented);
+    };
   }, []);
 
   const showToast = (msg: string) => {
@@ -123,6 +135,9 @@ export const OrderProgressManagerSection: React.FC = () => {
       estimatedDeliveryDate: deliveryDate
     });
 
+    trackOrderSalesInFirestore(updated);
+    setCountedOrderKeys(getCountedSalesOrderIds());
+
     setOrders((prev) => {
       const next = prev.map((o) =>
         normalizeOrderId(o.orderId) === normalizeOrderId(orderId) ? updated : o
@@ -135,15 +150,15 @@ export const OrderProgressManagerSection: React.FC = () => {
     }
 
     const phaseNames: Record<OrderProductionPhase, string> = {
-      confirmed: '1. Confirmed & Paid',
+      confirmed: '1. Order Confirmed & Paid',
       handcrafting_and_packaging: '2. Handcrafting & Packaging',
       out_for_delivery: '3. Shipped (Out for Delivery)',
-      delivered: '4. Delivered',
+      delivered: '4. Delivered (Completed)',
       beading_in_progress: '2. Handcrafting & Packaging',
       quality_and_packaging: '2. Handcrafting & Packaging'
     };
 
-    showToast(`Order ${orderId} updated to "${phaseNames[phase]}"!`);
+    showToast(`Order ${orderId} marked as "${phaseNames[phase]}" • Product sold count updated!`);
   };
 
   const handleDeliveryDateChange = (orderId: string, newDate: string) => {
@@ -224,6 +239,8 @@ export const OrderProgressManagerSection: React.FC = () => {
     };
 
     saveTrackedOrder(newOrder);
+    trackOrderSalesInFirestore(newOrder);
+    setCountedOrderKeys(getCountedSalesOrderIds());
     reloadOrders();
     setIsAddingOrder(false);
     setNewOrderId('');
@@ -232,7 +249,7 @@ export const OrderProgressManagerSection: React.FC = () => {
     setNewAddress('');
     setNewItemTitle('');
     setNewTotal('');
-    showToast(`Created Order #${generatedId}!`);
+    showToast(`Created Order ${generatedId} & updated product sold count!`);
   };
 
   // If user is not logged into seller mode, protect this view
@@ -319,6 +336,9 @@ export const OrderProgressManagerSection: React.FC = () => {
               </h1>
               <span className="text-[9px] bg-[#D4AF37] text-[#1C1B1A] font-bold px-1.5 py-0.2 rounded">
                 Seller Studio
+              </span>
+              <span className="text-[10px] bg-emerald-900/80 text-emerald-300 border border-emerald-700/60 font-bold px-2 py-0.2 rounded">
+                Total Sold: {totalCreationsSold.toLocaleString()} Creations
               </span>
               <span className="hidden sm:inline text-[10px] text-[#A69E96]">
                 • Track custom requests and advance progress stages in real time
@@ -667,11 +687,25 @@ export const OrderProgressManagerSection: React.FC = () => {
                         <p className="font-semibold text-[#1C1B1A] truncate text-[11px] leading-tight">
                           {order.items?.[0]?.title || 'Handcrafted Artified Piece'}
                         </p>
-                        <p className="text-[10px] text-[#736C65]">
-                          Qty: {order.items?.[0]?.quantity ?? 1} • NPR {(Number(order.items?.[0]?.price ?? getOrderItemsSubtotal(order)) || 0).toLocaleString()}
+                        <p className="text-[10px] text-[#736C65] flex items-center gap-1.5 flex-wrap">
+                          <span>Qty: {order.items?.[0]?.quantity ?? 1} • NPR {(Number(order.items?.[0]?.price ?? getOrderItemsSubtotal(order)) || 0).toLocaleString()}</span>
+                          {(() => {
+                            const pid = order.items?.[0] ? resolveProductIdFromOrderItem(order.items[0], products) : null;
+                            const matchedProd = pid ? products.find((p) => p.id === pid) : null;
+                            return matchedProd ? (
+                              <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
+                                Sold: {calculateTotalSold(matchedProd)}
+                              </span>
+                            ) : null;
+                          })()}
                         </p>
-                        <p className="text-[9px] text-[#8C7A6B] font-medium">
-                          + Delivery: NPR {getOrderDeliveryFee(order).toLocaleString()} (Total: NPR {(Number(order.total) || 0).toLocaleString()})
+                        <p className="text-[9px] text-[#8C7A6B] font-medium flex items-center gap-1.5 flex-wrap">
+                          <span>+ Delivery: NPR {getOrderDeliveryFee(order).toLocaleString()} (Total: NPR {(Number(order.total) || 0).toLocaleString()})</span>
+                          {countedOrderKeys.has(getCanonicalOrderKey(order.orderId)) && (
+                            <span className="text-[8px] font-bold text-emerald-800 bg-emerald-100/80 px-1 py-0.1 rounded">
+                              ✓ Sale Counted
+                            </span>
+                          )}
                         </p>
                       </div>
                     </div>
@@ -688,10 +722,10 @@ export const OrderProgressManagerSection: React.FC = () => {
                           onChange={(e) => handlePhaseChange(order.orderId, e.target.value as OrderProductionPhase)}
                           className="bg-white border border-[#E8DFD8] rounded px-1.5 py-0.5 text-[10px] font-bold text-[#1C1B1A] focus:outline-none cursor-pointer"
                         >
-                          <option value="confirmed">1. Confirmed (Pending)</option>
+                          <option value="confirmed">1. Order Confirmed & Paid</option>
                           <option value="handcrafting_and_packaging">2. Handcrafting</option>
                           <option value="out_for_delivery">3. Shipped (Dispatch)</option>
-                          <option value="delivered">4. Delivered</option>
+                          <option value="delivered">4. Delivered (Completed)</option>
                         </select>
                       </div>
 

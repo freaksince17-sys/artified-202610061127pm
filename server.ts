@@ -9,6 +9,7 @@ import { DEFAULT_ARTISAN_PROFILE } from './src/data/artisanProfile.ts';
 import { generateSitemapXml } from './src/utils/sitemapGenerator.ts';
 import { GoogleGenAI } from '@google/genai';
 import { autoGenerateWorkshopGroup, autoGenerateMediaCaption } from './src/utils/workshopAIGenerator.ts';
+import { handleAtomicSalesIncrementCloudFunction } from './functions/src/index.ts';
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const archiverPkg = require('archiver');
@@ -43,7 +44,30 @@ async function startServer() {
         if (file.endsWith('.json')) {
           const srcFile = path.join(seedDataDir, file);
           const destFile = path.join(dataDir, file);
-          // Always copy latest codebase JSON files on server startup
+          if ((file === 'tracked_orders.json' || file === 'sales_history.json') && fs.existsSync(destFile)) {
+            try {
+              const srcData = JSON.parse(fs.readFileSync(srcFile, 'utf-8'));
+              const destData = JSON.parse(fs.readFileSync(destFile, 'utf-8'));
+              if (file === 'tracked_orders.json' && typeof srcData === 'object' && typeof destData === 'object') {
+                const mergedOrders = { ...srcData, ...destData };
+                fs.writeFileSync(destFile, JSON.stringify(mergedOrders, null, 2), 'utf-8');
+                continue;
+              }
+              if (file === 'sales_history.json' && Array.isArray(srcData) && Array.isArray(destData)) {
+                const seenIds = new Set<string>();
+                const mergedHistory: any[] = [];
+                for (const rec of [...destData, ...srcData]) {
+                  if (rec && rec.id && !seenIds.has(rec.id)) {
+                    seenIds.add(rec.id);
+                    mergedHistory.push(rec);
+                  }
+                }
+                fs.writeFileSync(destFile, JSON.stringify(mergedHistory, null, 2), 'utf-8');
+                continue;
+              }
+            } catch {}
+          }
+          // Copy codebase JSON files on server startup
           fs.copyFileSync(srcFile, destFile);
         }
       }
@@ -59,6 +83,8 @@ async function startServer() {
   const trackedOrdersJsonPath = path.resolve(dataDir, 'tracked_orders.json');
   const workshopMediaJsonPath = path.resolve(dataDir, 'workshop_media.json');
   const workshopGroupsJsonPath = path.resolve(dataDir, 'workshop_groups.json');
+  const salesHistoryJsonPath = path.resolve(dataDir, 'sales_history.json');
+  const seedSalesHistoryJsonPath = path.resolve(seedDataDir, 'sales_history.json');
 
   // GET /sitemap.xml - Dynamic Google Search & Image Sitemap
   app.get('/sitemap.xml', (_req, res) => {
@@ -105,17 +131,306 @@ async function startServer() {
   const reviewsJsonPath = path.resolve(dataDir, 'reviews.json');
   const seedReviewsJsonPath = path.resolve(seedDataDir, 'reviews.json');
 
+  // Helper to resolve a product ID from an order item by explicit ID or title
+  const resolveServerProductId = (item: { productId?: string; title?: string }): string | null => {
+    if (item?.productId && typeof item.productId === 'string' && item.productId.trim()) {
+      const exact = PRODUCTS.find((p) => p.id === item.productId!.trim());
+      if (exact) return exact.id;
+      return item.productId.trim();
+    }
+    const cleanTitle = (item?.title || '').trim().toLowerCase();
+    if (!cleanTitle) return null;
+    if (cleanTitle.includes('beaded pearl layer necklace')) return 'art-1790323549756-24tl6';
+    if (cleanTitle.includes('macrame plant hanger')) return 'art-1790323202380-nw0zi';
+    if (cleanTitle.includes('marble bead')) return 'art-1790321559072-ym8ui';
+    const exactMatch = PRODUCTS.find((p) => p.title.trim().toLowerCase() === cleanTitle);
+    if (exactMatch) return exactMatch.id;
+    const partialMatch = PRODUCTS.find(
+      (p) =>
+        cleanTitle.includes(p.title.trim().toLowerCase()) ||
+        p.title.trim().toLowerCase().includes(cleanTitle)
+    );
+    return partialMatch ? partialMatch.id : null;
+  };
+
+  // Helper to load and reconcile sales_history records from disk and confirmed orders
+  const loadStoredSalesHistory = (): any[] => {
+    const recordsMap = new Map<string, any>();
+
+    const ingestList = (list: any[]) => {
+      if (!Array.isArray(list)) return;
+      for (const rec of list) {
+        if (rec && rec.id && rec.productId) {
+          recordsMap.set(String(rec.id).trim(), {
+            ...rec,
+            quantity: Math.max(1, Number(rec.quantity) || 1),
+            timestamp: rec.timestamp || rec.createdAt || new Date().toISOString(),
+            createdAt: rec.createdAt || rec.timestamp || new Date().toISOString(),
+            status: 'completed'
+          });
+        }
+      }
+    };
+
+    if (fs.existsSync(seedSalesHistoryJsonPath)) {
+      try {
+        ingestList(JSON.parse(fs.readFileSync(seedSalesHistoryJsonPath, 'utf-8')));
+      } catch {}
+    }
+    if (fs.existsSync(salesHistoryJsonPath)) {
+      try {
+        ingestList(JSON.parse(fs.readFileSync(salesHistoryJsonPath, 'utf-8')));
+      } catch {}
+    }
+
+    // Reconcile against confirmed/completed orders in trackedOrdersJsonPath
+    if (fs.existsSync(trackedOrdersJsonPath)) {
+      try {
+        const ordersMap = JSON.parse(fs.readFileSync(trackedOrdersJsonPath, 'utf-8'));
+        let addedFromOrders = false;
+        for (const [key, order] of Object.entries(ordersMap) as any) {
+          if (!order) continue;
+          const phase = order.currentPhase;
+          const isConfirmed =
+            phase === 'confirmed' ||
+            phase === 'handcrafting_and_packaging' ||
+            phase === 'beading_in_progress' ||
+            phase === 'quality_and_packaging' ||
+            phase === 'out_for_delivery' ||
+            phase === 'delivered';
+          if (!isConfirmed) continue;
+
+          const canonicalOrderId = String(order.orderId || key)
+            .replace(/[^A-Z0-9]/gi, '')
+            .toUpperCase();
+          if (!canonicalOrderId) continue;
+
+          const grouped: Record<string, { qty: number; title: string }> = {};
+          for (const item of order.items || []) {
+            const pid = resolveServerProductId(item);
+            if (pid) {
+              const prod = PRODUCTS.find((p) => p.id === pid);
+              const qty = Math.max(1, Number(item.quantity) || 1);
+              grouped[pid] = {
+                qty: (grouped[pid]?.qty || 0) + qty,
+                title: prod?.title || item.title || ''
+              };
+            }
+          }
+
+          for (const [pid, info] of Object.entries(grouped)) {
+            const recId = `${canonicalOrderId}_${pid}`;
+            if (!recordsMap.has(recId)) {
+              const ts = order.updatedAt || new Date().toISOString();
+              recordsMap.set(recId, {
+                id: recId,
+                orderId: order.orderId || `#${key}`,
+                productId: pid,
+                productTitle: info.title,
+                quantity: info.qty,
+                timestamp: ts,
+                createdAt: ts,
+                status: 'completed'
+              });
+              addedFromOrders = true;
+            }
+          }
+        }
+        if (addedFromOrders) {
+          const all = Array.from(recordsMap.values());
+          try {
+            fs.writeFileSync(salesHistoryJsonPath, JSON.stringify(all, null, 2), 'utf-8');
+          } catch {}
+          try {
+            fs.writeFileSync(seedSalesHistoryJsonPath, JSON.stringify(all, null, 2), 'utf-8');
+          } catch {}
+        }
+      } catch {}
+    }
+
+    return Array.from(recordsMap.values());
+  };
+
+  const saveStoredSalesHistory = (records: any[]) => {
+    try {
+      fs.writeFileSync(salesHistoryJsonPath, JSON.stringify(records, null, 2), 'utf-8');
+    } catch {}
+    try {
+      fs.writeFileSync(seedSalesHistoryJsonPath, JSON.stringify(records, null, 2), 'utf-8');
+    } catch {}
+  };
+
+  const computeVerifiedSalesStats = (historyRecords?: any[]) => {
+    const list = historyRecords || loadStoredSalesHistory();
+    const verifiedSalesByProduct: Record<string, number> = {};
+    const countedOrderIdsSet = new Set<string>();
+
+    for (const rec of list) {
+      if (!rec || !rec.productId) continue;
+      const qty = Math.max(1, Number(rec.quantity) || 1);
+      verifiedSalesByProduct[rec.productId] = (verifiedSalesByProduct[rec.productId] || 0) + qty;
+      if (rec.orderId) {
+        const canonical = String(rec.orderId).replace(/[^A-Z0-9]/gi, '').toUpperCase();
+        if (canonical) countedOrderIdsSet.add(canonical);
+      }
+    }
+
+    return {
+      salesHistory: list,
+      verifiedSalesByProduct,
+      countedOrderIds: Array.from(countedOrderIdsSet)
+    };
+  };
+
+  const enrichProductsWithVerifiedSales = (productList: any[]): any[] => {
+    const { verifiedSalesByProduct } = computeVerifiedSalesStats();
+    return (productList || []).map((p: any) => {
+      if (!p || !p.id) return p;
+      const baseSold = p.soldCount !== undefined ? Number(p.soldCount) : 54;
+      const verifiedOnline = Math.max(Number(p.onlineSalesCount) || 0, verifiedSalesByProduct[p.id] || 0);
+      const verifiedTotal = Math.max(Number(p.totalSold) || 0, baseSold + verifiedOnline);
+      return {
+        ...p,
+        soldCount: baseSold,
+        onlineSalesCount: verifiedOnline,
+        totalSold: verifiedTotal
+      };
+    });
+  };
+
   // GET /api/products
   app.get('/api/products', (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     try {
       if (fs.existsSync(productsJsonPath)) {
         const data = fs.readFileSync(productsJsonPath, 'utf-8');
-        return res.json(JSON.parse(data));
+        return res.json(enrichProductsWithVerifiedSales(JSON.parse(data)));
       }
-      return res.json(PRODUCTS);
+      return res.json(enrichProductsWithVerifiedSales(PRODUCTS));
     } catch (err) {
       console.error('Error reading products.json:', err);
       return res.status(500).json({ error: 'Failed to read products' });
+    }
+  });
+
+  // GET /api/sales/history - Verify total sold counts from sales_history collection & server ledger
+  app.get('/api/sales/history', (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    try {
+      const stats = computeVerifiedSalesStats();
+      return res.json({
+        status: 'success',
+        ...stats
+      });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message || 'Failed to read sales history' });
+    }
+  });
+
+  // POST /api/sales/increment & /api/cloud-functions/incrementProductSale
+  // Server-side Cloud Function endpoint using Firestore increment(1) and sales_history collection
+  app.post(['/api/sales/increment', '/api/cloud-functions/incrementProductSale'], async (req, res) => {
+    try {
+      const { orderId, items, productId, productTitle, quantity, timestamp } = req.body || {};
+      const nowIso = timestamp || new Date().toISOString();
+      const rawOrderId = String(orderId || `SALE-${Date.now()}`).trim();
+      const canonicalOrderId = rawOrderId.replace(/[^A-Z0-9]/gi, '').toUpperCase();
+
+      const rawItems: Array<{ productId?: string; title?: string; productTitle?: string; quantity?: number }> =
+        Array.isArray(items) && items.length > 0
+          ? items
+          : productId
+          ? [{ productId, productTitle, quantity: quantity || 1 }]
+          : [];
+
+      const resolvedItems: Array<{ productId: string; productTitle: string; quantity: number }> = [];
+      for (const it of rawItems) {
+        const pid = resolveServerProductId({ productId: it.productId, title: it.productTitle || it.title });
+        if (pid) {
+          const prod = PRODUCTS.find((p) => p.id === pid);
+          resolvedItems.push({
+            productId: pid,
+            productTitle: prod?.title || it.productTitle || it.title || '',
+            quantity: Math.max(1, Number(it.quantity) || 1)
+          });
+        }
+      }
+
+      if (resolvedItems.length === 0) {
+        const stats = computeVerifiedSalesStats();
+        return res.json({ status: 'noop', ...stats });
+      }
+
+      // Check existing history for idempotency
+      const existingHistory = loadStoredSalesHistory();
+      const historyMap = new Map<string, any>();
+      for (const rec of existingHistory) {
+        if (rec && rec.id) historyMap.set(rec.id, rec);
+      }
+
+      // Group quantities by productId for this order
+      const groupedByProd: Record<string, { qty: number; title: string }> = {};
+      for (const it of resolvedItems) {
+        groupedByProd[it.productId] = {
+          qty: (groupedByProd[it.productId]?.qty || 0) + it.quantity,
+          title: it.productTitle
+        };
+      }
+
+      const newlyAddedItemsForCloudFunction: Array<{ productId: string; productTitle: string; quantity: number }> = [];
+      for (const [pid, info] of Object.entries(groupedByProd)) {
+        const recId = `${canonicalOrderId}_${pid}`;
+        if (!historyMap.has(recId)) {
+          historyMap.set(recId, {
+            id: recId,
+            orderId: rawOrderId.startsWith('#') ? rawOrderId : `#${rawOrderId}`,
+            productId: pid,
+            productTitle: info.title,
+            quantity: info.qty,
+            timestamp: nowIso,
+            createdAt: nowIso,
+            status: 'completed'
+          });
+          newlyAddedItemsForCloudFunction.push({
+            productId: pid,
+            productTitle: info.title,
+            quantity: info.qty
+          });
+        }
+      }
+
+      const updatedHistory = Array.from(historyMap.values());
+      saveStoredSalesHistory(updatedHistory);
+
+      // Update runtime products.json with verified sales counts
+      if (fs.existsSync(productsJsonPath)) {
+        try {
+          const currentProds = JSON.parse(fs.readFileSync(productsJsonPath, 'utf-8'));
+          const enriched = enrichProductsWithVerifiedSales(currentProds);
+          fs.writeFileSync(productsJsonPath, JSON.stringify(enriched, null, 2), 'utf-8');
+        } catch {}
+      }
+
+      // Invoke server-side Firebase Cloud Function (Firestore increment(1) + sales_history collection)
+      if (newlyAddedItemsForCloudFunction.length > 0) {
+        handleAtomicSalesIncrementCloudFunction({
+          orderId: rawOrderId,
+          items: newlyAddedItemsForCloudFunction,
+          timestamp: nowIso
+        }).catch((err) => {
+          console.warn('Notice: Cloud Function Firestore sync:', err?.message || err);
+        });
+      }
+
+      const stats = computeVerifiedSalesStats(updatedHistory);
+      return res.json({
+        status: 'success',
+        newlyAddedCount: newlyAddedItemsForCloudFunction.length,
+        ...stats
+      });
+    } catch (err: any) {
+      console.error('Error in /api/sales/increment:', err);
+      return res.status(500).json({ error: err.message || 'Failed to increment sales' });
     }
   });
 
@@ -526,6 +841,38 @@ async function startServer() {
       };
 
       fs.writeFileSync(trackedOrdersJsonPath, JSON.stringify(map, null, 2), 'utf-8');
+
+      // Automatically reconcile sales_history & trigger atomic Firestore increment(1) when order is confirmed/completed
+      try {
+        const savedOrder = map[norm];
+        const phase = savedOrder?.currentPhase;
+        if (
+          phase === 'confirmed' ||
+          phase === 'handcrafting_and_packaging' ||
+          phase === 'beading_in_progress' ||
+          phase === 'quality_and_packaging' ||
+          phase === 'out_for_delivery' ||
+          phase === 'delivered'
+        ) {
+          const historyBefore = loadStoredSalesHistory();
+          const beforeIds = new Set(historyBefore.map((r: any) => r.id));
+          // Reconciling via loadStoredSalesHistory automatically adds any missing items from trackedOrdersJsonPath
+          const historyAfter = loadStoredSalesHistory();
+          const newRecords = historyAfter.filter((r: any) => !beforeIds.has(r.id));
+          if (newRecords.length > 0) {
+            handleAtomicSalesIncrementCloudFunction({
+              orderId: savedOrder.orderId,
+              items: newRecords.map((r: any) => ({
+                productId: r.productId,
+                productTitle: r.productTitle,
+                quantity: r.quantity
+              })),
+              timestamp: savedOrder.updatedAt
+            }).catch(() => {});
+          }
+        }
+      } catch {}
+
       return res.json({ success: true, order: map[norm] });
     } catch (err: any) {
       return res.status(500).json({ error: err.message || 'Failed to save order' });

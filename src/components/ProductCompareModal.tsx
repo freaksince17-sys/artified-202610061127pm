@@ -376,7 +376,10 @@ const ComparisonColumn: React.FC<ComparisonColumnProps> = ({
               ))}
             </div>
             <span className="font-bold text-[#1C1B1A]">{averageRatingStr}</span>
-            <span className="text-[11px]">({reviewsCount} reviews • {totalSold} sold)</span>
+            <span className="text-[11px]">({reviewsCount} reviews)</span>
+            <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200/70 ml-1">
+              Sold: {totalSold}
+            </span>
           </div>
         </div>
 

@@ -10,6 +10,7 @@ import {
 import { db } from '../firebase';
 import { doc, getDoc, collection, getDocs, onSnapshot } from 'firebase/firestore';
 import { getRealProductImage } from '../utils/productImages';
+import { trackConfirmedOrderSalesInFirestore } from '../services/productSalesService';
 import SAVED_TRACKED_ORDERS from './tracked_orders.json';
 
 /**
@@ -197,6 +198,7 @@ export function sanitizeOrderItems(order: TrackedOrderData): TrackedOrderData {
   const normId = normalizeOrderId(order.orderId);
   const items = (order.items || []).map((item) => ({
     ...item,
+    ...(item.productId ? { productId: item.productId } : {}),
     quantity: typeof item.quantity === 'number' ? item.quantity : Number(item.quantity) || 1,
     price: typeof item.price === 'number' ? item.price : Number(item.price) || 0,
     image: getRealProductImage(item?.title, item?.image)
@@ -599,6 +601,7 @@ export async function saveTrackedOrder(order: TrackedOrderData): Promise<void> {
       ...sanitized,
       paymentScreenshot: preservedScreenshot || '',
       items: (sanitized.items || []).map((it) => ({
+        ...(it.productId ? { productId: it.productId } : {}),
         title: it.title || 'Handcrafted Piece',
         image: it.image && (it.image.includes('ibb.co') || (it.image.startsWith('data:') && it.image.length > 5000)) ? '' : (it.image || ''),
         quantity: Number(it.quantity) || 1,
@@ -640,6 +643,11 @@ export async function saveTrackedOrder(order: TrackedOrderData): Promise<void> {
     // 4. Real-time Firestore sync (awaited so callers like CheckoutModal guarantee cloud persistence across browsers/incognito)
     await saveOrderToFirestore(lightweightForStorage).catch((err) => {
       console.warn('Notice: Firestore order tracking save:', err);
+    });
+
+    // 5. Track and increment product sold count in Firestore if order is confirmed & paid or completed
+    trackConfirmedOrderSalesInFirestore(sanitized).catch((err) => {
+      console.warn('Notice: Product sales count sync:', err);
     });
   } catch (e) {
     console.warn('Failed to save tracked order', e);
@@ -1140,6 +1148,7 @@ export function buildTrackedOrderFromOrderDetails(order: OrderDetails): TrackedO
     paymentStatus: order.paymentMethod === 'cod' ? 'Pay on Delivery' : 'Paid & Verified',
     paymentScreenshot: order.paymentScreenshot || '',
     items: order.items.map((i) => ({
+      productId: i.product.id,
       title: i.product.title,
       image: getRealProductImage(i.product.title, i.product.images[0]),
       quantity: i.quantity,

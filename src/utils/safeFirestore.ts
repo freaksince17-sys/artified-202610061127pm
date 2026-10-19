@@ -132,6 +132,22 @@ export async function safeDeleteDoc(ref: any): Promise<void> {
 }
 
 /**
+ * Detects benign gRPC stream cancellation timeouts (e.g. idle disconnects) that are automatically re-established by Firebase
+ */
+export function isBenignStreamCancellationError(err: any): boolean {
+  if (!err) return false;
+  const msg = (err.message || String(err)).toLowerCase();
+  const code = err.code || err.Code;
+  return (
+    code === 'cancelled' ||
+    code === 1 ||
+    msg.includes('cancelled') ||
+    msg.includes('disconnecting idle stream') ||
+    msg.includes('timed out waiting for new targets')
+  );
+}
+
+/**
  * Safe, quota-aware wrapper for Firestore onSnapshot
  */
 export function safeOnSnapshot(
@@ -153,6 +169,10 @@ export function safeOnSnapshot(
       onNext(snap);
     },
     (err: any) => {
+      if (isBenignStreamCancellationError(err)) {
+        // Silently swallow benign stream disconnects since Firebase SDK auto-reconnects
+        return;
+      }
       if (detectQuotaError(err)) {
         if (onError) onError(err);
       } else {

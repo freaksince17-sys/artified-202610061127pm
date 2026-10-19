@@ -14,6 +14,7 @@ import {
 import { useCart } from '../context/CartContext';
 import { Product } from '../types';
 import { getRealProductImage, CAVIAR_PEARL_BAG_IMAGE } from '../utils/productImages';
+import { calculateTotalSold } from '../utils/productStats';
 
 export const SEARCH_CATEGORIES = [
   { id: 'all', label: 'All Items' },
@@ -306,6 +307,9 @@ export const GlobalSearchBar: React.FC<GlobalSearchBarProps> = ({
                           </span>
                           <span className="text-[10px] text-[#8C7A6B] bg-[#FAF8F5] px-1.5 py-0.2 rounded border border-[#E8DFD8] uppercase tracking-wider">
                             {product.category.replace('-', ' ')}
+                          </span>
+                          <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200/70">
+                            Sold: {calculateTotalSold(product)}
                           </span>
                           {product.isBestSeller && (
                             <span className="text-[9px] bg-amber-50 text-amber-800 border border-amber-200 px-1 rounded font-bold">

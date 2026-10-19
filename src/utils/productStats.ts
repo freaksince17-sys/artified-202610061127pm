@@ -25,7 +25,11 @@ export function calculateDiscountPercent(product: Product): number {
 export function calculateTotalSold(product: Product): number {
   const base = product.soldCount !== undefined ? product.soldCount : 54;
   const online = product.onlineSalesCount || 0;
-  return base + online;
+  const computed = base + online;
+  if (typeof product.totalSold === 'number' && product.totalSold > computed) {
+    return product.totalSold;
+  }
+  return computed;
 }
 
 /**

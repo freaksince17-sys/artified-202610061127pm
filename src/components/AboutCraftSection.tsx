@@ -23,7 +23,8 @@ export const AboutCraftSection: React.FC = () => {
   const { 
     craftStory, 
     isSellerMode, 
-    setIsCraftStoryModalOpen 
+    setIsCraftStoryModalOpen,
+    totalCreationsSold
   } = useCart();
 
   const story = craftStory || DEFAULT_CRAFT_STORY;
@@ -413,6 +414,9 @@ export const AboutCraftSection: React.FC = () => {
               <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#FAF8F5] border border-[#E8DFD8] text-[10px] tracking-[0.2em] font-bold uppercase text-[#8C7A6B]">
                 <Sparkles className="w-3 h-3 text-[#D4AF37]" />
                 <span>{story.badge}</span>
+              </div>
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-[10px] tracking-wider font-bold uppercase text-emerald-800">
+                <span>Sold: {totalCreationsSold.toLocaleString()} Creations</span>
               </div>
 
               {/* Quick Seller Edit Trigger */}

@@ -19,6 +19,7 @@ export interface Product {
   reviewsCount: number;
   soldCount?: number;
   onlineSalesCount?: number;
+  totalSold?: number;
   customReviews?: ProductReviewItem[];
   isHandmade: boolean;
   isBestSeller?: boolean;
@@ -201,6 +202,7 @@ export interface TrackedOrderData {
   paymentStatus: string;
   paymentScreenshot?: string;
   items: Array<{
+    productId?: string;
     title: string;
     image: string;
     quantity: number;

@@ -27,6 +27,9 @@
         "careNotes": { "type": "array" },
         "images": { "type": "array" },
         "tags": { "type": "array" },
+        "soldCount": { "type": "number" },
+        "onlineSalesCount": { "type": "number" },
+        "totalSold": { "type": "number" },
         "updatedAt": { "type": "string" }
       },
       "required": ["id", "title", "price", "category", "images"]
@@ -241,6 +244,22 @@
         "updatedAt": { "type": "string" }
       },
       "required": ["id", "groupKey", "title", "description"]
+    },
+    "SalesHistoryRecord": {
+      "title": "SalesHistoryRecord",
+      "description": "Completed sale record storing timestamp, productId, orderId, and quantity to verify total sold counts",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 256 },
+        "productId": { "type": "string", "maxLength": 128 },
+        "productTitle": { "type": "string", "maxLength": 256 },
+        "orderId": { "type": "string", "maxLength": 128 },
+        "quantity": { "type": "number" },
+        "timestamp": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "status": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["id", "productId", "timestamp"]
     }
   },
   "firestore": {
@@ -299,6 +318,10 @@
     "/product_reviews/{reviewId}": {
       "schema": "ProductReview",
       "description": "Customer reviews and feedback with ratings for products"
+    },
+    "/sales_history/{saleId}": {
+      "schema": "SalesHistoryRecord",
+      "description": "Sales history records storing timestamp and product ID whenever a sale is completed"
     }
   }
 }

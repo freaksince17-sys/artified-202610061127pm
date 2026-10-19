@@ -293,8 +293,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, isSelected = 
                 {discountPercent}% {t('offPercent')}
               </span>
             ) : null}
-            <span className="text-[#736C65] dark:text-[#A8A096] font-medium ml-auto">
-              {totalSold} {t('soldCount')}
+            <span className="text-[#736C65] dark:text-[#A8A096] font-semibold ml-auto">
+              {language === 'ne' ? `${t('soldCount')}: ${totalSold}` : `Sold: ${totalSold}`}
             </span>
           </div>
         </div>

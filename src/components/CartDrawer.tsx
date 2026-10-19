@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { getRealProductImage, CAVIAR_PEARL_BAG_IMAGE } from '../utils/productImages';
+import { calculateTotalSold } from '../utils/productStats';
 
 export const CartDrawer: React.FC = () => {
   const {
@@ -35,6 +36,7 @@ export const CartDrawer: React.FC = () => {
     promoSuccess,
     discount,
     setIsCheckoutOpen,
+    products,
     openAccountModal,
     openReferralModal,
     isReferralVisible
@@ -140,9 +142,14 @@ export const CartDrawer: React.FC = () => {
                           </button>
                         </div>
 
-                        <p className="text-xs font-semibold text-[#1C1B1A] dark:text-[#F5F2EB] mt-0.5">
-                          NPR {item.product.price.toLocaleString()}
-                        </p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <p className="text-xs font-semibold text-[#1C1B1A] dark:text-[#F5F2EB]">
+                            NPR {item.product.price.toLocaleString()}
+                          </p>
+                          <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200/70">
+                            Sold: {calculateTotalSold(products.find((p) => p.id === item.product.id) || item.product)}
+                          </span>
+                        </div>
 
                         {item.customizationNote && (
                           <p className="text-[10px] text-[#8C7A6B] dark:text-[#A69E96] bg-[#FAF8F5] dark:bg-[#201F1D] px-2 py-1 rounded border border-[#E8DFD8] dark:border-[#33302C] mt-1.5 line-clamp-1">

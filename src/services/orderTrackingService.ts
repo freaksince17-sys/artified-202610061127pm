@@ -78,6 +78,7 @@ export async function saveOrderToFirestore(order: TrackedOrderData, userSessionI
     ...cleanOrder,
     paymentScreenshot: cleanOrder.paymentScreenshot || '',
     items: (cleanOrder.items || []).map((it) => ({
+      ...(it.productId ? { productId: it.productId } : {}),
       title: it.title || 'Handcrafted Piece',
       image: it.image && (it.image.startsWith('data:') || it.image.includes('ibb.co')) ? '' : (it.image || ''),
       quantity: Number(it.quantity) || 1,

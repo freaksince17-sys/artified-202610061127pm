@@ -13,11 +13,12 @@ import {
 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { getRealProductImage, CAVIAR_PEARL_BAG_IMAGE } from '../utils/productImages';
+import { calculateTotalSold } from '../utils/productStats';
 
 type HeroDisplayMode = 'compact' | 'full' | 'collapsed' | 'hidden';
 
 export const HeroSection: React.FC = () => {
-  const { products, setQuickViewProduct, isSellerMode } = useCart();
+  const { products, setQuickViewProduct, isSellerMode, totalCreationsSold } = useCart();
   const featuredProduct = products.find(p => p.id === 'maya-aurelia-pearl-bag') || products[0];
 
   // Load initial mode preference from localStorage, default to 'compact' to save space
@@ -287,7 +288,7 @@ export const HeroSection: React.FC = () => {
                     {featuredProduct?.title || "Pearl Beaded Handbag"}
                   </h3>
                   <p className="text-[11px] text-white/90">
-                    NPR {featuredProduct?.price ? featuredProduct.price.toLocaleString() : '2,499'} • In Stock
+                    NPR {featuredProduct?.price ? featuredProduct.price.toLocaleString() : '2,499'} • In Stock • Sold: {featuredProduct ? calculateTotalSold(featuredProduct) : 88}
                   </p>
                 </div>
               </div>
@@ -325,7 +326,7 @@ export const HeroSection: React.FC = () => {
                     <span>🇳🇵</span> Made in Nepal
                   </span>
                   <span className="text-[#C5A880] font-medium">
-                    ★ 4.9 Viral Collection
+                    ★ 4.9 • {totalCreationsSold.toLocaleString()} Creations Sold
                   </span>
                 </div>
               )}

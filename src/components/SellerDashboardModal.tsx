@@ -22,6 +22,7 @@ import {
   Legend 
 } from 'recharts';
 import { getAllOrdersForSeller } from '../data/trackingData';
+import { useCart } from '../context/CartContext';
 
 interface SellerDashboardModalProps {
   isOpen: boolean;
@@ -32,6 +33,7 @@ export const SellerDashboardModal: React.FC<SellerDashboardModalProps> = ({
   isOpen,
   onClose
 }) => {
+  const { totalCreationsSold } = useCart();
   const [activeMetric, setActiveMetric] = useState<'revenue' | 'orders'>('revenue');
 
   const analyticsData = useMemo(() => {
@@ -103,7 +105,7 @@ export const SellerDashboardModal: React.FC<SellerDashboardModalProps> = ({
         {/* Dashboard Content */}
         <div className="p-4 sm:p-6 overflow-y-auto space-y-5 flex-1">
           {/* Summary Stat Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
             <div className="bg-white rounded-2xl p-4 border border-[#E8DFD8] shadow-2xs flex items-center justify-between">
               <div>
                 <span className="text-[10px] uppercase font-bold tracking-wider text-[#8C7A6B] block mb-1">
@@ -119,6 +121,24 @@ export const SellerDashboardModal: React.FC<SellerDashboardModalProps> = ({
               </div>
               <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-700">
                 <DollarSign className="w-5 h-5" />
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl p-4 border border-[#E8DFD8] shadow-2xs flex items-center justify-between">
+              <div>
+                <span className="text-[10px] uppercase font-bold tracking-wider text-[#8C7A6B] block mb-1">
+                  Total Creations Sold
+                </span>
+                <p className="font-serif text-xl sm:text-2xl font-bold text-emerald-700">
+                  {totalCreationsSold.toLocaleString()} Pieces
+                </p>
+                <div className="flex items-center gap-1 text-[10px] text-emerald-700 font-semibold mt-1">
+                  <ArrowUpRight className="w-3 h-3" />
+                  <span>Live Firestore catalog total</span>
+                </div>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-700">
+                <ShoppingBag className="w-5 h-5" />
               </div>
             </div>
 

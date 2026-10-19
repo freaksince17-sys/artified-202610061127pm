@@ -13,7 +13,8 @@
         "title": "Caviar Pearl Bag",
         "quantity": 1,
         "image": "",
-        "price": 3000
+        "price": 3000,
+        "productId": "apsara-layered-pearl-collar"
       }
     ],
     "subtotal": 3000,
@@ -86,7 +87,8 @@
         "quantity": 1,
         "image": "",
         "price": 2800,
-        "title": "Pearl Beaded Bag"
+        "title": "Pearl Beaded Bag",
+        "productId": "lalitpur-bloom-pearl-tote"
       }
     ],
     "subtotal": 2800,
@@ -158,7 +160,8 @@
         "title": "Beaded Pearl Layer Necklace With Earring Set",
         "image": "",
         "quantity": 1,
-        "price": 800
+        "price": 800,
+        "productId": "art-1790323549756-24tl6"
       }
     ],
     "subtotal": 800,
@@ -228,7 +231,8 @@
         "title": "Handmade Macrame Plant Hanger (flower pot not included)",
         "image": "",
         "quantity": 1,
-        "price": 850
+        "price": 850,
+        "productId": "art-1790323202380-nw0zi"
       }
     ],
     "subtotal": 850,
@@ -298,7 +302,8 @@
         "title": "Marble Beaded Hand Bag",
         "image": "",
         "quantity": 1,
-        "price": 2800
+        "price": 2800,
+        "productId": "art-1790321559072-ym8ui"
       }
     ],
     "subtotal": 2800,
@@ -369,7 +374,8 @@
         "title": "Pearl Beaded Keyring Set Of 4",
         "image": "",
         "quantity": 1,
-        "price": 600
+        "price": 600,
+        "productId": "art-1790334939460-sj7ss"
       }
     ],
     "subtotal": 600,
@@ -440,7 +446,8 @@
         "title": "Silk Scrunchies Set of 4",
         "image": "",
         "quantity": 1,
-        "price": 300
+        "price": 300,
+        "productId": "art-1790339748217-gx4df"
       }
     ],
     "subtotal": 300,
@@ -493,6 +500,79 @@
       }
     ],
     "updatedAt": "2026-10-18T12:57:55.453Z",
+    "generation": 6,
+    "purgeEpochId": "artified_clean_slate_v6",
+    "statusRevision": 1
+  },
+  "ART-2026-1865": {
+    "orderId": "#ART-2026-1865",
+    "customerName": "sam",
+    "phone": "9760373026",
+    "deliveryAddress": "24",
+    "deliveryZoneName": "Kathmandu Valley",
+    "paymentMethodText": "Cash on Delivery (COD)",
+    "paymentStatus": "Pay on Delivery",
+    "paymentScreenshot": "",
+    "items": [
+      {
+        "productId": "lalitpur-bloom-pearl-tote",
+        "title": "Pearl Beaded Bag",
+        "image": "",
+        "quantity": 1,
+        "price": 2800,
+        "customization": ""
+      }
+    ],
+    "subtotal": 2800,
+    "deliveryFee": 120,
+    "total": 2920,
+    "orderPlacedDate": "Oct 19, 2026, 11:18 PM",
+    "estimatedDeliveryDate": "1 to 2 days",
+    "currentPhase": "confirmed",
+    "progressPercentage": 25,
+    "artisanName": "Sahina Shrestha",
+    "artisanRole": "Founder and Creator",
+    "studioLocation": "Artified Workshop, Kathmandu, Nepal",
+    "liveCraftNotes": "Your order was received and confirmed! Sahina Shrestha has reserved the required luster pearls and high-strength threads. Handcrafting is scheduled at our Kathmandu workshop.",
+    "milestones": [
+      {
+        "stage": "confirmed",
+        "label": "Order Confirmed & Paid",
+        "description": "Order confirmed and verified. Materials and pearls reserved at Kathmandu workshop.",
+        "timestamp": "Oct 19, 2026, 11:18 PM",
+        "location": "Artified Workshop, Kathmandu",
+        "completed": false,
+        "current": true
+      },
+      {
+        "stage": "handcrafting_and_packaging",
+        "label": "Handcrafting & Packaging",
+        "description": "Handcrafted with precision by Sahina Shrestha & team, inspected for quality, and packaged in luxury dust pouch.",
+        "timestamp": "Upcoming",
+        "location": "Craft Bench, Kathmandu, Nepal",
+        "completed": false,
+        "current": false
+      },
+      {
+        "stage": "out_for_delivery",
+        "label": "Out for Delivery",
+        "description": "Handed over to express courier rider for safe doorstep transit.",
+        "timestamp": "Estimated: 1 to 2 days",
+        "location": "Kathmandu Valley Logistics Hub",
+        "completed": false,
+        "current": false
+      },
+      {
+        "stage": "delivered",
+        "label": "Delivered",
+        "description": "Safely delivered to customer with happiness, care card, and 48-hour check guarantee.",
+        "timestamp": "Expected 1 to 2 days",
+        "location": "Kathmandu Valley",
+        "completed": false,
+        "current": false
+      }
+    ],
+    "updatedAt": "2026-10-19T17:33:55.488Z",
     "generation": 6,
     "purgeEpochId": "artified_clean_slate_v6",
     "statusRevision": 1

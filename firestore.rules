@@ -109,6 +109,15 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    // Sales history collection recording timestamp and productId whenever a sale is completed
+    match /sales_history/{saleId} {
+      allow read, write: if true;
+    }
+
+    match /salesHistory/{saleId} {
+      allow read, write: if true;
+    }
+
     match /error_logs/{logId} {
       allow read, write: if true;
     }

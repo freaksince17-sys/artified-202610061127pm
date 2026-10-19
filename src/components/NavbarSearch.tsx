@@ -14,6 +14,7 @@ import {
 import { Product } from '../types';
 import { useCart } from '../context/CartContext';
 import { getRealProductImage, CAVIAR_PEARL_BAG_IMAGE } from '../utils/productImages';
+import { calculateTotalSold } from '../utils/productStats';
 
 interface NavbarSearchProps {
   isOpen: boolean;
@@ -329,6 +330,9 @@ export const NavbarSearch: React.FC<NavbarSearchProps> = ({ isOpen, onClose }) =
                             </span>
                             <span className="text-[10px] text-emerald-700 font-medium">
                               • In Stock
+                            </span>
+                            <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200/70 ml-auto">
+                              Sold: {calculateTotalSold(product)}
                             </span>
                           </div>
 

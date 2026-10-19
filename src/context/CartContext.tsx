@@ -37,8 +37,16 @@ import { sanitizeForFirestore } from '../utils/firestoreSanitizer';
 import { sanitizeReviewItem, getProductReviews, getProductAverageRating, isProductBestSeller, calculateDiscountPercent, calculateTotalSold } from '../utils/productStats';
 import { deleteProductReviewFromFirestore } from '../services/reviewService';
 
-import { buildTrackedOrderFromOrderDetails, syncTrackedOrdersFromServer, syncOrdersFromFirestore } from '../data/trackingData';
+import { buildTrackedOrderFromOrderDetails, syncTrackedOrdersFromServer, syncOrdersFromFirestore, getAllOrdersForSeller } from '../data/trackingData';
 import { saveOrderToFirestore } from '../services/orderTrackingService';
+import {
+  trackConfirmedOrderSalesInFirestore,
+  calculateCatalogTotalCreationsSold,
+  syncConfirmedSalesOrdersFromFirestore,
+  applyVerifiedSalesToProducts,
+  mergeSalesHistoryRecords,
+  SalesHistoryRecord
+} from '../services/productSalesService';
 import { 
   triggerRestockNotifications, 
   getCustomerRestockAlerts, 
@@ -237,7 +245,9 @@ interface CartContextType {
   // Automated Monthly Bestseller Threshold & Live Online Sales Tracking
   bestsellerThreshold: number;
   setBestsellerThreshold: (val: number) => void;
-  recordOnlineOrderSales: (items: CartItem[]) => Promise<void>;
+  totalCreationsSold: number;
+  recordOnlineOrderSales: (items: CartItem[], orderId?: string) => Promise<void>;
+  trackOrderSalesInFirestore: (order: any) => Promise<void>;
   addProductReview: (productId: string, review: ProductReviewItem) => Promise<void>;
   updateProductReview: (currentProductId: string, reviewId: string, updatedReview: ProductReviewItem, newProductId?: string) => Promise<void>;
   deleteProductReview: (productId: string, reviewId: string) => Promise<void>;
@@ -1000,9 +1010,12 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         } catch {}
       }
 
+      // Hydrate verified sales counts from sales_history & lightweight ledger so refresh never reverts sales
+      baseList = applyVerifiedSalesToProducts(baseList);
+
       return baseList.map(sanitizeProduct);
     } catch {}
-    return PRODUCTS.map(sanitizeProduct);
+    return applyVerifiedSalesToProducts(PRODUCTS).map(sanitizeProduct);
   });
 
   // Google Search & Direct Link Hydration (?product=id or ?category=id)
@@ -1177,40 +1190,96 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setQuickViewProduct(filteredProducts[nextIndex]);
   };
 
-  // Record genuine live online sales when an order is submitted
-  const recordOnlineOrderSales = async (items: CartItem[]) => {
-    try {
-      const updatedProducts = products.map((prod) => {
-        const matchingItem = items.find((item) => item.product.id === prod.id);
-        if (matchingItem) {
-          const prevOnline = prod.onlineSalesCount || 0;
-          return {
-            ...prod,
-            onlineSalesCount: prevOnline + matchingItem.quantity
-          };
-        }
-        return prod;
+  // Listen for sales increments triggered by order confirmation/completion in Order Progress Manager or Checkout
+  useEffect(() => {
+    const handleSalesIncremented = (e: Event) => {
+      const custom = e as CustomEvent<{
+        orderId?: string;
+        productQuantities?: Record<string, number>;
+        verifiedSalesByProduct?: Record<string, number>;
+      }>;
+      const quantities = custom.detail?.productQuantities || {};
+      const verifiedByProd = custom.detail?.verifiedSalesByProduct || {};
+      if (Object.keys(quantities).length === 0 && Object.keys(verifiedByProd).length === 0) return;
+
+      setProducts((prev) => {
+        const updated = applyVerifiedSalesToProducts(
+          prev.map((prod) => {
+            const addedQty = quantities[prod.id] || 0;
+            const verifiedOnline = verifiedByProd[prod.id] || 0;
+            if (addedQty > 0 || verifiedOnline > (prod.onlineSalesCount || 0)) {
+              const baseSold = prod.soldCount !== undefined ? prod.soldCount : 54;
+              const nextOnline = Math.max((prod.onlineSalesCount || 0) + addedQty, verifiedOnline);
+              const nextTotal = Math.max(prod.totalSold || 0, baseSold + nextOnline);
+              return {
+                ...prod,
+                soldCount: baseSold,
+                onlineSalesCount: nextOnline,
+                totalSold: nextTotal,
+                isBestSeller: nextTotal >= bestsellerThreshold || prod.isBestSeller
+              };
+            }
+            return prod;
+          }),
+          verifiedByProd,
+          bestsellerThreshold
+        );
+
+        setQuickViewProduct((qv) => {
+          if (!qv) return null;
+          return updated.find((p) => p.id === qv.id) || qv;
+        });
+
+        return updated;
       });
+    };
 
-      setProducts(updatedProducts);
-      try {
-        localStorage.setItem('artified_products_v3', JSON.stringify(updatedProducts));
-      } catch {}
+    window.addEventListener('artified_sales_incremented', handleSalesIncremented);
+    return () => window.removeEventListener('artified_sales_incremented', handleSalesIncremented);
+  }, [bestsellerThreshold]);
 
-      // Real-time Cloud Firestore sync
-      try {
-        const batch = writeBatch(db);
-        for (const item of items) {
-          const prodRef = doc(db, 'products', item.product.id);
-          const current = updatedProducts.find((p) => p.id === item.product.id);
-          if (current) {
-            batch.set(prodRef, current, { merge: true });
-          }
-        }
-        await batch.commit();
-      } catch (cloudErr) {
-        console.warn('Online sales logged locally:', cloudErr);
-      }
+  // Total creations sold across the entire store catalog
+  const totalCreationsSold = React.useMemo(() => calculateCatalogTotalCreationsSold(products), [products]);
+
+  // Track confirmed order sales in Firestore per product document (idempotent per orderId)
+  const trackOrderSalesInFirestore = async (order: any) => {
+    if (!order) return;
+    await trackConfirmedOrderSalesInFirestore(order, products);
+  };
+
+  // Record genuine live online sales when an order is submitted or confirmed
+  const recordOnlineOrderSales = async (items: CartItem[], orderId?: string) => {
+    try {
+      const effectiveOrderId = orderId || `SALE-${Date.now()}`;
+      await trackConfirmedOrderSalesInFirestore(
+        {
+          orderId: effectiveOrderId,
+          customerName: 'Customer',
+          phone: '',
+          deliveryAddress: '',
+          deliveryZoneName: '',
+          paymentMethodText: 'Online Order',
+          paymentStatus: 'Order confirmed and paid',
+          currentPhase: 'confirmed',
+          progressPercentage: 25,
+          orderPlacedDate: 'Just now',
+          estimatedDeliveryDate: '1-2 business days',
+          artisanName: 'Sahina Shrestha',
+          artisanRole: 'Founder and Creator',
+          studioLocation: 'Artified Workshop, Kathmandu, Nepal',
+          liveCraftNotes: '',
+          milestones: [],
+          total: items.reduce((s, i) => s + i.product.price * i.quantity, 0),
+          items: items.map((i) => ({
+            productId: i.product.id,
+            title: i.product.title,
+            image: i.product.images?.[0] || '',
+            quantity: i.quantity,
+            price: i.product.price
+          }))
+        },
+        products
+      );
     } catch (e) {
       console.error('Error logging online sales:', e);
     }
@@ -1408,12 +1477,114 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     testConnection();
   }, []);
 
-  // 2. Repository-driven content hydration (strictly decoupled from production live site)
+  // 2. Repository-driven content hydration & Real-time Firestore sales count listener
   useEffect(() => {
     setSyncStatusText('🟢 Catalog Ready (Repository & Local Database)');
     setIsDataSyncing(false);
 
+    // Sync and verify sales_history from server & Firestore, and reconcile confirmed orders
+    syncConfirmedSalesOrdersFromFirestore(getAllOrdersForSeller(), products).catch(() => {});
 
+    // Real-time listener on Firestore `sales_history` collection to verify total sold count across sessions
+    const unsubSalesHistory = onSnapshot(
+      collection(db, 'sales_history'),
+      (snap) => {
+        if (snap.empty) return;
+        const cloudRecords: SalesHistoryRecord[] = [];
+        snap.forEach((docSnap: any) => {
+          const d = docSnap.data();
+          if (d && (d.productId || docSnap.id)) {
+            cloudRecords.push({
+              id: d.id || docSnap.id,
+              productId: d.productId,
+              productTitle: d.productTitle || '',
+              orderId: d.orderId || '',
+              quantity: Math.max(1, Number(d.quantity) || 1),
+              timestamp: typeof d.createdAt === 'string' ? d.createdAt : new Date().toISOString(),
+              createdAt: typeof d.createdAt === 'string' ? d.createdAt : new Date().toISOString(),
+              status: 'completed'
+            });
+          }
+        });
+        if (cloudRecords.length > 0) {
+          const { verifiedSalesByProduct } = mergeSalesHistoryRecords(cloudRecords);
+          setProducts((prev) => {
+            const updated = applyVerifiedSalesToProducts(prev, verifiedSalesByProduct, bestsellerThreshold);
+            setQuickViewProduct((qv) => {
+              if (!qv) return null;
+              return updated.find((p) => p.id === qv.id) || qv;
+            });
+            return updated;
+          });
+        }
+      },
+      () => {}
+    );
+
+    // Real-time listener on Firestore products collection so totalSold / onlineSalesCount updates dynamically across all browsers
+    const unsubProducts = onSnapshot(
+      collection(db, 'products'),
+      (snap) => {
+        if (snap.empty) return;
+        const cloudMap = new Map<string, Partial<Product>>();
+        snap.forEach((docSnap: any) => {
+          const data = docSnap.data() as Partial<Product>;
+          if (data && (data.id || docSnap.id)) {
+            cloudMap.set(data.id || docSnap.id, data);
+          }
+        });
+        if (cloudMap.size === 0) return;
+
+        setProducts((prev) => {
+          let changed = false;
+          const updated = prev.map((prod) => {
+            const cloud = cloudMap.get(prod.id);
+            if (!cloud) return prod;
+
+            const baseSold =
+              cloud.soldCount !== undefined && Number(cloud.soldCount) > (prod.soldCount || 0)
+                ? Number(cloud.soldCount)
+                : prod.soldCount !== undefined
+                ? prod.soldCount
+                : 54;
+            const mergedOnline = Math.max(prod.onlineSalesCount || 0, Number(cloud.onlineSalesCount) || 0);
+            const mergedTotal = Math.max(
+              prod.totalSold || 0,
+              Number(cloud.totalSold) || 0,
+              baseSold + mergedOnline
+            );
+            const prevCalc = calculateTotalSold(prod);
+
+            if (
+              mergedTotal !== prevCalc ||
+              mergedOnline !== (prod.onlineSalesCount || 0) ||
+              baseSold !== (prod.soldCount !== undefined ? prod.soldCount : 54)
+            ) {
+              changed = true;
+              return {
+                ...prod,
+                soldCount: baseSold,
+                onlineSalesCount: mergedOnline,
+                totalSold: mergedTotal,
+                isBestSeller: mergedTotal >= bestsellerThreshold || prod.isBestSeller
+              };
+            }
+            return prod;
+          });
+
+          if (changed) {
+            const verifiedUpdated = applyVerifiedSalesToProducts(updated, undefined, bestsellerThreshold);
+            setQuickViewProduct((qv) => {
+              if (!qv) return null;
+              return verifiedUpdated.find((p) => p.id === qv.id) || qv;
+            });
+            return verifiedUpdated;
+          }
+          return prev;
+        });
+      },
+      () => {}
+    );
 
     // Hydrate TikTok reels from server JSON disk
     fetch('/api/tiktok-reels')
@@ -1468,7 +1639,14 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       })
       .catch(() => {});
-  }, []);
+
+    return () => {
+      try {
+        unsubSalesHistory();
+        unsubProducts();
+      } catch {}
+    };
+  }, [bestsellerThreshold]);
 
   const forceSyncAllToCloud = async () => {
     setSyncStatusText('Saving all edits to Cloud Firestore (artified-staging)...');
@@ -2548,7 +2726,9 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Monthly Bestseller Threshold and Sales Tracking
         bestsellerThreshold,
         setBestsellerThreshold,
+        totalCreationsSold,
         recordOnlineOrderSales,
+        trackOrderSalesInFirestore,
         addProductReview,
         updateProductReview,
         deleteProductReview,

@@ -273,7 +273,7 @@ export const CheckoutModal: React.FC = () => {
     // 4. Set Context State and transition to dedicated Success Confirmation screen
     setConfirmedOrder(order);
     setCompletedOrder(order);
-    recordOnlineOrderSales(itemsToBuy);
+    recordOnlineOrderSales(itemsToBuy, order.orderId);
     setDirectPurchaseItem(null);
     clearCart();
     setStep('confirmation');
