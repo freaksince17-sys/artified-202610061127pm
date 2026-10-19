@@ -94,7 +94,7 @@ export const ProductDetailModal: React.FC = () => {
     const unsubscribe = subscribeToProductReviews(
       quickViewProduct.id,
       (fetched) => {
-        if (fetched && fetched.length > 0) {
+        if (Array.isArray(fetched)) {
           setFirestoreReviews(fetched);
         }
       },

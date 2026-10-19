@@ -1,0 +1,34 @@
+# Vercel Deployment Ignore Rules
+# Exclude heavy user-uploaded media files and local runtime caches from Vercel Serverless Function bundles
+
+# User uploaded workshop videos & high-res images (stored permanently in Firebase Storage)
+public/workshops/
+!public/workshops/.gitkeep
+
+# Downloaded & uploaded TikTok/Instagram reel MP4 videos
+public/instagram_videos/
+!public/instagram_videos/.gitkeep
+
+# Local user upload staging
+public/uploads/
+
+# Stray heavy video binaries
+*.mp4
+*.mov
+*.m4v
+*.webm
+*.avi
+
+# Temp directories & build logs
+/tmp
+/.tmp
+/artified-runtime-data
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# AI Studio workspace artifacts & caches
+.aistudio/
+.DS_Store
+Thumbs.db

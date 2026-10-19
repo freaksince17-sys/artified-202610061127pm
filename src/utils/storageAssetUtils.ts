@@ -161,3 +161,51 @@ export function registerAssetUpdate(assetKey: string, newVersion?: string): void
   const ver = newVersion || generateAssetVersionId();
   ASSET_VERSION_REGISTRY.set(assetKey, ver);
 }
+
+/**
+ * Resolves local heavy image/video asset paths, relative paths, or gs:// URIs
+ * into public Firebase Storage HTTPS CDN URLs (bucket: amped-turbine-3mn89.firebasestorage.app)
+ * to significantly reduce local Vercel serverless bundle sizes.
+ *
+ * @param assetPath Path or URL (e.g., gs://amped-turbine-3mn89.firebasestorage.app/..., /workshops/..., /instagram_videos/...)
+ * @param defaultBucket Optional Firebase Storage bucket name
+ */
+export function resolveFirebaseStorageUrl(
+  assetPath?: string,
+  defaultBucket: string = 'amped-turbine-3mn89.firebasestorage.app'
+): string {
+  if (!assetPath || typeof assetPath !== 'string') return '';
+  const trimmed = assetPath.trim();
+  if (!trimmed) return '';
+
+  // Data URIs, inline SVGs, and Blob URLs don't need cloud conversion
+  if (trimmed.startsWith('data:') || trimmed.startsWith('blob:')) {
+    return trimmed;
+  }
+
+  // Handle gs:// URIs (e.g., gs://amped-turbine-3mn89.firebasestorage.app/workshop_gallery/sample.mp4)
+  if (trimmed.startsWith('gs://')) {
+    const withoutGs = trimmed.replace('gs://', '');
+    const slashIdx = withoutGs.indexOf('/');
+    let bucket = defaultBucket;
+    let filePath = withoutGs;
+
+    if (slashIdx !== -1) {
+      bucket = withoutGs.substring(0, slashIdx);
+      filePath = withoutGs.substring(slashIdx + 1);
+    }
+    const encodedPath = encodeURIComponent(filePath);
+    return `https://firebasestorage.googleapis.com/v0/b/${bucket}/o/${encodedPath}?alt=media`;
+  }
+
+  // If already a Firebase Storage URL or remote CDN URL, return directly
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    return trimmed;
+  }
+
+  // Dynamically map heavy local media paths (/workshops/..., /instagram_videos/..., /uploads/...)
+  // into Firebase Storage CDN URLs
+  const cleanPath = trimmed.replace(/^\/+/, '');
+  const encodedPath = encodeURIComponent(cleanPath);
+  return `https://firebasestorage.googleapis.com/v0/b/${defaultBucket}/o/${encodedPath}?alt=media`;
+}

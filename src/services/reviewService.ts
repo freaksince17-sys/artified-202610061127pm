@@ -23,6 +23,7 @@ export interface FirestoreProductReview extends ProductReviewItem {
   productTitle?: string;
   createdAt?: string;
   customerPhoto?: string;
+  timestamp?: number;
 }
 
 /**
@@ -31,11 +32,18 @@ export interface FirestoreProductReview extends ProductReviewItem {
 export function isMatchForProduct(data: FirestoreProductReview, productId: string, targetId: string): boolean {
   if (!data) return false;
   const pId = String(data.productId || '').trim().toLowerCase();
+  const target = String(productId || targetId || '').trim().toLowerCase();
   const titleSlug = data.productTitle ? data.productTitle.toLowerCase().replace(/[^a-z0-9]/g, '-') : '';
+  const targetSlug = target.replace(/[^a-z0-9]/g, '-');
 
-  if (pId === targetId || data.productId === productId) return true;
-  if (titleSlug && (titleSlug === targetId || targetId.includes(titleSlug) || titleSlug.includes(targetId))) return true;
-  if ((targetId.includes('pearl') || targetId.includes('bag') || targetId.includes('tote')) &&
+  if (pId === target || pId === targetSlug || data.productId === productId) return true;
+  if (titleSlug && (titleSlug === target || titleSlug === targetSlug || targetSlug.includes(titleSlug) || titleSlug.includes(targetSlug))) return true;
+
+  const normPid = pId.replace(/[^a-z0-9]/g, '');
+  const normTarget = target.replace(/[^a-z0-9]/g, '');
+  if (normPid && normTarget && (normPid === normTarget || normPid.includes(normTarget) || normTarget.includes(normPid))) return true;
+
+  if ((target.includes('pearl') || target.includes('bag') || target.includes('tote')) &&
       (pId.includes('pearl') || pId.includes('bag') || pId.includes('tote') || titleSlug.includes('pearl'))) {
     return true;
   }

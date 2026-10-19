@@ -714,7 +714,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (!snap.empty) {
           const cloudProducts: Product[] = [];
           const cloudPrices: Record<string, number> = {};
-          snap.forEach((d) => {
+          snap.forEach((d: any) => {
             const data = d.data() as Product;
             if (data && data.id && data.title) {
               const cleaned = sanitizeProduct(data);
