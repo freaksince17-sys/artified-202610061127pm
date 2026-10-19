@@ -82,11 +82,24 @@ export function reconcileProductCatalog(candidateProducts?: Product[] | null, bu
           }
         } catch {}
 
-        const mergedReviews = [
-          ...extraReviews,
-          ...(candidate.customReviews || []),
-          ...(bundledItem.customReviews || [])
-        ].filter((v, i, a) => a.findIndex((r) => r.id === v.id) === i);
+        const seenRevIds = new Set<string>();
+        const seenRevSigs = new Set<string>();
+        const mergedReviews: any[] = [];
+
+        const addMerged = (r: any) => {
+          if (!r || !r.id || !r.author || !r.comment || r.isDeleted) return;
+          const cleanId = String(r.id).trim();
+          const sig = `${String(r.author).trim().toLowerCase()}_${String(r.comment).trim().toLowerCase()}`;
+          if (!seenRevIds.has(cleanId) && !seenRevSigs.has(sig)) {
+            seenRevIds.add(cleanId);
+            seenRevSigs.add(sig);
+            mergedReviews.push(r);
+          }
+        };
+
+        extraReviews.forEach(addMerged);
+        (bundledItem.customReviews || []).forEach(addMerged);
+        (candidate.customReviews || []).forEach(addMerged);
 
         const mergedOnlineSales = Math.max(
           candidate.onlineSalesCount || 0,

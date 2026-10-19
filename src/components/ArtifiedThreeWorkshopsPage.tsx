@@ -270,12 +270,19 @@ const HoverVideoCard: React.FC<{
           </div>
         )}
         <video
-          ref={videoRef}
+          ref={(el) => {
+            videoRef.current = el;
+            if (el) {
+              el.defaultMuted = isAudioMuted;
+              el.muted = isAudioMuted;
+            }
+          }}
           src={activeVideoUrl}
           poster={video.thumbnailUrl && video.thumbnailUrl !== video.url ? video.thumbnailUrl : undefined}
           muted={isAudioMuted}
           loop
           playsInline
+          {...({ 'webkit-playsinline': 'true', 'x5-playsinline': 'true' } as any)}
           preload="metadata"
           onLoadedData={() => setIsLoaded(true)}
           onError={handleVideoError}

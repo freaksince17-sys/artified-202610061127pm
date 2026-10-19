@@ -285,15 +285,22 @@ export const WorkshopLightboxModal: React.FC<WorkshopLightboxModalProps> = ({
           ) : currentItem.type === 'video' ? (
             <div className="relative w-full h-full flex items-center justify-center">
               <video
-                ref={videoRef}
+                ref={(el) => {
+                  videoRef.current = el;
+                  if (el) {
+                    el.defaultMuted = !!currentItem.isAudioRemoved || isMuted;
+                    el.muted = !!currentItem.isAudioRemoved || isMuted;
+                  }
+                }}
                 key={currentItem.id || currentUrl}
                 src={currentUrl || currentItem.url}
                 poster={getWorkshopEmbeddedFallback(currentItem.thumbnailUrl || currentItem.url) || currentItem.thumbnailUrl || undefined}
                 playsInline
+                {...({ 'webkit-playsinline': 'true', 'x5-playsinline': 'true' } as any)}
                 loop
                 autoPlay
                 muted={!!currentItem.isAudioRemoved || isMuted}
-                preload="auto"
+                preload="metadata"
                 onClick={togglePlay}
                 onPlay={() => {
                   setIsPlaying(true);
@@ -301,6 +308,22 @@ export const WorkshopLightboxModal: React.FC<WorkshopLightboxModalProps> = ({
                 }}
                 onPause={() => setIsPlaying(false)}
                 onError={async () => {
+                  const target = videoRef.current;
+                  if (target) {
+                    if (target.src.includes('%20')) {
+                      const altSrc = target.src.replace(/%20/g, '_');
+                      if (altSrc !== target.src) {
+                        setCurrentUrl(altSrc);
+                        return;
+                      }
+                    } else if (target.src.includes(' ')) {
+                      const altSrc = target.src.replace(/ /g, '_');
+                      if (altSrc !== target.src) {
+                        setCurrentUrl(altSrc);
+                        return;
+                      }
+                    }
+                  }
                   try {
                     const recovered = await refetchWorkshopMediaFromStorage(currentItem);
                     if (recovered && recovered !== currentUrl && recovered !== currentItem.url) {
@@ -308,7 +331,7 @@ export const WorkshopLightboxModal: React.FC<WorkshopLightboxModalProps> = ({
                       return;
                     }
                   } catch {}
-                  setMediaError('Video failed to stream. Please try re-fetching or check your network.');
+                  setMediaError('Video failed to stream. Tap reload or check your connection.');
                 }}
                 className="max-h-full max-w-full object-contain cursor-pointer"
               />

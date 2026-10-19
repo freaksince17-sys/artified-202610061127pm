@@ -60,13 +60,28 @@ const MasonryVideoHoverCard: React.FC<{
       onMouseLeave={handleMouseLeave}
     >
       <video
-        ref={videoRef}
+        ref={(el) => {
+          videoRef.current = el;
+          if (el) {
+            el.defaultMuted = true;
+            el.muted = true;
+          }
+        }}
         src={item.url}
         poster={item.thumbnailUrl || undefined}
         muted
         playsInline
+        {...({ 'webkit-playsinline': 'true', 'x5-playsinline': 'true' } as any)}
         loop
-        preload="metadata"
+        preload="none"
+        onError={(e) => {
+          const target = e.currentTarget as HTMLVideoElement;
+          if (target.src.includes('%20')) {
+            target.src = target.src.replace(/%20/g, '_');
+          } else if (target.src.includes(' ')) {
+            target.src = target.src.replace(/ /g, '_');
+          }
+        }}
         className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
       />
 

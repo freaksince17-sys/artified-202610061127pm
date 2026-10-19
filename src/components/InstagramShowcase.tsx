@@ -341,12 +341,19 @@ const InstagramJournalCard: React.FC<InstagramJournalCardProps> = ({
       {activeVideoSrc && (
         <video
           id={`player-${item.id}`}
-          ref={videoRef}
+          ref={(el) => {
+            videoRef.current = el;
+            if (el) {
+              el.defaultMuted = isMuted;
+              el.muted = isMuted;
+            }
+          }}
           src={activeVideoSrc}
           muted={isMuted}
           loop
           playsInline
-          preload="metadata"
+          {...({ 'webkit-playsinline': 'true', 'x5-playsinline': 'true' } as any)}
+          preload="none"
           onPlay={() => setIsVideoPlaying(true)}
           onPlaying={() => setIsVideoPlaying(true)}
           onTimeUpdate={() => {
@@ -774,7 +781,13 @@ export const InstagramShowcase: React.FC<InstagramShowcaseProps> = ({ embedded =
                   <div className="relative w-full h-full min-h-[360px] sm:min-h-[420px] flex items-center justify-center bg-black overflow-hidden">
                     {modalVideoSrc && !modalVideoError ? (
                       <video
-                        ref={modalVideoRef}
+                        ref={(el) => {
+                          modalVideoRef.current = el;
+                          if (el) {
+                            el.defaultMuted = isModalMuted;
+                            el.muted = isModalMuted;
+                          }
+                        }}
                         key={modalVideoSrc}
                         src={modalVideoSrc}
                         poster={posterSrc}
@@ -782,6 +795,8 @@ export const InstagramShowcase: React.FC<InstagramShowcaseProps> = ({ embedded =
                         loop
                         muted={isModalMuted}
                         playsInline
+                        {...({ 'webkit-playsinline': 'true', 'x5-playsinline': 'true' } as any)}
+                        preload="metadata"
                         className="w-full h-full object-cover max-h-[550px]"
                         onError={() => setModalVideoError(true)}
                         onPlay={() => setIsModalPlaying(true)}

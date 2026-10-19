@@ -113,15 +113,13 @@ export const AboutCraftSection: React.FC = () => {
     if (isDirectVideo(trimmed)) return trimmed;
 
     const ttId = getTikTokVideoId(trimmed);
-    if (ttId) {
-      if (KNOWN_LOCAL_VIDEOS[ttId]) return KNOWN_LOCAL_VIDEOS[ttId];
-      return `/api/tiktok-video/${ttId}?url=${encodeURIComponent(trimmed)}`;
+    if (ttId && KNOWN_LOCAL_VIDEOS[ttId]) {
+      return KNOWN_LOCAL_VIDEOS[ttId];
     }
 
     const shortcode = getInstagramShortcode(trimmed);
-    if (shortcode) {
-      if (KNOWN_LOCAL_VIDEOS[shortcode]) return KNOWN_LOCAL_VIDEOS[shortcode];
-      return `/api/instagram-video/${shortcode}?url=${encodeURIComponent(trimmed)}`;
+    if (shortcode && KNOWN_LOCAL_VIDEOS[shortcode]) {
+      return KNOWN_LOCAL_VIDEOS[shortcode];
     }
 
     return '/tiktok_videos/7625655459537603860.mp4';
@@ -258,22 +256,26 @@ export const AboutCraftSection: React.FC = () => {
                     className="aspect-[4/3] sm:aspect-[16/10] rounded-2xl overflow-hidden bg-[#1C1B1A] border border-[#E8DFD8] shadow-sm relative group cursor-pointer"
                   >
                     <video
-                      ref={mainVideoRef}
+                      ref={(el) => {
+                        mainVideoRef.current = el;
+                        if (el) {
+                          el.defaultMuted = isSectionMuted;
+                          el.muted = isSectionMuted;
+                        }
+                      }}
                       src={playableUrl || '/tiktok_videos/7625655459537603860.mp4'}
                       poster={getSafeImageUrl(story.image1 || story.image2)}
                       muted={isSectionMuted}
                       loop
                       playsInline
+                      {...({ 'webkit-playsinline': 'true', 'x5-playsinline': 'true' } as any)}
                       preload="metadata"
                       disablePictureInPicture
                       disableRemotePlayback
                       controls={false}
                       onError={(e) => {
                         const target = e.currentTarget as HTMLVideoElement;
-                        if (videoId && !target.src.includes(`/api/tiktok-video/${videoId}`)) {
-                          target.src = `/api/tiktok-video/${videoId}?url=${encodeURIComponent(story.videoUrl || '')}`;
-                          target.play().catch(() => {});
-                        } else if (!target.src.includes('7625655459537603860.mp4')) {
+                        if (!target.src.includes('7625655459537603860.mp4')) {
                           target.src = '/tiktok_videos/7625655459537603860.mp4';
                           target.play().catch(() => {});
                         }

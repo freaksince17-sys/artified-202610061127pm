@@ -100,14 +100,21 @@ const WorkshopVideoHoverCard: React.FC<{
       onClick={onClick}
     >
       <video
-        ref={videoRef}
+        ref={(el) => {
+          videoRef.current = el;
+          if (el) {
+            el.defaultMuted = isMuted;
+            el.muted = isMuted;
+          }
+        }}
         src={activeVideoUrl}
         poster={item.thumbnailUrl || undefined}
         muted={isMuted}
         playsInline
+        {...({ 'webkit-playsinline': 'true', 'x5-playsinline': 'true' } as any)}
         autoPlay
         loop
-        preload="auto"
+        preload="metadata"
         onError={handleVideoError}
         onPlay={() => setIsPlaying(true)}
         onPause={() => setIsPlaying(false)}

@@ -215,7 +215,9 @@ export function subscribeToProductReviews(
     onReviews(combined);
 
     try {
-      localStorage.setItem(`artified_reviews_${productId}`, JSON.stringify(combined));
+      if (combined.length > 0) {
+        localStorage.setItem(`artified_reviews_${productId}`, JSON.stringify(combined));
+      }
     } catch {}
   };
 
@@ -280,6 +282,21 @@ export function subscribeToAllProductReviews(
 
     firestoreReviews.forEach(addReview);
     serverReviews.forEach(addReview);
+
+    // Also include all custom reviews from localStorage dictionary
+    try {
+      const customStoreRaw = typeof localStorage !== 'undefined' ? localStorage.getItem('artified_custom_reviews_v1') : null;
+      if (customStoreRaw) {
+        const parsedDict = JSON.parse(customStoreRaw);
+        if (parsedDict && typeof parsedDict === 'object') {
+          Object.entries(parsedDict).forEach(([pId, rList]: [string, any]) => {
+            if (Array.isArray(rList)) {
+              rList.forEach((c: any) => addReview({ ...c, productId: pId } as FirestoreProductReview));
+            }
+          });
+        }
+      }
+    } catch {}
 
     combined.sort((a, b) => {
       const timeA = a.createdAt ? new Date(a.createdAt).getTime() : (a.timestamp || 0);

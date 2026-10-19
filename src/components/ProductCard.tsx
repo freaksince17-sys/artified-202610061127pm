@@ -3,7 +3,7 @@ import { Heart, Eye, Star, Edit3, Scale, Bell } from 'lucide-react';
 import { Product } from '../types';
 import { useCart } from '../context/CartContext';
 import { useLanguage } from '../context/LanguageContext';
-import { calculateTotalSold, isProductBestSeller, calculateReviewsCount, getDisplayOriginalPrice, calculateDiscountPercent, getProductReviews } from '../utils/productStats';
+import { calculateTotalSold, isProductBestSeller, calculateReviewsCount, getDisplayOriginalPrice, calculateDiscountPercent, getProductReviews, getProductAverageRating } from '../utils/productStats';
 import { RestockNotifyModal } from './RestockNotifyModal';
 import { isProductWaitlisted } from '../utils/waitlistService';
 
@@ -46,10 +46,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, isSelected = 
   
   const productReviews = React.useMemo(() => getProductReviews(product), [product]);
   const dynamicReviewsCount = productReviews.length > 0 ? productReviews.length : calculateReviewsCount(product);
-  const rawRatingVal = productReviews.length > 0
-    ? (productReviews.reduce((acc, r) => acc + (r.rating || 4.8), 0) / productReviews.length)
-    : (product.rating ? Number(product.rating) : 4.8);
-  const averageRatingVal = Math.min(5.0, Math.max(4.5, rawRatingVal));
+  const averageRatingVal = React.useMemo(() => getProductAverageRating(product), [product, productReviews]);
   const averageRatingStr = averageRatingVal.toFixed(1);
 
   const wishlisted = isWishlisted(product.id);

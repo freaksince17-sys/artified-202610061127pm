@@ -58,7 +58,7 @@
       ]
     },
     {
-      "source": "/(workshops|instagram_videos|nepal_media|icons)/(.*)",
+      "source": "/(workshops|instagram_videos|tiktok_videos|nepal_media|icons)/(.*)",
       "headers": [
         {
           "key": "Access-Control-Allow-Origin",
@@ -70,7 +70,28 @@
         },
         {
           "key": "Cache-Control",
-          "value": "public, max-age=3600, stale-while-revalidate=86400"
+          "value": "public, max-age=86400, stale-while-revalidate=604800"
+        }
+      ]
+    },
+    {
+      "source": "/(.*)\\.(mp4|MP4|webm|m4v)",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "video/mp4"
+        },
+        {
+          "key": "Accept-Ranges",
+          "value": "bytes"
+        },
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=604800, stale-while-revalidate=2592000"
         }
       ]
     }

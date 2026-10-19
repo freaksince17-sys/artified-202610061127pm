@@ -34,7 +34,7 @@ import {
 import { handleFirestoreError, OperationType } from '../utils/firestoreErrors';
 import { compressImage } from '../utils/imageCompressor';
 import { sanitizeForFirestore } from '../utils/firestoreSanitizer';
-import { sanitizeReviewItem, getProductReviews, isProductBestSeller, calculateDiscountPercent, calculateTotalSold } from '../utils/productStats';
+import { sanitizeReviewItem, getProductReviews, getProductAverageRating, isProductBestSeller, calculateDiscountPercent, calculateTotalSold } from '../utils/productStats';
 import { deleteProductReviewFromFirestore } from '../services/reviewService';
 
 import { buildTrackedOrderFromOrderDetails, syncTrackedOrdersFromServer, syncOrdersFromFirestore } from '../data/trackingData';
@@ -1113,9 +1113,17 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Sort by requested options
     if (sortBy === 'rating-desc') {
       result.sort((a, b) => {
-        const ratingA = Number(a.rating || 4.7);
-        const ratingB = Number(b.rating || 4.7);
-        if (ratingB !== ratingA) return ratingB - ratingA;
+        const ratingA = getProductAverageRating(a);
+        const ratingB = getProductAverageRating(b);
+        if (Math.abs(ratingB - ratingA) >= 0.001) {
+          return ratingB - ratingA;
+        }
+        // If average ratings are equal, products with more reviews rank higher
+        const countA = getProductReviews(a).length;
+        const countB = getProductReviews(b).length;
+        if (countB !== countA) {
+          return countB - countA;
+        }
         return a.title.localeCompare(b.title);
       });
     } else if (sortBy === 'discount-desc') {

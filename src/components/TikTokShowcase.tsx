@@ -148,12 +148,19 @@ const TikTokReelCard: React.FC<TikTokReelCardProps> = ({
       {/* 2. Hover Video Preview: Starts ONLY when hovered */}
       {playableUrl && (
         <video
-          ref={videoRef}
+          ref={(el) => {
+            videoRef.current = el;
+            if (el) {
+              el.defaultMuted = isMuted;
+              el.muted = isMuted;
+            }
+          }}
           src={playableUrl}
           muted={isMuted}
           loop
           playsInline
-          preload="auto"
+          {...({ 'webkit-playsinline': 'true', 'x5-playsinline': 'true' } as any)}
+          preload="none"
           className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 pointer-events-none ${
             isHovered ? 'opacity-100' : 'opacity-0'
           }`}
@@ -320,10 +327,14 @@ export const TikTokShowcase: React.FC<TikTokShowcaseProps> = ({ embedded = false
   const getPlayableVideoUrl = (reel?: TikTokReel | null): string | null => {
     if (!reel) return null;
     if (reel.videoUrl && isDirectVideo(reel.videoUrl)) return reel.videoUrl;
-    const ttId = getTikTokVideoId(reel.videoUrl);
-    if (ttId) {
-      if (KNOWN_LOCAL_REELS[ttId]) return KNOWN_LOCAL_REELS[ttId];
-      return `/api/tiktok-video/${ttId}?url=${encodeURIComponent(reel.videoUrl!)}`;
+    const ttId = getTikTokVideoId(reel.videoUrl) || reel.id.replace(/[^0-9]/g, '');
+    if (ttId && KNOWN_LOCAL_REELS[ttId]) {
+      return KNOWN_LOCAL_REELS[ttId];
+    }
+    for (const [k, localPath] of Object.entries(KNOWN_LOCAL_REELS)) {
+      if (reel.videoUrl?.includes(k) || reel.id?.includes(k) || reel.thumbnail?.includes(k)) {
+        return localPath;
+      }
     }
     return '/tiktok_videos/7363984155060817160.mp4';
   };
@@ -624,7 +635,13 @@ export const TikTokShowcase: React.FC<TikTokShowcaseProps> = ({ embedded = false
                     {/* Native HTML5 Video Player */}
                     <div className="relative w-full h-full cursor-pointer bg-black" onClick={togglePlayPause}>
                       <video
-                        ref={videoRef}
+                        ref={(el) => {
+                          videoRef.current = el;
+                          if (el) {
+                            el.defaultMuted = isMuted;
+                            el.muted = isMuted;
+                          }
+                        }}
                         key={playableUrl}
                         src={playableUrl!}
                         poster={getReelCoverImage(activeReel)}
@@ -632,6 +649,8 @@ export const TikTokShowcase: React.FC<TikTokShowcaseProps> = ({ embedded = false
                         muted={isMuted}
                         loop={reels.length <= 1}
                         playsInline
+                        {...({ 'webkit-playsinline': 'true', 'x5-playsinline': 'true' } as any)}
+                        preload="metadata"
                         onTimeUpdate={handleTimeUpdate}
                         onPlay={() => setIsPlaying(true)}
                         onPause={() => setIsPlaying(false)}

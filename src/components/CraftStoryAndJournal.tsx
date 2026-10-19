@@ -291,14 +291,21 @@ export const CraftStoryAndJournal: React.FC = () => {
               onClick={togglePlay}
             >
               <video
-                ref={mainVideoRef}
+                ref={(el) => {
+                  mainVideoRef.current = el;
+                  if (el) {
+                    el.defaultMuted = isSectionMuted;
+                    el.muted = isSectionMuted;
+                  }
+                }}
                 src={resolveVideoSrc(story.videoUrl)}
                 poster={getSafeImageUrl(story.image1)}
                 autoPlay={false}
                 muted={isSectionMuted}
                 loop
                 playsInline
-                preload="auto"
+                {...({ 'webkit-playsinline': 'true', 'x5-playsinline': 'true' } as any)}
+                preload="metadata"
                 onPlay={() => setIsPlayingVideo(true)}
                 onPause={() => setIsPlayingVideo(false)}
                 onError={(e) => {

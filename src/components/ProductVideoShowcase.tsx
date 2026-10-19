@@ -178,7 +178,13 @@ export const ProductVideoShowcase: React.FC = () => {
           {/* Auto-playing Background Video from public/instagram_videos/ */}
           <div className="absolute inset-0 z-0 overflow-hidden bg-black">
             <video
-              ref={videoRef}
+              ref={(el) => {
+                videoRef.current = el;
+                if (el) {
+                  el.defaultMuted = isMuted;
+                  el.muted = isMuted;
+                }
+              }}
               key={videoPath}
               src={videoPath}
               poster={posterPath}
@@ -186,6 +192,7 @@ export const ProductVideoShowcase: React.FC = () => {
               loop
               muted={isMuted}
               playsInline
+              {...({ 'webkit-playsinline': 'true', 'x5-playsinline': 'true' } as any)}
               preload="metadata"
               onCanPlay={() => setVideoLoaded(true)}
               className={`w-full h-full object-cover object-center transition-opacity duration-700 filter brightness-95 contrast-105 ${

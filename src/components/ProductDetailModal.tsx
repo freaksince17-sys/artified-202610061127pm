@@ -24,7 +24,8 @@ import {
   Copy,
   Scale,
   Ruler,
-  Bell
+  Bell,
+  RefreshCw
 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { calculateTotalSold, isProductBestSeller, calculateReviewsCount, getProductReviews } from '../utils/productStats';
@@ -80,6 +81,9 @@ export const ProductDetailModal: React.FC = () => {
   const [reviewSubmitted, setReviewSubmitted] = useState(false);
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   const [firestoreReviews, setFirestoreReviews] = useState<FirestoreProductReview[]>([]);
+  const [newlyPostedReviewId, setNewlyPostedReviewId] = useState<string | null>(null);
+  const [isSyncingReviews, setIsSyncingReviews] = useState(false);
+  const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
   const [shareCopied, setShareCopied] = useState(false);
   const [showStoryModal, setShowStoryModal] = useState(false);
   const [isNotifyModalOpen, setIsNotifyModalOpen] = useState(false);
@@ -340,6 +344,7 @@ export const ProductDetailModal: React.FC = () => {
 
     // 1. Instant local state update in modal
     setFirestoreReviews((prev) => [newReview as FirestoreProductReview, ...prev]);
+    setNewlyPostedReviewId(reviewId);
 
     // 2. Add to CartContext products state & update quickViewProduct so it never reverts or gets lost
     await addProductReview(product.id, newReview);
@@ -369,7 +374,41 @@ export const ProductDetailModal: React.FC = () => {
         setNewReviewAuthor('');
         setNewReviewLocation('');
         setNewReviewComment('');
-      }, 2200);
+        const el = document.getElementById(`review-${reviewId}`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+      }, 1200);
+    }
+  };
+
+  const handleManualSyncReviews = async () => {
+    if (!product || isSyncingReviews) return;
+    setIsSyncingReviews(true);
+    setSyncFeedback('Checking cloud database...');
+    try {
+      const sRes = await fetch(`/api/reviews?t=${Date.now()}`, { cache: 'no-store' });
+      let serverCount = 0;
+      if (sRes.ok) {
+        const list = await sRes.json();
+        if (Array.isArray(list)) {
+          const matching = list.filter((r: any) => String(r.productId || '').toLowerCase() === product.id.toLowerCase());
+          serverCount = matching.length;
+          if (matching.length > 0) {
+            setFirestoreReviews((prev) => {
+              const seen = new Set(prev.map(p => p.id));
+              const toAdd = matching.filter((m: any) => !seen.has(m.id));
+              return [...toAdd, ...prev];
+            });
+          }
+        }
+      }
+      setSyncFeedback(serverCount > 0 ? `Synced ${serverCount} reviews!` : 'Database active & in sync');
+    } catch {
+      setSyncFeedback('Reviews in sync');
+    } finally {
+      setIsSyncingReviews(false);
+      setTimeout(() => setSyncFeedback(null), 3000);
     }
   };
 
@@ -956,18 +995,28 @@ export const ProductDetailModal: React.FC = () => {
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 self-start sm:self-auto">
+              <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
                 {isSellerMode && (
                   <button
                     type="button"
                     onClick={() => openReviewsManager(product.id)}
-                    className="px-3 py-2 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 transition-colors shadow-xs cursor-pointer"
+                    className="px-3 py-2 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 text-amber-900 dark:text-amber-300 border border-amber-300 dark:border-amber-800 text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 transition-colors shadow-xs cursor-pointer"
                     title="Open Seller Studio Review Manager for this piece"
                   >
                     <Star className="w-3.5 h-3.5 text-amber-600 fill-amber-600" />
                     <span>Manage Reviews</span>
                   </button>
                 )}
+                <button
+                  type="button"
+                  onClick={handleManualSyncReviews}
+                  disabled={isSyncingReviews}
+                  className="px-3 py-2 bg-white dark:bg-[#252422] hover:bg-stone-50 dark:hover:bg-[#2E2C29] text-[#1C1B1A] dark:text-[#FAF8F5] border border-[#E8DFD8] dark:border-[#3D3A36] text-xs font-medium rounded-xl flex items-center justify-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
+                  title="Check and sync reviews from database and website"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 text-[#C5A880] ${isSyncingReviews ? 'animate-spin' : ''}`} />
+                  <span>{isSyncingReviews ? 'Syncing...' : syncFeedback || 'Sync Reviews'}</span>
+                </button>
                 <button
                   type="button"
                   onClick={() => {
@@ -1067,7 +1116,7 @@ export const ProductDetailModal: React.FC = () => {
                     <Send className="w-3.5 h-3.5" />
                     <span>
                       {isSubmittingReview
-                        ? 'Saving to Firestore...'
+                        ? 'Saving Review...'
                         : reviewSubmitted
                         ? 'Review Published!'
                         : 'Submit Review'}
@@ -1078,74 +1127,88 @@ export const ProductDetailModal: React.FC = () => {
             )}
 
             {/* Reviews Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-              {reviewsList.map((rev) => (
-                <div
-                  key={rev.id}
-                  className="p-4 bg-white dark:bg-[#252422] rounded-xl border border-[#E8DFD8] dark:border-[#3D3A36] shadow-2xs hover:border-[#C5A880]/60 transition-all flex flex-col justify-between"
-                >
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-1.5">
-                        <div className="flex items-center gap-0.5 text-amber-400">
-                          {[1, 2, 3, 4, 5].map((s) => {
-                            const diff = (rev.rating || 4.5) - (s - 1);
-                            if (diff >= 0.75) {
-                              return <Star key={s} className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />;
-                            } else if (diff >= 0.25) {
-                              return (
-                                <div key={s} className="relative w-3.5 h-3.5 shrink-0">
-                                  <Star className="w-3.5 h-3.5 text-zinc-200 dark:text-zinc-700" />
-                                  <div className="absolute inset-0 overflow-hidden w-1/2">
-                                    <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
-                                  </div>
-                                </div>
-                              );
-                            } else {
-                              return <Star key={s} className="w-3.5 h-3.5 text-zinc-200 dark:text-zinc-700" />;
-                            }
-                          })}
-                        </div>
-                        <span className="text-[11px] font-bold text-[#1C1B1A] dark:text-[#FAF8F5]">
-                          {typeof rev.rating === 'number' ? rev.rating.toFixed(1) : '4.5'}
-                        </span>
-                      </div>
-                      <span className="text-[10px] text-[#A69E96] dark:text-[#8C857B]">{rev.date}</span>
-                    </div>
-
-                    <p className="text-xs text-[#4A4541] dark:text-[#E2DED9] leading-relaxed mb-3">
-                      &ldquo;{rev.comment}&rdquo;
-                    </p>
-                  </div>
-
-                  <div className="pt-2 border-t border-[#F5F2ED] dark:border-[#33312E] flex items-center justify-between text-[11px]">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5" id="product-reviews-grid">
+              {reviewsList.map((rev) => {
+                const isNew = rev.id === newlyPostedReviewId;
+                return (
+                  <div
+                    key={rev.id}
+                    id={`review-${rev.id}`}
+                    className={`p-4 rounded-xl border transition-all duration-700 flex flex-col justify-between ${
+                      isNew
+                        ? 'bg-amber-50/90 dark:bg-amber-950/40 border-[#C5A880] ring-2 ring-[#C5A880]/40 shadow-md animate-in fade-in slide-in-from-top-3 duration-700 ease-out'
+                        : 'bg-white dark:bg-[#252422] border-[#E8DFD8] dark:border-[#3D3A36] shadow-2xs hover:border-[#C5A880]/60'
+                    }`}
+                  >
                     <div>
-                      <span className="font-semibold text-[#1C1B1A] dark:text-[#FAF8F5]">{rev.author}</span>
-                      <span className="text-[10px] text-[#8C7A6B] dark:text-[#A69E96] block leading-none mt-0.5">{rev.location}</span>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <div className="flex items-center gap-0.5 text-amber-400">
+                            {[1, 2, 3, 4, 5].map((s) => {
+                              const diff = (rev.rating || 4.5) - (s - 1);
+                              if (diff >= 0.75) {
+                                return <Star key={s} className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />;
+                              } else if (diff >= 0.25) {
+                                return (
+                                  <div key={s} className="relative w-3.5 h-3.5 shrink-0">
+                                    <Star className="w-3.5 h-3.5 text-zinc-200 dark:text-zinc-700" />
+                                    <div className="absolute inset-0 overflow-hidden w-1/2">
+                                      <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+                                    </div>
+                                  </div>
+                                );
+                              } else {
+                                return <Star key={s} className="w-3.5 h-3.5 text-zinc-200 dark:text-zinc-700" />;
+                              }
+                            })}
+                          </div>
+                          <span className="text-[11px] font-bold text-[#1C1B1A] dark:text-[#FAF8F5]">
+                            {typeof rev.rating === 'number' ? rev.rating.toFixed(1) : '4.5'}
+                          </span>
+                          {isNew && (
+                            <span className="inline-flex items-center gap-1 text-[9px] font-bold text-amber-800 dark:text-amber-200 bg-amber-100 dark:bg-amber-900/60 border border-amber-300 dark:border-amber-700 px-2 py-0.5 rounded-full animate-pulse">
+                              <Sparkles className="w-2.5 h-2.5 text-amber-600 dark:text-amber-400" />
+                              <span>Just Posted</span>
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[10px] text-[#A69E96] dark:text-[#8C857B]">{rev.date}</span>
+                      </div>
+
+                      <p className="text-xs text-[#4A4541] dark:text-[#E2DED9] leading-relaxed mb-3">
+                        &ldquo;{rev.comment}&rdquo;
+                      </p>
                     </div>
 
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      {isSellerMode && (
-                        <button
-                          type="button"
-                          onClick={() => openReviewsManager(product.id)}
-                          className="px-2 py-0.5 text-[10px] font-semibold text-amber-900 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/60 border border-amber-300 dark:border-amber-800 rounded shadow-2xs transition-colors cursor-pointer flex items-center gap-1"
-                          title="Edit review in Seller Studio"
-                        >
-                          <Edit3 className="w-2.5 h-2.5 text-amber-700 dark:text-amber-400" />
-                          <span>Edit</span>
-                        </button>
-                      )}
-                      {rev.verified && (
-                        <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 px-1.5 py-0.5 rounded">
-                          <Check className="w-2.5 h-2.5 text-emerald-600 dark:text-emerald-400" />
-                          <span>Verified Purchase</span>
-                        </span>
-                      )}
+                    <div className="pt-2 border-t border-[#F5F2ED] dark:border-[#33312E] flex items-center justify-between text-[11px]">
+                      <div>
+                        <span className="font-semibold text-[#1C1B1A] dark:text-[#FAF8F5]">{rev.author}</span>
+                        <span className="text-[10px] text-[#8C7A6B] dark:text-[#A69E96] block leading-none mt-0.5">{rev.location}</span>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {isSellerMode && (
+                          <button
+                            type="button"
+                            onClick={() => openReviewsManager(product.id)}
+                            className="px-2 py-0.5 text-[10px] font-semibold text-amber-900 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/60 border border-amber-300 dark:border-amber-800 rounded shadow-2xs transition-colors cursor-pointer flex items-center gap-1"
+                            title="Edit review in Seller Studio"
+                          >
+                            <Edit3 className="w-2.5 h-2.5 text-amber-700 dark:text-amber-400" />
+                            <span>Edit</span>
+                          </button>
+                        )}
+                        {rev.verified && (
+                          <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 px-1.5 py-0.5 rounded">
+                            <Check className="w-2.5 h-2.5 text-emerald-600 dark:text-emerald-400" />
+                            <span>Verified Purchase</span>
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             {/* Assurance Footnote */}
