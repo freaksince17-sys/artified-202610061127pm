@@ -118,6 +118,14 @@ export async function submitProductReviewToFirestore(
     const existing: FirestoreProductReview[] = raw ? JSON.parse(raw) : [];
     const filtered = existing.filter(e => e.id !== reviewDoc.id && `${e.author}_${e.comment}` !== `${reviewDoc.author}_${reviewDoc.comment}`);
     localStorage.setItem(localKey, JSON.stringify([reviewDoc, ...filtered]));
+
+    // Also save in persistent global custom reviews dictionary
+    const dictRaw = localStorage.getItem('artified_custom_reviews_v1');
+    const dict = dictRaw ? JSON.parse(dictRaw) : {};
+    const currentProdReviews = dict[cleanProductId] || [];
+    const cleanCurrent = currentProdReviews.filter((r: any) => r.id !== reviewDoc.id && `${r.author}_${r.comment}` !== `${reviewDoc.author}_${reviewDoc.comment}`);
+    dict[cleanProductId] = [reviewDoc, ...cleanCurrent];
+    localStorage.setItem('artified_custom_reviews_v1', JSON.stringify(dict));
   } catch {}
 
   // Await both writes in parallel
@@ -141,9 +149,12 @@ export function subscribeToProductReviews(
     try {
       const res = await fetch(`/api/reviews?t=${Date.now()}`, { cache: 'no-store' });
       if (res.ok) {
-        const serverList = await res.json();
-        if (Array.isArray(serverList)) {
-          return serverList.filter((r: FirestoreProductReview) => isMatchForProduct(r, productId, targetId));
+        const text = await res.text();
+        if (text && text.trim().startsWith('[')) {
+          const serverList = JSON.parse(text);
+          if (Array.isArray(serverList)) {
+            return serverList.filter((r: FirestoreProductReview) => isMatchForProduct(r, productId, targetId));
+          }
         }
       }
     } catch {}
@@ -173,7 +184,25 @@ export function subscribeToProductReviews(
     firestoreReviews.forEach(addReview);
     // 2. Persistent Server database reviews
     serverReviews.forEach(addReview);
-    // 3. Fallback reviews (product custom reviews + curated base)
+
+    // 3. Persistent LocalStorage cached reviews for this product
+    try {
+      const localRaw = localStorage.getItem(`artified_reviews_${productId}`);
+      if (localRaw) {
+        const parsed = JSON.parse(localRaw);
+        if (Array.isArray(parsed)) parsed.forEach(addReview);
+      }
+      const customStoreRaw = localStorage.getItem('artified_custom_reviews_v1');
+      if (customStoreRaw) {
+        const parsedDict = JSON.parse(customStoreRaw);
+        const prodCustom = parsedDict[productId];
+        if (Array.isArray(prodCustom)) {
+          prodCustom.forEach((c: any) => addReview({ ...c, productId } as FirestoreProductReview));
+        }
+      }
+    } catch {}
+
+    // 4. Fallback reviews (product custom reviews + curated base)
     fallbackReviews.forEach((fb) => addReview({ ...fb, productId } as FirestoreProductReview));
 
     // Sort newest first
@@ -296,5 +325,16 @@ export async function deleteProductReviewFromFirestore(reviewId: string): Promis
 
   try {
     await fetch(`/api/reviews/${reviewId}`, { method: 'DELETE' });
+  } catch {}
+
+  try {
+    const dictRaw = localStorage.getItem('artified_custom_reviews_v1');
+    if (dictRaw) {
+      const dict = JSON.parse(dictRaw);
+      for (const pId of Object.keys(dict)) {
+        dict[pId] = (dict[pId] || []).filter((r: any) => r.id !== reviewId);
+      }
+      localStorage.setItem('artified_custom_reviews_v1', JSON.stringify(dict));
+    }
   } catch {}
 }

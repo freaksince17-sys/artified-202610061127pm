@@ -967,6 +967,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       const saved = localStorage.getItem('artified_products_v3') || localStorage.getItem('artified_products_custom');
+      let baseList = PRODUCTS;
       if (saved) {
         if (saved.length > 800000) {
           localStorage.removeItem('artified_products_v3');
@@ -974,11 +975,32 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         } else {
           const parsed = JSON.parse(saved);
           if (Array.isArray(parsed) && parsed.length > 0) {
-            const reconciled = reconcileProductCatalog(parsed, PRODUCTS);
-            return reconciled.map(sanitizeProduct);
+            baseList = reconcileProductCatalog(parsed, PRODUCTS);
           }
         }
       }
+
+      // Hydrate custom reviews from dedicated lightweight store
+      const reviewsDictRaw = localStorage.getItem('artified_custom_reviews_v1');
+      if (reviewsDictRaw) {
+        try {
+          const reviewsDict = JSON.parse(reviewsDictRaw);
+          baseList = baseList.map(p => {
+            const pReviews = reviewsDict[p.id];
+            if (Array.isArray(pReviews) && pReviews.length > 0) {
+              const existingCustom = p.customReviews || [];
+              const cleanExisting = existingCustom.filter(cr => !pReviews.some((pr: any) => pr.id === cr.id));
+              return {
+                ...p,
+                customReviews: [...pReviews, ...cleanExisting]
+              };
+            }
+            return p;
+          });
+        } catch {}
+      }
+
+      return baseList.map(sanitizeProduct);
     } catch {}
     return PRODUCTS.map(sanitizeProduct);
   });
@@ -1202,6 +1224,17 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
 
       setProducts(updatedProducts);
+      setQuickViewProduct((prev) => (prev && prev.id === productId ? updatedProducts.find(p => p.id === productId) || prev : prev));
+
+      try {
+        const dictRaw = localStorage.getItem('artified_custom_reviews_v1');
+        const dict = dictRaw ? JSON.parse(dictRaw) : {};
+        const currentProd = dict[productId] || [];
+        const cleanProd = currentProd.filter((r: any) => r.id !== sanitized.id && `${r.author}_${r.comment}` !== `${sanitized.author}_${sanitized.comment}`);
+        dict[productId] = [sanitized, ...cleanProd];
+        localStorage.setItem('artified_custom_reviews_v1', JSON.stringify(dict));
+      } catch {}
+
       try {
         localStorage.setItem('artified_products_v3', JSON.stringify(updatedProducts));
       } catch {}
@@ -1328,6 +1361,19 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
 
       setProducts(updatedProducts);
+      setQuickViewProduct((prev) => (prev && (prev.id === productId || prev.customReviews?.some(r => r.id === reviewId)) ? updatedProducts.find(p => p.id === prev.id) || prev : prev));
+
+      try {
+        const dictRaw = localStorage.getItem('artified_custom_reviews_v1');
+        if (dictRaw) {
+          const dict = JSON.parse(dictRaw);
+          if (dict[productId]) {
+            dict[productId] = dict[productId].filter((r: any) => r.id !== reviewId);
+            localStorage.setItem('artified_custom_reviews_v1', JSON.stringify(dict));
+          }
+        }
+      } catch {}
+
       try {
         localStorage.setItem('artified_products_v3', JSON.stringify(updatedProducts));
       } catch {}

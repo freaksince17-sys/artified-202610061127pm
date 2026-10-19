@@ -92,6 +92,17 @@ export const ProductDetailModal: React.FC = () => {
       return;
     }
 
+    // Immediately hydrate cached reviews from local storage so reviews stick instantly with zero flash
+    try {
+      const cached = localStorage.getItem(`artified_reviews_${quickViewProduct.id}`);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setFirestoreReviews(parsed);
+        }
+      }
+    } catch {}
+
     const initial = getProductReviews(quickViewProduct);
     const unsubscribe = subscribeToProductReviews(
       quickViewProduct.id,

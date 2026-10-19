@@ -70,8 +70,20 @@ export function reconcileProductCatalog(candidateProducts?: Product[] | null, bu
           ? new Date(bundledItem.updatedAt).getTime() 
           : new Date(CATALOG_BUILD_TIMESTAMP).getTime();
 
-        // Always attach live customer reviews and online sales from Firestore
+        // Always attach live customer reviews and online sales from Firestore / localStorage
+        let extraReviews: any[] = [];
+        try {
+          const dictRaw = typeof localStorage !== 'undefined' ? localStorage.getItem('artified_custom_reviews_v1') : null;
+          if (dictRaw) {
+            const parsed = JSON.parse(dictRaw);
+            if (Array.isArray(parsed[candidate.id])) {
+              extraReviews = parsed[candidate.id];
+            }
+          }
+        } catch {}
+
         const mergedReviews = [
+          ...extraReviews,
           ...(candidate.customReviews || []),
           ...(bundledItem.customReviews || [])
         ].filter((v, i, a) => a.findIndex((r) => r.id === v.id) === i);

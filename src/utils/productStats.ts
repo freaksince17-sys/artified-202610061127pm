@@ -890,7 +890,42 @@ export function getProductReviews(product: Product): ProductReviewItem[] {
     ];
   }
 
-  const custom = product.customReviews || [];
+  let custom = [...(product.customReviews || [])];
+
+  // Also load from persistent browser storage so reviews stick permanently across reloads
+  try {
+    const rawStored = typeof localStorage !== 'undefined' ? localStorage.getItem('artified_custom_reviews_v1') : null;
+    if (rawStored) {
+      const parsed = JSON.parse(rawStored);
+      const prodStored = parsed[product.id];
+      if (Array.isArray(prodStored) && prodStored.length > 0) {
+        const idMap = new Map<string, ProductReviewItem>();
+        prodStored.forEach((r: ProductReviewItem) => idMap.set(r.id, r));
+        custom.forEach((r: ProductReviewItem) => {
+          if (!idMap.has(r.id)) idMap.set(r.id, r);
+        });
+        custom = Array.from(idMap.values());
+      }
+    }
+
+    const rawProdKey = typeof localStorage !== 'undefined' ? localStorage.getItem(`artified_reviews_${product.id}`) : null;
+    if (rawProdKey) {
+      const parsed = JSON.parse(rawProdKey);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        const idMap = new Map<string, ProductReviewItem>();
+        parsed.forEach((r: ProductReviewItem) => {
+          if (r && r.id && !r.id.includes('-rev-custom-') && !r.id.includes('apsara-layered') && !r.id.includes('chandra-baroque')) {
+            idMap.set(r.id, r);
+          }
+        });
+        custom.forEach((r: ProductReviewItem) => {
+          if (!idMap.has(r.id)) idMap.set(r.id, r);
+        });
+        custom = Array.from(idMap.values());
+      }
+    }
+  } catch {}
+
   const processedIds = new Set<string>();
   const deletedIds = new Set<string>();
 
