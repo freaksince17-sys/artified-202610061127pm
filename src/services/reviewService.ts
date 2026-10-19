@@ -26,7 +26,24 @@ export interface FirestoreProductReview extends ProductReviewItem {
 }
 
 /**
- * Submits a new rating and text review for a specific product and stores it in Firestore.
+ * Flexible matching helper for product IDs, titles, and slugs
+ */
+export function isMatchForProduct(data: FirestoreProductReview, productId: string, targetId: string): boolean {
+  if (!data) return false;
+  const pId = String(data.productId || '').trim().toLowerCase();
+  const titleSlug = data.productTitle ? data.productTitle.toLowerCase().replace(/[^a-z0-9]/g, '-') : '';
+
+  if (pId === targetId || data.productId === productId) return true;
+  if (titleSlug && (titleSlug === targetId || targetId.includes(titleSlug) || titleSlug.includes(targetId))) return true;
+  if ((targetId.includes('pearl') || targetId.includes('bag') || targetId.includes('tote')) &&
+      (pId.includes('pearl') || pId.includes('bag') || pId.includes('tote') || titleSlug.includes('pearl'))) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Submits a new rating and text review for a specific product and stores it in Firestore & Server DB.
  */
 export async function submitProductReviewToFirestore(
   productId: string,
@@ -47,10 +64,13 @@ export async function submitProductReviewToFirestore(
     year: 'numeric'
   });
 
+  const cleanProductId = String(productId || '').trim();
+  const cleanTitle = (reviewInput.productTitle || '').trim();
+
   const reviewDoc: FirestoreProductReview = {
     id: reviewId,
-    productId,
-    productTitle: reviewInput.productTitle || '',
+    productId: cleanProductId,
+    productTitle: cleanTitle,
     author: reviewInput.author.trim(),
     location: (reviewInput.location || 'Kathmandu, Nepal').trim(),
     rating: Math.max(1, Math.min(5, reviewInput.rating)),
@@ -62,16 +82,28 @@ export async function submitProductReviewToFirestore(
     timestamp: Date.now()
   };
 
+  // 1. Write to Cloud Firestore
   try {
     const docRef = doc(db, REVIEWS_COLLECTION, reviewId);
     await setDoc(docRef, reviewDoc);
   } catch (error) {
-    console.warn('Notice: Firestore review write notice (saved with local recovery):', error);
+    console.warn('Notice: Firestore review write notice:', error);
   }
 
-  // Also update local storage cache for instant offline view
+  // 2. Dual-write to persistent Server Express database (/api/reviews) for multi-browser & Incognito sync
   try {
-    const localKey = `artified_reviews_${productId}`;
+    await fetch('/api/reviews', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(reviewDoc)
+    });
+  } catch (apiErr) {
+    console.warn('Notice: Server API review sync notice:', apiErr);
+  }
+
+  // 3. Update local storage cache for instant offline view
+  try {
+    const localKey = `artified_reviews_${cleanProductId}`;
     const raw = localStorage.getItem(localKey);
     const existing: FirestoreProductReview[] = raw ? JSON.parse(raw) : [];
     localStorage.setItem(localKey, JSON.stringify([reviewDoc, ...existing.filter(e => e.id !== reviewDoc.id)]));
@@ -81,7 +113,7 @@ export async function submitProductReviewToFirestore(
 }
 
 /**
- * Subscribes to real-time reviews for a given product from Firestore.
+ * Subscribes to real-time reviews for a given product from Firestore & Server API.
  */
 export function subscribeToProductReviews(
   productId: string,
@@ -90,7 +122,49 @@ export function subscribeToProductReviews(
 ): () => void {
   const collectionRef = collection(db, REVIEWS_COLLECTION);
   const targetId = String(productId || '').trim().toLowerCase();
-  
+
+  const fetchServerReviews = async (): Promise<FirestoreProductReview[]> => {
+    try {
+      const res = await fetch(`/api/reviews?t=${Date.now()}`, { cache: 'no-store' });
+      if (res.ok) {
+        const serverList = await res.json();
+        if (Array.isArray(serverList)) {
+          return serverList.filter((r: FirestoreProductReview) => isMatchForProduct(r, productId, targetId));
+        }
+      }
+    } catch {}
+    return [];
+  };
+
+  const processAndEmit = async (firestoreReviews: FirestoreProductReview[]) => {
+    const serverReviews = await fetchServerReviews();
+
+    const map = new Map<string, FirestoreProductReview>();
+    // Combine Firestore real-time reviews and server database reviews
+    firestoreReviews.forEach((r) => map.set(r.id, r));
+    serverReviews.forEach((r) => {
+      if (!map.has(r.id)) map.set(r.id, r);
+    });
+    fallbackReviews.forEach((fb) => {
+      if (!map.has(fb.id)) {
+        map.set(fb.id, { ...fb, productId });
+      }
+    });
+
+    const combined = Array.from(map.values());
+    combined.sort((a, b) => {
+      const timeA = a.createdAt ? new Date(a.createdAt).getTime() : (a.timestamp || 0);
+      const timeB = b.createdAt ? new Date(b.createdAt).getTime() : (b.timestamp || 0);
+      return timeB - timeA;
+    });
+
+    onReviews(combined);
+
+    try {
+      localStorage.setItem(`artified_reviews_${productId}`, JSON.stringify(combined));
+    } catch {}
+  };
+
   // Real-time listener on all reviews for this product
   const unsubscribe = onSnapshot(
     collectionRef,
@@ -98,48 +172,15 @@ export function subscribeToProductReviews(
       const firestoreReviews: FirestoreProductReview[] = [];
       snapshot.forEach((docSnap: any) => {
         const data = docSnap.data() as FirestoreProductReview;
-        if (data && data.productId) {
-          const pId = String(data.productId).trim().toLowerCase();
-          if (pId === targetId || data.productId === productId || (data.productTitle && data.productTitle.toLowerCase().replace(/[^a-z0-9]/g, '-') === targetId)) {
-            firestoreReviews.push(data);
-          }
+        if (data && isMatchForProduct(data, productId, targetId)) {
+          firestoreReviews.push(data);
         }
       });
-
-      // Sort by newest first
-      firestoreReviews.sort((a, b) => {
-        const timeA = a.createdAt ? new Date(a.createdAt).getTime() : (a.timestamp || 0);
-        const timeB = b.createdAt ? new Date(b.createdAt).getTime() : (b.timestamp || 0);
-        return timeB - timeA;
-      });
-
-      // Merge with initial fallback / seed reviews ensuring uniqueness
-      const existingIds = new Set(firestoreReviews.map((r) => r.id));
-      const combined = [
-        ...firestoreReviews,
-        ...fallbackReviews
-          .filter((fb) => !existingIds.has(fb.id))
-          .map((fb) => ({ ...fb, productId }))
-      ];
-
-      onReviews(combined);
-
-      // Cache locally
-      try {
-        localStorage.setItem(`artified_reviews_${productId}`, JSON.stringify(combined));
-      } catch {}
+      processAndEmit(firestoreReviews);
     },
-    (error) => {
+    async (error) => {
       console.warn('Firestore reviews subscription notice:', error);
-      // Fall back to local storage cache or provided fallbacks
-      try {
-        const raw = localStorage.getItem(`artified_reviews_${productId}`);
-        if (raw) {
-          onReviews(JSON.parse(raw));
-          return;
-        }
-      } catch {}
-      onReviews(fallbackReviews.map((fb) => ({ ...fb, productId })));
+      processAndEmit([]);
     }
   );
 
@@ -147,12 +188,42 @@ export function subscribeToProductReviews(
 }
 
 /**
- * Subscribes to all real-time reviews from Firestore.
+ * Subscribes to all real-time reviews from Firestore & Server API.
  */
 export function subscribeToAllProductReviews(
   onReviews: (reviews: FirestoreProductReview[]) => void
 ): () => void {
   const collectionRef = collection(db, REVIEWS_COLLECTION);
+
+  const fetchServerAllReviews = async (): Promise<FirestoreProductReview[]> => {
+    try {
+      const res = await fetch(`/api/reviews?t=${Date.now()}`, { cache: 'no-store' });
+      if (res.ok) {
+        const serverList = await res.json();
+        if (Array.isArray(serverList)) return serverList;
+      }
+    } catch {}
+    return [];
+  };
+
+  const processAndEmitAll = async (firestoreReviews: FirestoreProductReview[]) => {
+    const serverReviews = await fetchServerAllReviews();
+    const map = new Map<string, FirestoreProductReview>();
+
+    firestoreReviews.forEach((r) => map.set(r.id, r));
+    serverReviews.forEach((r) => {
+      if (!map.has(r.id)) map.set(r.id, r);
+    });
+
+    const combined = Array.from(map.values());
+    combined.sort((a, b) => {
+      const timeA = a.createdAt ? new Date(a.createdAt).getTime() : (a.timestamp || 0);
+      const timeB = b.createdAt ? new Date(b.createdAt).getTime() : (b.timestamp || 0);
+      return timeB - timeA;
+    });
+
+    onReviews(combined);
+  };
 
   const unsubscribe = onSnapshot(
     collectionRef,
@@ -164,17 +235,11 @@ export function subscribeToAllProductReviews(
           firestoreReviews.push(data);
         }
       });
-
-      firestoreReviews.sort((a, b) => {
-        const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-        const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-        return timeB - timeA;
-      });
-
-      onReviews(firestoreReviews);
+      processAndEmitAll(firestoreReviews);
     },
     (error) => {
       console.warn('Firestore all reviews listener notice:', error);
+      processAndEmitAll([]);
     }
   );
 
