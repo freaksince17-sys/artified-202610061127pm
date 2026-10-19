@@ -79,31 +79,32 @@ export const SellerReviewsModal: React.FC = () => {
     return () => unsubscribe();
   }, [isReviewsManagerOpen]);
 
-  // Aggregate all reviews across all products & Firestore collection
+  // Aggregate all reviews across all products & Firestore collection with strict deduplication
   const allReviewsWithProduct: ReviewWithProduct[] = useMemo(() => {
-    const map = new Map<string, ReviewWithProduct>();
+    const seenIds = new Set<string>();
+    const seenSignatures = new Set<string>();
+    const combined: ReviewWithProduct[] = [];
 
-    // 1. Load product-level custom reviews & curated fallback reviews
-    products.forEach((prod) => {
-      const prodReviews = getProductReviews(prod);
-      prodReviews.forEach((rev) => {
-        map.set(rev.id, {
-          ...rev,
-          productId: prod.id,
-          productTitle: prod.title,
-          productImage: getRealProductImage(prod.title, prod.images?.[0]),
-        });
-      });
-    });
+    const addReview = (rev: ReviewWithProduct) => {
+      if (!rev || !rev.id || !rev.author || !rev.comment) return;
+      if ((rev as any).isDeleted) return;
+      const cleanId = String(rev.id).trim();
+      const sig = `${rev.author.trim().toLowerCase()}_${rev.comment.trim().toLowerCase()}`;
+      if (!seenIds.has(cleanId) && !seenSignatures.has(sig)) {
+        seenIds.add(cleanId);
+        seenSignatures.add(sig);
+        combined.push(rev);
+      }
+    };
 
-    // 2. Merge all Firestore product_reviews collection items
+    // 1. Merge all Firestore product_reviews collection items first
     firestoreReviews.forEach((fr) => {
       const pId = fr.productId || products[0]?.id || 'pearl-beaded-bag';
       const matchedProd = products.find(p => p.id === pId || p.title?.toLowerCase() === fr.productTitle?.toLowerCase()) || products[0];
       const prodTitle = fr.productTitle || matchedProd?.title || 'Pearl Beaded Bag';
       const prodImage = matchedProd ? getRealProductImage(matchedProd.title, matchedProd.images?.[0]) : getRealProductImage(prodTitle, '');
 
-      map.set(fr.id, {
+      addReview({
         id: fr.id,
         author: fr.author,
         location: fr.location || 'Kathmandu, Nepal',
@@ -117,7 +118,20 @@ export const SellerReviewsModal: React.FC = () => {
       });
     });
 
-    return Array.from(map.values());
+    // 2. Load product-level custom reviews & curated fallback reviews
+    products.forEach((prod) => {
+      const prodReviews = getProductReviews(prod);
+      prodReviews.forEach((rev) => {
+        addReview({
+          ...rev,
+          productId: prod.id,
+          productTitle: prod.title,
+          productImage: getRealProductImage(prod.title, prod.images?.[0]),
+        });
+      });
+    });
+
+    return combined;
   }, [products, firestoreReviews]);
 
   // Filter and search reviews

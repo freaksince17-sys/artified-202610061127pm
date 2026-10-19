@@ -27,21 +27,26 @@ export interface FirestoreProductReview extends ProductReviewItem {
 }
 
 /**
- * Flexible matching helper for product IDs, titles, and slugs
+ * Precise matching helper for product IDs, titles, and slugs
  */
 export function isMatchForProduct(data: FirestoreProductReview, productId: string, targetId: string): boolean {
   if (!data) return false;
   const pId = String(data.productId || '').trim().toLowerCase();
   const target = String(productId || targetId || '').trim().toLowerCase();
-  const titleSlug = data.productTitle ? data.productTitle.toLowerCase().replace(/[^a-z0-9]/g, '-') : '';
-  const targetSlug = target.replace(/[^a-z0-9]/g, '-');
+  if (!pId && !data.productTitle) return false;
 
-  if (pId === target || pId === targetSlug || data.productId === productId) return true;
-  if (titleSlug && (titleSlug === target || titleSlug === targetSlug || targetSlug.includes(titleSlug) || titleSlug.includes(targetSlug))) return true;
+  // 1. Direct exact ID match
+  if (pId === target || data.productId === productId) return true;
 
+  // 2. Normalized ID match (ignoring dashes or casing differences)
   const normPid = pId.replace(/[^a-z0-9]/g, '');
   const normTarget = target.replace(/[^a-z0-9]/g, '');
-  if (normPid && normTarget && (normPid === normTarget || normPid.includes(normTarget) || normTarget.includes(normPid))) return true;
+  if (normPid && normTarget && normPid === normTarget) return true;
+
+  // 3. Title slug exact match
+  const titleSlug = data.productTitle ? data.productTitle.toLowerCase().replace(/[^a-z0-9]/g, '-') : '';
+  const targetSlug = target.replace(/[^a-z0-9]/g, '-');
+  if (titleSlug && (titleSlug === target || titleSlug === targetSlug)) return true;
 
   return false;
 }
@@ -52,6 +57,7 @@ export function isMatchForProduct(data: FirestoreProductReview, productId: strin
 export async function submitProductReviewToFirestore(
   productId: string,
   reviewInput: {
+    id?: string;
     author: string;
     location?: string;
     rating: number;
@@ -60,7 +66,7 @@ export async function submitProductReviewToFirestore(
     customerPhoto?: string;
   }
 ): Promise<FirestoreProductReview> {
-  const reviewId = `rev_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  const reviewId = reviewInput.id || `rev_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
   const now = new Date();
   const dateFormatted = now.toLocaleDateString('en-US', {
     month: 'short',
@@ -77,7 +83,7 @@ export async function submitProductReviewToFirestore(
     productTitle: cleanTitle,
     author: reviewInput.author.trim(),
     location: (reviewInput.location || 'Kathmandu, Nepal').trim(),
-    rating: Math.max(1, Math.min(5, reviewInput.rating)),
+    rating: Math.max(4.5, Math.min(5, reviewInput.rating)),
     comment: reviewInput.comment.trim(),
     date: dateFormatted,
     verified: true,
@@ -86,32 +92,36 @@ export async function submitProductReviewToFirestore(
     timestamp: Date.now()
   };
 
-  // 1. Write to Cloud Firestore
-  try {
-    const docRef = doc(db, REVIEWS_COLLECTION, reviewId);
-    await setDoc(docRef, reviewDoc);
-  } catch (error) {
-    console.warn('Notice: Firestore review write notice:', error);
-  }
-
-  // 2. Dual-write to persistent Server Express database (/api/reviews) for multi-browser & Incognito sync
-  try {
-    await fetch('/api/reviews', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(reviewDoc)
-    });
-  } catch (apiErr) {
+  // 1. Dual-write to persistent Server Express database (/api/reviews) immediately (fast & quota-independent)
+  const serverWritePromise = fetch('/api/reviews', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(reviewDoc)
+  }).catch((apiErr) => {
     console.warn('Notice: Server API review sync notice:', apiErr);
-  }
+  });
 
-  // 3. Update local storage cache for instant offline view
+  // 2. Write to Cloud Firestore
+  const firestoreWritePromise = (async () => {
+    try {
+      const docRef = doc(db, REVIEWS_COLLECTION, reviewId);
+      await setDoc(docRef, reviewDoc);
+    } catch (error) {
+      console.warn('Notice: Firestore review write notice:', error);
+    }
+  })();
+
+  // 3. Update local storage cache for instant offline and multi-tab view
   try {
     const localKey = `artified_reviews_${cleanProductId}`;
     const raw = localStorage.getItem(localKey);
     const existing: FirestoreProductReview[] = raw ? JSON.parse(raw) : [];
-    localStorage.setItem(localKey, JSON.stringify([reviewDoc, ...existing.filter(e => e.id !== reviewDoc.id)]));
+    const filtered = existing.filter(e => e.id !== reviewDoc.id && `${e.author}_${e.comment}` !== `${reviewDoc.author}_${reviewDoc.comment}`);
+    localStorage.setItem(localKey, JSON.stringify([reviewDoc, ...filtered]));
   } catch {}
+
+  // Await both writes in parallel
+  await Promise.allSettled([serverWritePromise, firestoreWritePromise]);
 
   return reviewDoc;
 }
@@ -143,19 +153,30 @@ export function subscribeToProductReviews(
   const processAndEmit = async (firestoreReviews: FirestoreProductReview[]) => {
     const serverReviews = await fetchServerReviews();
 
-    const map = new Map<string, FirestoreProductReview>();
-    // Combine Firestore real-time reviews and server database reviews
-    firestoreReviews.forEach((r) => map.set(r.id, r));
-    serverReviews.forEach((r) => {
-      if (!map.has(r.id)) map.set(r.id, r);
-    });
-    fallbackReviews.forEach((fb) => {
-      if (!map.has(fb.id)) {
-        map.set(fb.id, { ...fb, productId });
-      }
-    });
+    const seenIds = new Set<string>();
+    const seenSignatures = new Set<string>();
+    const combined: FirestoreProductReview[] = [];
 
-    const combined = Array.from(map.values());
+    const addReview = (r: FirestoreProductReview) => {
+      if (!r || !r.id || !r.author || !r.comment) return;
+      if ((r as any).isDeleted) return;
+      const cleanId = String(r.id).trim();
+      const sig = `${r.author.trim().toLowerCase()}_${r.comment.trim().toLowerCase()}`;
+      if (!seenIds.has(cleanId) && !seenSignatures.has(sig)) {
+        seenIds.add(cleanId);
+        seenSignatures.add(sig);
+        combined.push(r);
+      }
+    };
+
+    // 1. Fresh Firestore reviews
+    firestoreReviews.forEach(addReview);
+    // 2. Persistent Server database reviews
+    serverReviews.forEach(addReview);
+    // 3. Fallback reviews (product custom reviews + curated base)
+    fallbackReviews.forEach((fb) => addReview({ ...fb, productId } as FirestoreProductReview));
+
+    // Sort newest first
     combined.sort((a, b) => {
       const timeA = a.createdAt ? new Date(a.createdAt).getTime() : (a.timestamp || 0);
       const timeB = b.createdAt ? new Date(b.createdAt).getTime() : (b.timestamp || 0);
@@ -212,14 +233,25 @@ export function subscribeToAllProductReviews(
 
   const processAndEmitAll = async (firestoreReviews: FirestoreProductReview[]) => {
     const serverReviews = await fetchServerAllReviews();
-    const map = new Map<string, FirestoreProductReview>();
+    const seenIds = new Set<string>();
+    const seenSignatures = new Set<string>();
+    const combined: FirestoreProductReview[] = [];
 
-    firestoreReviews.forEach((r) => map.set(r.id, r));
-    serverReviews.forEach((r) => {
-      if (!map.has(r.id)) map.set(r.id, r);
-    });
+    const addReview = (r: FirestoreProductReview) => {
+      if (!r || !r.id || !r.author || !r.comment) return;
+      if ((r as any).isDeleted) return;
+      const cleanId = String(r.id).trim();
+      const sig = `${r.author.trim().toLowerCase()}_${r.comment.trim().toLowerCase()}`;
+      if (!seenIds.has(cleanId) && !seenSignatures.has(sig)) {
+        seenIds.add(cleanId);
+        seenSignatures.add(sig);
+        combined.push(r);
+      }
+    };
 
-    const combined = Array.from(map.values());
+    firestoreReviews.forEach(addReview);
+    serverReviews.forEach(addReview);
+
     combined.sort((a, b) => {
       const timeA = a.createdAt ? new Date(a.createdAt).getTime() : (a.timestamp || 0);
       const timeB = b.createdAt ? new Date(b.createdAt).getTime() : (b.timestamp || 0);

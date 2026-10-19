@@ -117,7 +117,7 @@ interface CartContextType {
   logoutUser: () => Promise<void>;
   isWishlistCloudSynced: boolean;
   quickViewProduct: Product | null;
-  setQuickViewProduct: (product: Product | null) => void;
+  setQuickViewProduct: React.Dispatch<React.SetStateAction<Product | null>>;
   activeReel: TikTokReel | null;
   setActiveReel: (reel: TikTokReel | null) => void;
   searchQuery: string;
@@ -966,9 +966,10 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         localStorage.setItem('artified_price_list_v2026', 'true');
       }
 
-      const saved = localStorage.getItem('artified_products_custom');
+      const saved = localStorage.getItem('artified_products_v3') || localStorage.getItem('artified_products_custom');
       if (saved) {
-        if (saved.length > 500000) {
+        if (saved.length > 800000) {
+          localStorage.removeItem('artified_products_v3');
           localStorage.removeItem('artified_products_custom');
         } else {
           const parsed = JSON.parse(saved);
@@ -1203,6 +1204,20 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setProducts(updatedProducts);
       try {
         localStorage.setItem('artified_products_v3', JSON.stringify(updatedProducts));
+      } catch {}
+
+      // Dual-write to Server Express database (/api/reviews) immediately
+      try {
+        const prod = products.find(p => p.id === productId);
+        fetch('/api/reviews', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...sanitized,
+            productId,
+            productTitle: prod?.title || ''
+          })
+        }).catch(() => {});
       } catch {}
 
       try {

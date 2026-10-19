@@ -101,8 +101,9 @@ async function startServer() {
     return res.status(404).send('Not found');
   });
 
-  // Path to persistent reviews database file
+  // Path to persistent reviews database files (both runtime tmp and seed codebase)
   const reviewsJsonPath = path.resolve(dataDir, 'reviews.json');
+  const seedReviewsJsonPath = path.resolve(seedDataDir, 'reviews.json');
 
   // GET /api/products
   app.get('/api/products', (_req, res) => {
@@ -118,17 +119,41 @@ async function startServer() {
     }
   });
 
+  // Helper to load reviews safely from disk
+  const loadStoredReviews = (): any[] => {
+    if (fs.existsSync(reviewsJsonPath)) {
+      try {
+        const data = fs.readFileSync(reviewsJsonPath, 'utf-8');
+        return JSON.parse(data);
+      } catch {}
+    }
+    if (fs.existsSync(seedReviewsJsonPath)) {
+      try {
+        const data = fs.readFileSync(seedReviewsJsonPath, 'utf-8');
+        return JSON.parse(data);
+      } catch {}
+    }
+    return [];
+  };
+
+  // Helper to save reviews safely to disk in both runtime and seed locations
+  const saveStoredReviews = (reviews: any[]) => {
+    try {
+      fs.writeFileSync(reviewsJsonPath, JSON.stringify(reviews, null, 2), 'utf-8');
+    } catch {}
+    try {
+      fs.writeFileSync(seedReviewsJsonPath, JSON.stringify(reviews, null, 2), 'utf-8');
+    } catch {}
+  };
+
   // GET /api/reviews - Persistent server review store
   app.get('/api/reviews', (_req, res) => {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     try {
-      if (fs.existsSync(reviewsJsonPath)) {
-        const data = fs.readFileSync(reviewsJsonPath, 'utf-8');
-        return res.json(JSON.parse(data));
-      }
-      return res.json([]);
+      const allReviews = loadStoredReviews();
+      return res.json(allReviews);
     } catch (err) {
-      console.error('Error reading reviews.json:', err);
+      console.error('Error reading reviews:', err);
       return res.status(500).json({ error: 'Failed to read reviews' });
     }
   });
@@ -141,31 +166,42 @@ async function startServer() {
         return res.status(400).json({ error: 'Valid review with id is required' });
       }
 
-      let existingReviews: any[] = [];
-      if (fs.existsSync(reviewsJsonPath)) {
-        try {
-          existingReviews = JSON.parse(fs.readFileSync(reviewsJsonPath, 'utf-8'));
-        } catch {}
-      }
+      const existingReviews = loadStoredReviews();
+      const incomingSig = `${(incomingReview.author || '').trim().toLowerCase()}_${(incomingReview.comment || '').trim().toLowerCase()}`;
 
-      // De-duplicate / update existing review by id
-      const filtered = existingReviews.filter((r: any) => r.id !== incomingReview.id);
+      // De-duplicate by both ID and author+comment signature
+      const filtered = existingReviews.filter((r: any) => {
+        if (!r) return false;
+        if (r.id === incomingReview.id) return false;
+        const rSig = `${(r.author || '').trim().toLowerCase()}_${(r.comment || '').trim().toLowerCase()}`;
+        if (incomingSig && rSig === incomingSig) return false;
+        return true;
+      });
+
       const updatedList = [incomingReview, ...filtered];
+      saveStoredReviews(updatedList);
 
-      // Save to server reviews.json disk file
-      fs.writeFileSync(reviewsJsonPath, JSON.stringify(updatedList, null, 2), 'utf-8');
-
-      // Also attach to product's customReviews in products.json if productId or title matches
+      // Also attach to product's customReviews in products.json if productId or title strictly matches
       if (fs.existsSync(productsJsonPath)) {
         try {
           const productList = JSON.parse(fs.readFileSync(productsJsonPath, 'utf-8'));
+          const inProdId = String(incomingReview.productId || '').trim().toLowerCase();
+          const inTitle = String(incomingReview.productTitle || '').trim().toLowerCase();
+
           const updatedProducts = productList.map((p: any) => {
-            const isMatch = p.id === incomingReview.productId || 
-                            p.title?.toLowerCase() === incomingReview.productTitle?.toLowerCase() ||
-                            (p.title && incomingReview.productId && p.title.toLowerCase().replace(/[^a-z0-9]/g, '-') === incomingReview.productId.toLowerCase());
+            const pId = String(p.id || '').trim().toLowerCase();
+            const pTitle = String(p.title || '').trim().toLowerCase();
+            const isMatch = (inProdId && pId === inProdId) || (inTitle && pTitle === inTitle);
+
             if (isMatch) {
               const currentCustom = p.customReviews || [];
-              const cleanCustom = currentCustom.filter((cr: any) => cr.id !== incomingReview.id);
+              const cleanCustom = currentCustom.filter((cr: any) => {
+                if (!cr) return false;
+                if (cr.id === incomingReview.id) return false;
+                const crSig = `${(cr.author || '').trim().toLowerCase()}_${(cr.comment || '').trim().toLowerCase()}`;
+                if (incomingSig && crSig === incomingSig) return false;
+                return true;
+              });
               return {
                 ...p,
                 customReviews: [incomingReview, ...cleanCustom]
@@ -190,13 +226,9 @@ async function startServer() {
       const reviewId = req.params.id;
       if (!reviewId) return res.status(400).json({ error: 'Review ID required' });
 
-      if (fs.existsSync(reviewsJsonPath)) {
-        try {
-          const reviews = JSON.parse(fs.readFileSync(reviewsJsonPath, 'utf-8'));
-          const filtered = reviews.filter((r: any) => r.id !== reviewId);
-          fs.writeFileSync(reviewsJsonPath, JSON.stringify(filtered, null, 2), 'utf-8');
-        } catch {}
-      }
+      const existingReviews = loadStoredReviews();
+      const filtered = existingReviews.filter((r: any) => r.id !== reviewId);
+      saveStoredReviews(filtered);
 
       if (fs.existsSync(productsJsonPath)) {
         try {

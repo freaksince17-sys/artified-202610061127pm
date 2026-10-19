@@ -295,9 +295,9 @@ const ComparisonColumn: React.FC<ComparisonColumnProps> = ({
   const productReviews = React.useMemo(() => getProductReviews(product), [product]);
   const reviewsCount = productReviews.length > 0 ? productReviews.length : calculateReviewsCount(product);
   const rawRatingVal = productReviews.length > 0
-    ? (productReviews.reduce((acc, r) => acc + (r.rating || 4.7), 0) / productReviews.length)
-    : (product.rating ? Number(product.rating) : 4.7);
-  const averageRatingVal = Math.min(4.8, Math.max(4.0, rawRatingVal));
+    ? (productReviews.reduce((acc, r) => acc + (r.rating || 4.8), 0) / productReviews.length)
+    : (product.rating ? Number(product.rating) : 4.8);
+  const averageRatingVal = Math.min(5.0, Math.max(4.5, rawRatingVal));
   const averageRatingStr = averageRatingVal.toFixed(1);
 
   const totalSold = calculateTotalSold(product);

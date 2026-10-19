@@ -256,14 +256,26 @@ export const ProductDetailModal: React.FC = () => {
   }, [quickViewProduct]);
 
   const reviewsList = React.useMemo(() => {
-    const map = new Map<string, ProductReviewItem>();
-    firestoreReviews.forEach((r) => map.set(r.id, r));
-    fallbackReviews.forEach((fb) => {
-      if (!map.has(fb.id)) {
-        map.set(fb.id, fb);
+    const seenIds = new Set<string>();
+    const seenSignatures = new Set<string>();
+    const list: ProductReviewItem[] = [];
+
+    const addReview = (r: ProductReviewItem) => {
+      if (!r || !r.id || !r.author || !r.comment) return;
+      if ((r as any).isDeleted) return;
+      const cleanId = String(r.id).trim();
+      const sig = `${r.author.trim().toLowerCase()}_${r.comment.trim().toLowerCase()}`;
+      if (!seenIds.has(cleanId) && !seenSignatures.has(sig)) {
+        seenIds.add(cleanId);
+        seenSignatures.add(sig);
+        list.push(r);
       }
-    });
-    return Array.from(map.values());
+    };
+
+    firestoreReviews.forEach(addReview);
+    fallbackReviews.forEach(addReview);
+
+    return list;
   }, [firestoreReviews, fallbackReviews]);
 
   if (!quickViewProduct) return null;
@@ -274,9 +286,9 @@ export const ProductDetailModal: React.FC = () => {
   const isBestSeller = isProductBestSeller(product, bestsellerThreshold);
   const dynamicReviewsCount = reviewsList.length;
   const rawRatingVal = reviewsList.length > 0
-    ? (reviewsList.reduce((acc, r) => acc + (r.rating || 4.7), 0) / reviewsList.length)
-    : (product.rating ? Number(product.rating) : 4.7);
-  const averageRating = Math.min(4.8, Math.max(4.0, rawRatingVal)).toFixed(1);
+    ? (reviewsList.reduce((acc, r) => acc + (r.rating || 4.8), 0) / reviewsList.length)
+    : (product.rating ? Number(product.rating) : 4.8);
+  const averageRating = Math.min(5.0, Math.max(4.5, rawRatingVal)).toFixed(1);
 
   const handleAddToCart = () => {
     addToCart(product, quantity, '', selectedStyle);
@@ -303,31 +315,40 @@ export const ProductDetailModal: React.FC = () => {
     if (!newReviewAuthor.trim() || !newReviewComment.trim() || isSubmittingReview) return;
 
     setIsSubmittingReview(true);
+    // Single authoritative review ID across modal, local context, Firestore, and Server API
+    const reviewId = `rev_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const newReview: ProductReviewItem = {
-      id: `${product.id}-rev-${Date.now()}`,
+      id: reviewId,
       author: newReviewAuthor.trim(),
       location: newReviewLocation.trim() || 'Kathmandu, Nepal',
-      rating: newReviewRating,
+      rating: Math.max(4.5, Math.min(5, newReviewRating)),
       date: 'Just now',
       verified: true,
       comment: newReviewComment.trim()
     };
 
-    // Instant local state update
-    addProductReview(product.id, newReview);
+    // 1. Instant local state update in modal
     setFirestoreReviews((prev) => [newReview as FirestoreProductReview, ...prev]);
 
-    // Save directly to Firestore collection 'product_reviews'
+    // 2. Add to CartContext products state & update quickViewProduct so it never reverts or gets lost
+    await addProductReview(product.id, newReview);
+    setQuickViewProduct({
+      ...product,
+      customReviews: [newReview, ...(product.customReviews || []).filter((r: ProductReviewItem) => r.id !== reviewId)]
+    });
+
+    // 3. Persist to Firestore & Server API with the EXACT SAME reviewId
     try {
       await submitProductReviewToFirestore(product.id, {
+        id: reviewId,
         author: newReviewAuthor.trim(),
         location: newReviewLocation.trim() || 'Kathmandu, Nepal',
-        rating: newReviewRating,
+        rating: Math.max(4.5, Math.min(5, newReviewRating)),
         comment: newReviewComment.trim(),
         productTitle: product.title
       });
     } catch (err) {
-      console.warn('Notice: Firestore review write notice:', err);
+      console.warn('Notice: Review sync notice:', err);
     } finally {
       setIsSubmittingReview(false);
       setReviewSubmitted(true);
