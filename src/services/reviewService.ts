@@ -58,7 +58,8 @@ export async function submitProductReviewToFirestore(
     date: dateFormatted,
     verified: true,
     customerPhoto: reviewInput.customerPhoto,
-    createdAt: now.toISOString()
+    createdAt: now.toISOString(),
+    timestamp: Date.now()
   };
 
   try {
@@ -73,7 +74,7 @@ export async function submitProductReviewToFirestore(
     const localKey = `artified_reviews_${productId}`;
     const raw = localStorage.getItem(localKey);
     const existing: FirestoreProductReview[] = raw ? JSON.parse(raw) : [];
-    localStorage.setItem(localKey, JSON.stringify([reviewDoc, ...existing]));
+    localStorage.setItem(localKey, JSON.stringify([reviewDoc, ...existing.filter(e => e.id !== reviewDoc.id)]));
   } catch {}
 
   return reviewDoc;
@@ -88,6 +89,7 @@ export function subscribeToProductReviews(
   fallbackReviews: ProductReviewItem[] = []
 ): () => void {
   const collectionRef = collection(db, REVIEWS_COLLECTION);
+  const targetId = String(productId || '').trim().toLowerCase();
   
   // Real-time listener on all reviews for this product
   const unsubscribe = onSnapshot(
@@ -96,15 +98,18 @@ export function subscribeToProductReviews(
       const firestoreReviews: FirestoreProductReview[] = [];
       snapshot.forEach((docSnap: any) => {
         const data = docSnap.data() as FirestoreProductReview;
-        if (data.productId === productId) {
-          firestoreReviews.push(data);
+        if (data && data.productId) {
+          const pId = String(data.productId).trim().toLowerCase();
+          if (pId === targetId || data.productId === productId || (data.productTitle && data.productTitle.toLowerCase().replace(/[^a-z0-9]/g, '-') === targetId)) {
+            firestoreReviews.push(data);
+          }
         }
       });
 
       // Sort by newest first
       firestoreReviews.sort((a, b) => {
-        const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-        const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        const timeA = a.createdAt ? new Date(a.createdAt).getTime() : (a.timestamp || 0);
+        const timeB = b.createdAt ? new Date(b.createdAt).getTime() : (b.timestamp || 0);
         return timeB - timeA;
       });
 

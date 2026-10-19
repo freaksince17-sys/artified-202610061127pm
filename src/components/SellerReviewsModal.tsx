@@ -172,6 +172,9 @@ export const SellerReviewsModal: React.FC = () => {
     setIsReviewsManagerOpen(false);
     setReviewsManagerProductId(null);
     setIsEditing(false);
+    setFormAuthor('');
+    setFormComment('');
+    setFormLocation('Kathmandu, Nepal');
   };
 
   return (
@@ -181,24 +184,24 @@ export const SellerReviewsModal: React.FC = () => {
         onClick={handleClose} 
       />
 
-      <div className="relative bg-[#FAF8F5] w-full max-w-4xl rounded-2xl shadow-2xl border border-[#E8DFD8] overflow-hidden z-10 flex flex-col max-h-[92vh]">
+      <div className="relative bg-[#FAF8F5] dark:bg-[#181716] w-full max-w-4xl rounded-2xl shadow-2xl border border-[#E8DFD8] dark:border-[#3D3A36] overflow-hidden z-10 flex flex-col max-h-[92vh]">
         
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#E8DFD8] bg-white sticky top-0 z-20">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#E8DFD8] dark:border-[#3D3A36] bg-white dark:bg-[#222120] sticky top-0 z-20">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-full bg-[#1C1B1A] text-[#D4AF37] flex items-center justify-center shadow-xs">
               <Star className="w-4 h-4 fill-current" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="font-serif text-base sm:text-lg font-bold text-[#1C1B1A]">
+                <h2 className="font-serif text-base sm:text-lg font-bold text-[#1C1B1A] dark:text-[#FAF8F5]">
                   Customer Reviews Manager
                 </h2>
                 <span className="text-[10px] font-semibold text-[#D4AF37] bg-[#1C1B1A] px-2 py-0.5 rounded-full uppercase tracking-wider">
                   Seller Studio
                 </span>
               </div>
-              <p className="text-[11px] text-[#736C65]">
+              <p className="text-[11px] text-[#736C65] dark:text-[#A69E96]">
                 Edit reviewer names, locations in Nepal, ratings, and reassign reviews across pieces
               </p>
             </div>
@@ -218,7 +221,7 @@ export const SellerReviewsModal: React.FC = () => {
 
             <button
               onClick={handleClose}
-              className="p-2 rounded-full border border-[#E8DFD8] text-[#736C65] hover:text-[#1C1B1A] hover:bg-[#FAF8F5] transition-colors"
+              className="p-2 rounded-full border border-[#E8DFD8] dark:border-[#3D3A36] text-[#736C65] dark:text-[#A69E96] hover:text-[#1C1B1A] dark:hover:text-[#FAF8F5] hover:bg-[#FAF8F5] dark:hover:bg-[#2C2A28] transition-colors"
               aria-label="Close modal"
             >
               <X className="w-5 h-5" />
@@ -228,8 +231,8 @@ export const SellerReviewsModal: React.FC = () => {
 
         {/* Notice toast */}
         {saveNotice && (
-          <div className="bg-emerald-50 border-b border-emerald-200 px-6 py-2.5 text-xs text-emerald-800 font-medium flex items-center gap-2">
-            <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+          <div className="bg-emerald-50 dark:bg-emerald-950/60 border-b border-emerald-200 dark:border-emerald-800 px-6 py-2.5 text-xs text-emerald-800 dark:text-emerald-300 font-medium flex items-center gap-2">
+            <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
             <span>{saveNotice}</span>
           </div>
         )}
@@ -239,20 +242,20 @@ export const SellerReviewsModal: React.FC = () => {
           
           {/* EDITOR FORM VIEW */}
           {isEditing ? (
-            <form onSubmit={handleSaveForm} className="bg-white p-5 sm:p-6 rounded-2xl border border-[#E8DFD8] shadow-sm space-y-4 animate-fade-in">
-              <div className="flex items-center justify-between pb-3 border-b border-[#F0EBE5]">
-                <h3 className="text-sm font-bold uppercase tracking-wider text-[#1C1B1A] flex items-center gap-2">
+            <form onSubmit={handleSaveForm} className="bg-white dark:bg-[#222120] p-5 sm:p-6 rounded-2xl border border-[#E8DFD8] dark:border-[#3D3A36] shadow-sm space-y-4 animate-fade-in">
+              <div className="flex items-center justify-between pb-3 border-b border-[#F0EBE5] dark:border-[#33312E]">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-[#1C1B1A] dark:text-[#FAF8F5] flex items-center gap-2">
                   <Edit3 className="w-4 h-4 text-[#C5A880]" />
                   <span>{editingReviewId ? 'Edit Product Review' : 'Create Customer Review'}</span>
                 </h3>
-                <span className="text-[11px] text-[#8C7A6B]">
+                <span className="text-[11px] text-[#8C7A6B] dark:text-[#A69E96]">
                   Seller Studio Authorization
                 </span>
               </div>
 
               {/* 1. Target Product Selector (Can reassign to ANY product!) */}
-              <div className="p-3 bg-[#FAF8F5] rounded-xl border border-[#E8DFD8] space-y-1.5">
-                <label className="block text-xs font-bold text-[#1C1B1A] flex items-center gap-1.5">
+              <div className="p-3 bg-[#FAF8F5] dark:bg-[#181716] rounded-xl border border-[#E8DFD8] dark:border-[#3D3A36] space-y-1.5">
+                <label className="block text-xs font-bold text-[#1C1B1A] dark:text-[#FAF8F5] flex items-center gap-1.5">
                   <Package className="w-3.5 h-3.5 text-[#C5A880]" />
                   <span>Product Being Reviewed *</span>
                 </label>
@@ -260,7 +263,7 @@ export const SellerReviewsModal: React.FC = () => {
                   required
                   value={formProductId}
                   onChange={(e) => setFormProductId(e.target.value)}
-                  className="w-full text-xs p-2.5 bg-white border border-[#D5C7BC] rounded-lg focus:outline-none focus:border-[#1C1B1A] font-medium text-[#1C1B1A]"
+                  className="w-full text-xs p-2.5 bg-white dark:bg-[#1A1918] border border-[#D5C7BC] dark:border-[#3D3A36] rounded-lg focus:outline-none focus:border-[#1C1B1A] font-medium text-[#1C1B1A] dark:text-[#F5F2EB]"
                 >
                   {products.map((p) => (
                     <option key={p.id} value={p.id}>
@@ -269,7 +272,7 @@ export const SellerReviewsModal: React.FC = () => {
                   ))}
                 </select>
                 {originalProductId && formProductId !== originalProductId && (
-                  <p className="text-[11px] text-amber-700 bg-amber-50 p-1.5 rounded border border-amber-200 mt-1">
+                  <p className="text-[11px] text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/50 p-1.5 rounded border border-amber-200 dark:border-amber-800 mt-1">
                     ℹ️ This review will be moved from its current product to <strong>{products.find(p => p.id === formProductId)?.title}</strong>.
                   </p>
                 )}
@@ -278,8 +281,8 @@ export const SellerReviewsModal: React.FC = () => {
               {/* 2. Reviewer Name & Location */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div>
-                  <label className="block text-xs font-semibold text-[#1C1B1A] mb-1 flex items-center gap-1">
-                    <User className="w-3 h-3 text-[#8C7A6B]" />
+                  <label className="block text-xs font-semibold text-[#1C1B1A] dark:text-[#FAF8F5] mb-1 flex items-center gap-1">
+                    <User className="w-3 h-3 text-[#8C7A6B] dark:text-[#A69E96]" />
                     <span>Reviewer Name *</span>
                   </label>
                   <input
@@ -288,13 +291,13 @@ export const SellerReviewsModal: React.FC = () => {
                     value={formAuthor}
                     onChange={(e) => setFormAuthor(e.target.value)}
                     placeholder="e.g. Alisha Shrestha"
-                    className="w-full text-xs p-2.5 bg-[#FAF8F5] border border-[#D5C7BC] rounded-lg focus:outline-none focus:border-[#1C1B1A]"
+                    className="w-full text-xs p-2.5 bg-[#FAF8F5] dark:bg-[#1A1918] text-[#1C1B1A] dark:text-[#F5F2EB] placeholder:text-[#A69E96] dark:placeholder:text-[#8C857B] border border-[#D5C7BC] dark:border-[#3D3A36] rounded-lg focus:outline-none focus:border-[#C5A880]"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-[#1C1B1A] mb-1 flex items-center gap-1">
-                    <MapPin className="w-3 h-3 text-[#8C7A6B]" />
+                  <label className="block text-xs font-semibold text-[#1C1B1A] dark:text-[#FAF8F5] mb-1 flex items-center gap-1">
+                    <MapPin className="w-3 h-3 text-[#8C7A6B] dark:text-[#A69E96]" />
                     <span>Location in Nepal *</span>
                   </label>
                   <input
@@ -303,7 +306,7 @@ export const SellerReviewsModal: React.FC = () => {
                     value={formLocation}
                     onChange={(e) => setFormLocation(e.target.value)}
                     placeholder="e.g. Kathmandu, Nepal"
-                    className="w-full text-xs p-2.5 bg-[#FAF8F5] border border-[#D5C7BC] rounded-lg focus:outline-none focus:border-[#1C1B1A]"
+                    className="w-full text-xs p-2.5 bg-[#FAF8F5] dark:bg-[#1A1918] text-[#1C1B1A] dark:text-[#F5F2EB] placeholder:text-[#A69E96] dark:placeholder:text-[#8C857B] border border-[#D5C7BC] dark:border-[#3D3A36] rounded-lg focus:outline-none focus:border-[#C5A880]"
                   />
                 </div>
               </div>
@@ -311,7 +314,7 @@ export const SellerReviewsModal: React.FC = () => {
               {/* 3. Star Rating & Date */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 items-center">
                 <div>
-                  <label className="block text-xs font-semibold text-[#1C1B1A] mb-1">
+                  <label className="block text-xs font-semibold text-[#1C1B1A] dark:text-[#FAF8F5] mb-1">
                     Rating (1–5 Stars)
                   </label>
                   <div className="flex items-center gap-1.5">
@@ -326,20 +329,20 @@ export const SellerReviewsModal: React.FC = () => {
                           className={`w-5 h-5 ${
                             star <= formRating
                               ? 'fill-amber-400 text-amber-400'
-                              : 'text-zinc-200'
+                              : 'text-zinc-200 dark:text-zinc-700'
                           }`}
                         />
                       </button>
                     ))}
-                    <span className="text-xs font-bold text-[#1C1B1A] ml-2">
+                    <span className="text-xs font-bold text-[#1C1B1A] dark:text-[#FAF8F5] ml-2">
                       {formRating} Star{formRating > 1 ? 's' : ''}
                     </span>
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-[#1C1B1A] mb-1 flex items-center gap-1">
-                    <Calendar className="w-3 h-3 text-[#8C7A6B]" />
+                  <label className="block text-xs font-semibold text-[#1C1B1A] dark:text-[#FAF8F5] mb-1 flex items-center gap-1">
+                    <Calendar className="w-3 h-3 text-[#8C7A6B] dark:text-[#A69E96]" />
                     <span>Display Date</span>
                   </label>
                   <input
@@ -347,14 +350,14 @@ export const SellerReviewsModal: React.FC = () => {
                     value={formDate}
                     onChange={(e) => setFormDate(e.target.value)}
                     placeholder="e.g. Yesterday / 3 days ago / 1 week ago"
-                    className="w-full text-xs p-2.5 bg-[#FAF8F5] border border-[#D5C7BC] rounded-lg focus:outline-none focus:border-[#1C1B1A]"
+                    className="w-full text-xs p-2.5 bg-[#FAF8F5] dark:bg-[#1A1918] text-[#1C1B1A] dark:text-[#F5F2EB] placeholder:text-[#A69E96] dark:placeholder:text-[#8C857B] border border-[#D5C7BC] dark:border-[#3D3A36] rounded-lg focus:outline-none focus:border-[#C5A880]"
                   />
                 </div>
               </div>
 
               {/* 4. Review Comment */}
               <div>
-                <label className="block text-xs font-semibold text-[#1C1B1A] mb-1">
+                <label className="block text-xs font-semibold text-[#1C1B1A] dark:text-[#FAF8F5] mb-1">
                   Customer Review Comment *
                 </label>
                 <textarea
@@ -363,7 +366,7 @@ export const SellerReviewsModal: React.FC = () => {
                   value={formComment}
                   onChange={(e) => setFormComment(e.target.value)}
                   placeholder="Share details on bead weave tension, pearl luster, styling with lehenga/saree, or delivery speed..."
-                  className="w-full text-xs p-2.5 bg-[#FAF8F5] border border-[#D5C7BC] rounded-lg focus:outline-none focus:border-[#1C1B1A] leading-relaxed"
+                  className="w-full text-xs p-2.5 bg-[#FAF8F5] dark:bg-[#1A1918] text-[#1C1B1A] dark:text-[#F5F2EB] placeholder:text-[#A69E96] dark:placeholder:text-[#8C857B] border border-[#D5C7BC] dark:border-[#3D3A36] rounded-lg focus:outline-none focus:border-[#C5A880] leading-relaxed"
                 />
               </div>
 
@@ -375,18 +378,22 @@ export const SellerReviewsModal: React.FC = () => {
                   onChange={(e) => setFormVerified(e.target.checked)}
                   className="rounded text-[#C5A880] focus:ring-[#C5A880] w-4 h-4 cursor-pointer"
                 />
-                <span className="text-xs font-medium text-[#1C1B1A] flex items-center gap-1">
-                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                <span className="text-xs font-medium text-[#1C1B1A] dark:text-[#FAF8F5] flex items-center gap-1">
+                  <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                   <span>Show "Verified Purchase" badge on this review</span>
                 </span>
               </label>
 
               {/* Buttons */}
-              <div className="flex items-center justify-between pt-3 border-t border-[#F0EBE5]">
+              <div className="flex items-center justify-between pt-3 border-t border-[#F0EBE5] dark:border-[#33312E]">
                 <button
                   type="button"
-                  onClick={() => setIsEditing(false)}
-                  className="px-4 py-2 text-xs font-semibold text-[#736C65] hover:text-[#1C1B1A] transition-colors"
+                  onClick={() => {
+                    setIsEditing(false);
+                    setFormAuthor('');
+                    setFormComment('');
+                  }}
+                  className="px-4 py-2 text-xs font-semibold text-[#736C65] dark:text-[#A69E96] hover:text-[#1C1B1A] dark:hover:text-[#FAF8F5] transition-colors"
                 >
                   Cancel
                 </button>
@@ -404,21 +411,21 @@ export const SellerReviewsModal: React.FC = () => {
             /* REVIEWS LIST VIEW */
             <>
               {/* Filter and Search Bar */}
-              <div className="bg-white p-3.5 rounded-xl border border-[#E8DFD8] flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
+              <div className="bg-white dark:bg-[#222120] p-3.5 rounded-xl border border-[#E8DFD8] dark:border-[#3D3A36] flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
                 <div className="flex-1 relative">
-                  <Search className="w-4 h-4 text-[#8C7A6B] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <Search className="w-4 h-4 text-[#8C7A6B] dark:text-[#A69E96] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Search by customer name, location, or comment..."
-                    className="w-full pl-9 pr-3 py-2 text-xs bg-[#FAF8F5] border border-[#E8DFD8] rounded-lg focus:outline-none focus:border-[#C5A880]"
+                    className="w-full pl-9 pr-3 py-2 text-xs bg-[#FAF8F5] dark:bg-[#1A1918] text-[#1C1B1A] dark:text-[#F5F2EB] placeholder:text-[#A69E96] dark:placeholder:text-[#8C857B] border border-[#E8DFD8] dark:border-[#3D3A36] rounded-lg focus:outline-none focus:border-[#C5A880]"
                   />
                   {searchQuery && (
                     <button
                       type="button"
                       onClick={() => setSearchQuery('')}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-[#8C7A6B] hover:text-[#1C1B1A]"
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-[#8C7A6B] dark:text-[#A69E96] hover:text-[#1C1B1A] dark:hover:text-white"
                     >
                       ✕
                     </button>
@@ -426,11 +433,11 @@ export const SellerReviewsModal: React.FC = () => {
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-[#736C65] whitespace-nowrap">Filter Piece:</span>
+                  <span className="text-xs text-[#736C65] dark:text-[#A69E96] whitespace-nowrap">Filter Piece:</span>
                   <select
                     value={selectedProductFilter}
                     onChange={(e) => setSelectedProductFilter(e.target.value)}
-                    className="text-xs p-2 bg-[#FAF8F5] border border-[#E8DFD8] rounded-lg focus:outline-none focus:border-[#C5A880] max-w-[200px] truncate"
+                    className="text-xs p-2 bg-[#FAF8F5] dark:bg-[#1A1918] text-[#1C1B1A] dark:text-[#F5F2EB] border border-[#E8DFD8] dark:border-[#3D3A36] rounded-lg focus:outline-none focus:border-[#C5A880] max-w-[200px] truncate"
                   >
                     <option value="all">All Pieces ({allReviewsWithProduct.length} reviews)</option>
                     {products.map((p) => {
@@ -481,17 +488,17 @@ export const SellerReviewsModal: React.FC = () => {
                   {filteredReviews.map((rev) => (
                     <div
                       key={`${rev.productId}-${rev.id}`}
-                      className="p-4 bg-white rounded-xl border border-[#E8DFD8] shadow-2xs hover:border-[#C5A880] transition-all flex flex-col justify-between gap-3 group relative"
+                      className="p-4 bg-white dark:bg-[#222120] rounded-xl border border-[#E8DFD8] dark:border-[#3D3A36] shadow-2xs hover:border-[#C5A880] transition-all flex flex-col justify-between gap-3 group relative"
                     >
                       {/* Product Header Pill */}
-                      <div className="flex items-center justify-between pb-2 border-b border-[#F0EBE5] gap-2">
+                      <div className="flex items-center justify-between pb-2 border-b border-[#F0EBE5] dark:border-[#33312E] gap-2">
                         <div className="flex items-center gap-2 min-w-0">
                           <img
                             src={rev.productImage}
                             alt=""
-                            className="w-7 h-8 rounded object-cover border border-[#E8DFD8] shrink-0"
+                            className="w-7 h-8 rounded object-cover border border-[#E8DFD8] dark:border-[#3D3A36] shrink-0"
                           />
-                          <p className="text-xs font-bold text-[#1C1B1A] truncate" title={rev.productTitle}>
+                          <p className="text-xs font-bold text-[#1C1B1A] dark:text-[#FAF8F5] truncate" title={rev.productTitle}>
                             {rev.productTitle}
                           </p>
                         </div>
@@ -501,14 +508,14 @@ export const SellerReviewsModal: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => handleOpenEditForm(rev)}
-                            className="p-1.5 rounded-lg bg-[#FAF8F5] hover:bg-[#1C1B1A] hover:text-white text-[#736C65] transition-colors shadow-2xs"
+                            className="p-1.5 rounded-lg bg-[#FAF8F5] dark:bg-[#1A1918] hover:bg-[#1C1B1A] hover:text-white dark:hover:bg-[#C5A880] text-[#736C65] dark:text-[#A69E96] transition-colors shadow-2xs"
                             title="Edit reviewer name, location, rating & review"
                           >
                             <Edit3 className="w-3.5 h-3.5" />
                           </button>
 
                           {deleteConfirmId === rev.id ? (
-                            <div className="flex items-center gap-1 bg-rose-50 p-0.5 rounded border border-rose-200">
+                            <div className="flex items-center gap-1 bg-rose-50 dark:bg-rose-950/60 p-0.5 rounded border border-rose-200 dark:border-rose-800">
                               <button
                                 type="button"
                                 onClick={() => handleDeleteReview(rev.productId, rev.id)}
@@ -519,7 +526,7 @@ export const SellerReviewsModal: React.FC = () => {
                               <button
                                 type="button"
                                 onClick={() => setDeleteConfirmId(null)}
-                                className="px-1 py-0.5 text-[10px] text-zinc-600"
+                                className="px-1 py-0.5 text-[10px] text-zinc-600 dark:text-zinc-300"
                               >
                                 ✕
                               </button>
@@ -528,7 +535,7 @@ export const SellerReviewsModal: React.FC = () => {
                             <button
                               type="button"
                               onClick={() => setDeleteConfirmId(rev.id)}
-                              className="p-1.5 rounded-lg bg-[#FAF8F5] hover:bg-rose-50 text-[#736C65] hover:text-rose-600 transition-colors shadow-2xs"
+                              className="p-1.5 rounded-lg bg-[#FAF8F5] dark:bg-[#1A1918] hover:bg-rose-50 dark:hover:bg-rose-950/40 text-[#736C65] dark:text-[#A69E96] hover:text-rose-600 dark:hover:text-rose-400 transition-colors shadow-2xs"
                               title="Delete review"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
@@ -545,34 +552,34 @@ export const SellerReviewsModal: React.FC = () => {
                               <Star
                                 key={s}
                                 className={`w-3.5 h-3.5 ${
-                                  s <= Math.round(rev.rating) ? 'fill-amber-400' : 'text-zinc-200'
+                                  s <= Math.round(rev.rating) ? 'fill-amber-400' : 'text-zinc-200 dark:text-zinc-700'
                                 }`}
                               />
                             ))}
                           </div>
-                          <span className="text-[10px] text-[#A69E96]">{rev.date}</span>
+                          <span className="text-[10px] text-[#A69E96] dark:text-[#8C857B]">{rev.date}</span>
                         </div>
 
-                        <p className="text-xs text-[#4A4541] leading-relaxed line-clamp-3">
+                        <p className="text-xs text-[#4A4541] dark:text-[#E2DED9] leading-relaxed line-clamp-3">
                           &ldquo;{rev.comment}&rdquo;
                         </p>
                       </div>
 
                       {/* Author & Location Footer */}
-                      <div className="pt-2 border-t border-[#F5F2ED] flex items-center justify-between text-[11px]">
+                      <div className="pt-2 border-t border-[#F5F2ED] dark:border-[#33312E] flex items-center justify-between text-[11px]">
                         <div>
-                          <span className="font-semibold text-[#1C1B1A] flex items-center gap-1">
+                          <span className="font-semibold text-[#1C1B1A] dark:text-[#FAF8F5] flex items-center gap-1">
                             <span>{rev.author}</span>
                           </span>
-                          <span className="text-[10px] text-[#8C7A6B] flex items-center gap-0.5 leading-none mt-0.5">
+                          <span className="text-[10px] text-[#8C7A6B] dark:text-[#A69E96] flex items-center gap-0.5 leading-none mt-0.5">
                             <MapPin className="w-2.5 h-2.5 text-[#C5A880]" />
                             <span>{rev.location}</span>
                           </span>
                         </div>
 
                         {rev.verified && (
-                          <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
-                            <Check className="w-2.5 h-2.5 text-emerald-600" />
+                          <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 px-1.5 py-0.5 rounded">
+                            <Check className="w-2.5 h-2.5 text-emerald-600 dark:text-emerald-400" />
                             <span>Verified</span>
                           </span>
                         )}

@@ -166,11 +166,20 @@ export const ProductDetailModal: React.FC = () => {
   const [zoomPosition, setZoomPosition] = useState({ x: 50, y: 50 });
   const [zoomScale, setZoomScale] = useState(2.4);
 
-  // Reset zoom whenever image changes
+  // Helper to reset unsubmitted review drafts
+  const resetReviewDraft = () => {
+    setShowReviewForm(false);
+    setNewReviewAuthor('');
+    setNewReviewLocation('');
+    setNewReviewComment('');
+    setNewReviewRating(5);
+    setReviewSubmitted(false);
+  };
+
+  // Reset zoom and review draft whenever product or image changes
   useEffect(() => {
     setIsZoomed(false);
-    setShowReviewForm(false);
-    setReviewSubmitted(false);
+    resetReviewDraft();
   }, [activeImageIndex, quickViewProduct?.id]);
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -262,14 +271,27 @@ export const ProductDetailModal: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [quickViewProduct, currentProductIndex, categoryProducts]);
 
+  const fallbackReviews = React.useMemo(() => {
+    return quickViewProduct ? getProductReviews(quickViewProduct) : [];
+  }, [quickViewProduct]);
+
+  const reviewsList = React.useMemo(() => {
+    const map = new Map<string, ProductReviewItem>();
+    firestoreReviews.forEach((r) => map.set(r.id, r));
+    fallbackReviews.forEach((fb) => {
+      if (!map.has(fb.id)) {
+        map.set(fb.id, fb);
+      }
+    });
+    return Array.from(map.values());
+  }, [firestoreReviews, fallbackReviews]);
+
   if (!quickViewProduct) return null;
 
   const product = quickViewProduct;
   const wishlisted = isWishlisted(product.id);
   const totalSold = calculateTotalSold(product);
   const isBestSeller = isProductBestSeller(product, bestsellerThreshold);
-  const fallbackReviews = getProductReviews(product);
-  const reviewsList = firestoreReviews.length > 0 ? firestoreReviews : fallbackReviews;
   const dynamicReviewsCount = reviewsList.length;
   const rawRatingVal = reviewsList.length > 0
     ? (reviewsList.reduce((acc, r) => acc + (r.rating || 4.7), 0) / reviewsList.length)
@@ -936,7 +958,13 @@ export const ProductDetailModal: React.FC = () => {
                 )}
                 <button
                   type="button"
-                  onClick={() => setShowReviewForm(!showReviewForm)}
+                  onClick={() => {
+                    if (showReviewForm) {
+                      resetReviewDraft();
+                    } else {
+                      setShowReviewForm(true);
+                    }
+                  }}
                   className="px-4 py-2 bg-[#1C1B1A] hover:bg-[#34312F] text-white text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 transition-colors shadow-xs cursor-pointer"
                 >
                   <MessageSquare className="w-3.5 h-3.5 text-[#C5A880]" />
@@ -947,13 +975,13 @@ export const ProductDetailModal: React.FC = () => {
 
             {/* Review Submission Form */}
             {showReviewForm && (
-              <form onSubmit={handleSubmitReview} className="mb-6 p-4 sm:p-5 bg-white rounded-2xl border border-[#E8DFD8] shadow-xs space-y-4 animate-fade-in">
-                <div className="flex items-center justify-between border-b border-[#F0EBE5] pb-3">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-[#1C1B1A]">
+              <form onSubmit={handleSubmitReview} className="mb-6 p-4 sm:p-5 bg-white dark:bg-[#252422] rounded-2xl border border-[#E8DFD8] dark:border-[#3D3A36] shadow-xs space-y-4 animate-fade-in">
+                <div className="flex items-center justify-between border-b border-[#F0EBE5] dark:border-[#33312E] pb-3">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-[#1C1B1A] dark:text-[#FAF8F5]">
                     Share Your Handcrafted Experience
                   </h4>
                   <div className="flex items-center gap-1">
-                    <span className="text-[11px] text-[#736C65] mr-1">Your Rating:</span>
+                    <span className="text-[11px] text-[#736C65] dark:text-[#A69E96] mr-1">Your Rating:</span>
                     {[1, 2, 3, 4, 5].map((star) => (
                       <button
                         key={star}
@@ -965,7 +993,7 @@ export const ProductDetailModal: React.FC = () => {
                           className={`w-4 h-4 ${
                             star <= newReviewRating
                               ? 'fill-amber-400 text-amber-400'
-                              : 'text-zinc-300'
+                              : 'text-zinc-300 dark:text-zinc-600'
                           }`}
                         />
                       </button>
@@ -975,7 +1003,7 @@ export const ProductDetailModal: React.FC = () => {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-semibold text-[#1C1B1A] mb-1">
+                    <label className="block text-xs font-semibold text-[#1C1B1A] dark:text-[#FAF8F5] mb-1">
                       Your Name *
                     </label>
                     <input
@@ -984,11 +1012,11 @@ export const ProductDetailModal: React.FC = () => {
                       value={newReviewAuthor}
                       onChange={(e) => setNewReviewAuthor(e.target.value)}
                       placeholder="e.g. Alisha Shrestha"
-                      className="w-full text-xs p-2.5 bg-[#FAF8F5] border border-[#E8DFD8] rounded-lg focus:outline-none focus:border-[#C5A880]"
+                      className="w-full text-xs p-2.5 bg-[#FAF8F5] dark:bg-[#1A1918] text-[#1C1B1A] dark:text-[#F5F2EB] border border-[#E8DFD8] dark:border-[#3D3A36] placeholder:text-[#A69E96] dark:placeholder:text-[#8C857B] rounded-lg focus:outline-none focus:border-[#C5A880]"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-[#1C1B1A] mb-1">
+                    <label className="block text-xs font-semibold text-[#1C1B1A] dark:text-[#FAF8F5] mb-1">
                       Location in Nepal
                     </label>
                     <input
@@ -996,13 +1024,13 @@ export const ProductDetailModal: React.FC = () => {
                       value={newReviewLocation}
                       onChange={(e) => setNewReviewLocation(e.target.value)}
                       placeholder="e.g. Kathmandu, Nepal / Pokhara"
-                      className="w-full text-xs p-2.5 bg-[#FAF8F5] border border-[#E8DFD8] rounded-lg focus:outline-none focus:border-[#C5A880]"
+                      className="w-full text-xs p-2.5 bg-[#FAF8F5] dark:bg-[#1A1918] text-[#1C1B1A] dark:text-[#F5F2EB] border border-[#E8DFD8] dark:border-[#3D3A36] placeholder:text-[#A69E96] dark:placeholder:text-[#8C857B] rounded-lg focus:outline-none focus:border-[#C5A880]"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-[#1C1B1A] mb-1">
+                  <label className="block text-xs font-semibold text-[#1C1B1A] dark:text-[#FAF8F5] mb-1">
                     Your Review *
                   </label>
                   <textarea
@@ -1011,12 +1039,12 @@ export const ProductDetailModal: React.FC = () => {
                     value={newReviewComment}
                     onChange={(e) => setNewReviewComment(e.target.value)}
                     placeholder="Tell us about the beading quality, pearl shine, and delivery experience..."
-                    className="w-full text-xs p-2.5 bg-[#FAF8F5] border border-[#E8DFD8] rounded-lg focus:outline-none focus:border-[#C5A880]"
+                    className="w-full text-xs p-2.5 bg-[#FAF8F5] dark:bg-[#1A1918] text-[#1C1B1A] dark:text-[#F5F2EB] border border-[#E8DFD8] dark:border-[#3D3A36] placeholder:text-[#A69E96] dark:placeholder:text-[#8C857B] rounded-lg focus:outline-none focus:border-[#C5A880]"
                   />
                 </div>
 
                 <div className="flex items-center justify-between pt-1">
-                  <p className="text-[10px] text-[#8C7A6B]">
+                  <p className="text-[10px] text-[#8C7A6B] dark:text-[#A69E96]">
                     Verified buyer reviews help support local Nepali handcrafters.
                   </p>
                   <button
@@ -1042,7 +1070,7 @@ export const ProductDetailModal: React.FC = () => {
               {reviewsList.map((rev) => (
                 <div
                   key={rev.id}
-                  className="p-4 bg-white rounded-xl border border-[#E8DFD8] shadow-2xs hover:border-[#C5A880]/60 transition-all flex flex-col justify-between"
+                  className="p-4 bg-white dark:bg-[#252422] rounded-xl border border-[#E8DFD8] dark:border-[#3D3A36] shadow-2xs hover:border-[#C5A880]/60 transition-all flex flex-col justify-between"
                 >
                   <div>
                     <div className="flex items-center justify-between mb-2">
@@ -1055,33 +1083,33 @@ export const ProductDetailModal: React.FC = () => {
                             } else if (diff >= 0.25) {
                               return (
                                 <div key={s} className="relative w-3.5 h-3.5 shrink-0">
-                                  <Star className="w-3.5 h-3.5 text-zinc-200" />
+                                  <Star className="w-3.5 h-3.5 text-zinc-200 dark:text-zinc-700" />
                                   <div className="absolute inset-0 overflow-hidden w-1/2">
                                     <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
                                   </div>
                                 </div>
                               );
                             } else {
-                              return <Star key={s} className="w-3.5 h-3.5 text-zinc-200" />;
+                              return <Star key={s} className="w-3.5 h-3.5 text-zinc-200 dark:text-zinc-700" />;
                             }
                           })}
                         </div>
-                        <span className="text-[11px] font-bold text-[#1C1B1A]">
+                        <span className="text-[11px] font-bold text-[#1C1B1A] dark:text-[#FAF8F5]">
                           {typeof rev.rating === 'number' ? rev.rating.toFixed(1) : '4.5'}
                         </span>
                       </div>
-                      <span className="text-[10px] text-[#A69E96]">{rev.date}</span>
+                      <span className="text-[10px] text-[#A69E96] dark:text-[#8C857B]">{rev.date}</span>
                     </div>
 
-                    <p className="text-xs text-[#4A4541] leading-relaxed mb-3">
+                    <p className="text-xs text-[#4A4541] dark:text-[#E2DED9] leading-relaxed mb-3">
                       &ldquo;{rev.comment}&rdquo;
                     </p>
                   </div>
 
-                  <div className="pt-2 border-t border-[#F5F2ED] flex items-center justify-between text-[11px]">
+                  <div className="pt-2 border-t border-[#F5F2ED] dark:border-[#33312E] flex items-center justify-between text-[11px]">
                     <div>
-                      <span className="font-semibold text-[#1C1B1A]">{rev.author}</span>
-                      <span className="text-[10px] text-[#8C7A6B] block leading-none mt-0.5">{rev.location}</span>
+                      <span className="font-semibold text-[#1C1B1A] dark:text-[#FAF8F5]">{rev.author}</span>
+                      <span className="text-[10px] text-[#8C7A6B] dark:text-[#A69E96] block leading-none mt-0.5">{rev.location}</span>
                     </div>
 
                     <div className="flex items-center gap-1.5 shrink-0">
@@ -1089,16 +1117,16 @@ export const ProductDetailModal: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => openReviewsManager(product.id)}
-                          className="px-2 py-0.5 text-[10px] font-semibold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded shadow-2xs transition-colors cursor-pointer flex items-center gap-1"
+                          className="px-2 py-0.5 text-[10px] font-semibold text-amber-900 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/60 border border-amber-300 dark:border-amber-800 rounded shadow-2xs transition-colors cursor-pointer flex items-center gap-1"
                           title="Edit review in Seller Studio"
                         >
-                          <Edit3 className="w-2.5 h-2.5 text-amber-700" />
+                          <Edit3 className="w-2.5 h-2.5 text-amber-700 dark:text-amber-400" />
                           <span>Edit</span>
                         </button>
                       )}
                       {rev.verified && (
-                        <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
-                          <Check className="w-2.5 h-2.5 text-emerald-600" />
+                        <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 px-1.5 py-0.5 rounded">
+                          <Check className="w-2.5 h-2.5 text-emerald-600 dark:text-emerald-400" />
                           <span>Verified Purchase</span>
                         </span>
                       )}

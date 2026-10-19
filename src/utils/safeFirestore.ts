@@ -25,27 +25,17 @@ export function setFirestoreQuotaExceeded(val: boolean) {
 export function detectQuotaError(err: any): boolean {
   if (!err) return false;
   const msg = (err.message || String(err)).toLowerCase();
-  const isQuota = 
+  const isHardQuotaExceeded = 
     msg.includes('quota limit exceeded') || 
     msg.includes('quota exceeded') ||
     msg.includes('resource-exhausted') ||
-    msg.includes('maximum backoff delay') ||
-    msg.includes('exceeds the limit') ||
-    msg.includes('payload size exceeds') ||
-    msg.includes('exhausted') ||
-    msg.includes('quota') ||
-    msg.includes('could not reach cloud firestore backend') ||
-    msg.includes('backend didn’t respond') ||
-    msg.includes('backend didnt respond') ||
-    msg.includes('offline mode') ||
-    msg.includes('network error') ||
-    msg.includes('unavailable');
-  if (isQuota) {
-    if (!msg.includes('payload size')) {
-      setFirestoreQuotaExceeded(true);
-    }
+    (msg.includes('quota') && msg.includes('exceeded'));
+
+  if (isHardQuotaExceeded) {
+    setFirestoreQuotaExceeded(true);
+    return true;
   }
-  return isQuota;
+  return false;
 }
 
 /**

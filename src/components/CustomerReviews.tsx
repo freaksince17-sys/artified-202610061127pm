@@ -494,18 +494,18 @@ export const CustomerReviews: React.FC = () => {
         {showReviewForm && (
           <form
             onSubmit={handleSubmitReview}
-            className="p-5 sm:p-6 bg-white rounded-3xl border-2 border-[#D4AF37]/50 shadow-md space-y-4 animate-in slide-in-from-top duration-200"
+            className="p-5 sm:p-6 bg-white dark:bg-[#1C1B1A] rounded-3xl border-2 border-[#D4AF37]/50 shadow-md space-y-4 animate-in slide-in-from-top duration-200"
           >
-            <div className="flex items-center justify-between border-b border-[#F0EBE5] pb-3">
+            <div className="flex items-center justify-between border-b border-[#F0EBE5] dark:border-[#2D2B28] pb-3">
               <div className="flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-[#D4AF37]" />
-                <h4 className="text-sm font-bold text-[#1C1B1A]">
+                <h4 className="text-sm font-bold text-[#1C1B1A] dark:text-[#FAF8F5]">
                   Share Your Experience with Artified
                 </h4>
               </div>
 
               <div className="flex items-center gap-1">
-                <span className="text-xs text-[#736C65] mr-1">Rating:</span>
+                <span className="text-xs text-[#736C65] dark:text-[#A69E96] mr-1">Rating:</span>
                 {[1, 2, 3, 4, 5].map((star) => (
                   <button
                     key={star}
@@ -515,7 +515,7 @@ export const CustomerReviews: React.FC = () => {
                   >
                     <Star
                       className={`w-4 h-4 ${
-                        star <= rating ? 'fill-amber-400 text-amber-400' : 'text-zinc-200'
+                        star <= rating ? 'fill-amber-400 text-amber-400' : 'text-zinc-200 dark:text-zinc-600'
                       }`}
                     />
                   </button>
@@ -525,7 +525,7 @@ export const CustomerReviews: React.FC = () => {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
               <div>
-                <label className="block text-xs font-semibold text-[#1C1B1A] mb-1">
+                <label className="block text-xs font-semibold text-[#1C1B1A] dark:text-[#FAF8F5] mb-1">
                   Your Full Name *
                 </label>
                 <input
@@ -534,12 +534,12 @@ export const CustomerReviews: React.FC = () => {
                   value={authorName}
                   onChange={(e) => setAuthorName(e.target.value)}
                   placeholder="e.g. Alisha Shrestha"
-                  className="w-full p-2.5 bg-[#FAF8F5] border border-[#E8DFD8] rounded-xl focus:outline-none focus:border-[#C5A880]"
+                  className="w-full p-2.5 bg-[#FAF8F5] dark:bg-[#1A1918] text-[#1C1B1A] dark:text-[#F5F2EB] border border-[#E8DFD8] dark:border-[#3D3A36] placeholder:text-[#A69E96] dark:placeholder:text-[#8C857B] rounded-xl focus:outline-none focus:border-[#C5A880]"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#1C1B1A] mb-1">
+                <label className="block text-xs font-semibold text-[#1C1B1A] dark:text-[#FAF8F5] mb-1">
                   City / Location in Nepal *
                 </label>
                 <input
@@ -548,20 +548,20 @@ export const CustomerReviews: React.FC = () => {
                   value={authorLocation}
                   onChange={(e) => setAuthorLocation(e.target.value)}
                   placeholder="e.g. Jhamsikhel, Lalitpur / Pokhara"
-                  className="w-full p-2.5 bg-[#FAF8F5] border border-[#E8DFD8] rounded-xl focus:outline-none focus:border-[#C5A880]"
+                  className="w-full p-2.5 bg-[#FAF8F5] dark:bg-[#1A1918] text-[#1C1B1A] dark:text-[#F5F2EB] border border-[#E8DFD8] dark:border-[#3D3A36] placeholder:text-[#A69E96] dark:placeholder:text-[#8C857B] rounded-xl focus:outline-none focus:border-[#C5A880]"
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
               <div>
-                <label className="block text-xs font-semibold text-[#1C1B1A] mb-1">
+                <label className="block text-xs font-semibold text-[#1C1B1A] dark:text-[#FAF8F5] mb-1">
                   Product Purchased *
                 </label>
                 <select
                   value={productName}
                   onChange={(e) => setProductName(e.target.value)}
-                  className="w-full p-2.5 bg-[#FAF8F5] border border-[#E8DFD8] rounded-xl focus:outline-none focus:border-[#C5A880] text-xs text-[#1C1B1A]"
+                  className="w-full p-2.5 bg-[#FAF8F5] dark:bg-[#1A1918] border border-[#E8DFD8] dark:border-[#3D3A36] rounded-xl focus:outline-none focus:border-[#C5A880] text-xs text-[#1C1B1A] dark:text-[#F5F2EB]"
                 >
                   <option value="Red Pearl Beaded Bag">Red Pearl Beaded Bag (NPR 2,499)</option>
                   <option value="Caviar Pearl Bag">Caviar Pearl Bag (NPR 2,499)</option>
@@ -581,7 +581,7 @@ export const CustomerReviews: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#1C1B1A] mb-1">
+                <label className="block text-xs font-semibold text-[#1C1B1A] dark:text-[#FAF8F5] mb-1">
                   Review Headline
                 </label>
                 <input
@@ -589,13 +589,13 @@ export const CustomerReviews: React.FC = () => {
                   value={reviewTitle}
                   onChange={(e) => setReviewTitle(e.target.value)}
                   placeholder="e.g. Wore it to my wedding, absolutely stunning!"
-                  className="w-full p-2.5 bg-[#FAF8F5] border border-[#E8DFD8] rounded-xl focus:outline-none focus:border-[#C5A880]"
+                  className="w-full p-2.5 bg-[#FAF8F5] dark:bg-[#1A1918] text-[#1C1B1A] dark:text-[#F5F2EB] border border-[#E8DFD8] dark:border-[#3D3A36] placeholder:text-[#A69E96] dark:placeholder:text-[#8C857B] rounded-xl focus:outline-none focus:border-[#C5A880]"
                 />
               </div>
             </div>
 
             <div className="text-xs">
-              <label className="block text-xs font-semibold text-[#1C1B1A] mb-1">
+              <label className="block text-xs font-semibold text-[#1C1B1A] dark:text-[#FAF8F5] mb-1">
                 Your Review & Craft Feedback *
               </label>
               <textarea
@@ -604,7 +604,7 @@ export const CustomerReviews: React.FC = () => {
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
                 placeholder="How was the pearl luster, structural tension, packaging, and delivery from Kathmandu? Tell others..."
-                className="w-full p-2.5 bg-[#FAF8F5] border border-[#E8DFD8] rounded-xl focus:outline-none focus:border-[#C5A880]"
+                className="w-full p-2.5 bg-[#FAF8F5] dark:bg-[#1A1918] text-[#1C1B1A] dark:text-[#F5F2EB] border border-[#E8DFD8] dark:border-[#3D3A36] placeholder:text-[#A69E96] dark:placeholder:text-[#8C857B] rounded-xl focus:outline-none focus:border-[#C5A880]"
               />
             </div>
 

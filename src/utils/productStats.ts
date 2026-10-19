@@ -833,58 +833,22 @@ export function sanitizeReviewItem<T extends { location?: string; comment?: stri
  * Guaranteed that customer names are never repeated across any product.
  */
 export function getProductReviews(product: Product): ProductReviewItem[] {
-  let list: ProductReviewItem[] = [];
-
   const curated = PRODUCT_REVIEWS_MAP[product.id] || [];
+  let baseReviews = curated;
 
-  if (product.customReviews && product.customReviews.length > 0) {
-    const deletedIds = new Set<string>();
-    const customMap = new Map<string, ProductReviewItem>();
-
-    product.customReviews.forEach((r) => {
-      if ((r as any).isDeleted) {
-        deletedIds.add(r.id);
-      } else {
-        customMap.set(r.id, r);
-      }
-    });
-
-    const combined: ProductReviewItem[] = [];
-    const processedIds = new Set<string>();
-
-    // 1. Include custom reviews (including edited versions of curated reviews)
-    for (const r of product.customReviews) {
-      if (!(r as any).isDeleted && !processedIds.has(r.id)) {
-        combined.push(r);
-        processedIds.add(r.id);
-      }
-    }
-
-    // 2. Include any untouched curated reviews
-    for (const c of curated) {
-      if (!processedIds.has(c.id) && !deletedIds.has(c.id)) {
-        combined.push(c);
-        processedIds.add(c.id);
-      }
-    }
-
-    list = combined;
-  } else if (curated.length > 0) {
-    list = curated;
-  } else {
-    // 3. Fallback for new custom pieces: generate 2 distinct reviews from the reserve pool
+  if (baseReviews.length === 0) {
     let seed = 0;
     for (let i = 0; i < product.id.length; i++) {
       seed = (seed * 31 + product.id.charCodeAt(i)) & 0xffffffff;
     }
-    const startIndex = Math.abs(seed) % (UNIQUE_CUSTOMER_FALLBACK_POOL.length - 2);
+    const startIndex = Math.abs(seed) % Math.max(1, UNIQUE_CUSTOMER_FALLBACK_POOL.length - 2);
     
-    list = [
+    baseReviews = [
       {
         id: `${product.id}-rev-custom-1`,
         author: UNIQUE_CUSTOMER_FALLBACK_POOL[startIndex].author,
         location: UNIQUE_CUSTOMER_FALLBACK_POOL[startIndex].location,
-        rating: 4.5,
+        rating: 4.8,
         date: '4 days ago',
         verified: true,
         comment: `Yo ${product.title} ekdamai ramro cha! Finishing clean ra strong cha. Delivered on time in Kathmandu with cute packaging.`
@@ -893,13 +857,50 @@ export function getProductReviews(product: Product): ProductReviewItem[] {
         id: `${product.id}-rev-custom-2`,
         author: UNIQUE_CUSTOMER_FALLBACK_POOL[startIndex + 1].author,
         location: UNIQUE_CUSTOMER_FALLBACK_POOL[startIndex + 1].location,
-        rating: 4.0,
+        rating: 4.9,
         date: '1 week ago',
         verified: true,
         comment: `Yo ${product.title} ko quality dherai nai ramro cha. WhatsApp ma quick reply aayo, polite team. Dherai man poryo!`
+      },
+      {
+        id: `${product.id}-rev-custom-3`,
+        author: UNIQUE_CUSTOMER_FALLBACK_POOL[(startIndex + 2) % UNIQUE_CUSTOMER_FALLBACK_POOL.length].author,
+        location: UNIQUE_CUSTOMER_FALLBACK_POOL[(startIndex + 2) % UNIQUE_CUSTOMER_FALLBACK_POOL.length].location,
+        rating: 4.7,
+        date: '2 weeks ago',
+        verified: true,
+        comment: `Super satisfied with my purchase! Authentic handmade craft with premium finish. Highly recommended.`
       }
     ];
   }
 
-  return list.map(sanitizeReviewItem);
+  const custom = product.customReviews || [];
+  const processedIds = new Set<string>();
+  const deletedIds = new Set<string>();
+
+  custom.forEach((r) => {
+    if ((r as any).isDeleted) {
+      deletedIds.add(r.id);
+    }
+  });
+
+  const combined: ProductReviewItem[] = [];
+
+  // 1. Add non-deleted user custom reviews
+  for (const r of custom) {
+    if (!(r as any).isDeleted && !processedIds.has(r.id)) {
+      combined.push(r);
+      processedIds.add(r.id);
+    }
+  }
+
+  // 2. Add base reviews (curated or reserve pool) that aren't deleted or overwritten
+  for (const b of baseReviews) {
+    if (!processedIds.has(b.id) && !deletedIds.has(b.id)) {
+      combined.push(b);
+      processedIds.add(b.id);
+    }
+  }
+
+  return combined.map(sanitizeReviewItem);
 }
