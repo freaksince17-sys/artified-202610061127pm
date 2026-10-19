@@ -36,7 +36,7 @@ export const PRODUCTS: Product[] = (SAVED_PRODUCTS as unknown as Product[]).map(
   customReviews: p.customReviews || PRODUCT_REVIEWS_MAP[p.id] || []
 }));
 
-export const CATALOG_BUILD_TIMESTAMP = '2026-10-18T07:35:00.000Z';
+export const CATALOG_BUILD_TIMESTAMP = '2026-10-19T03:35:00.000Z';
 
 /**
  * Reconciles candidate products (from localStorage, Firestore, or API) against the authoritative bundled PRODUCTS.

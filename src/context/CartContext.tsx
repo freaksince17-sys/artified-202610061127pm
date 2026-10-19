@@ -216,6 +216,9 @@ interface CartContextType {
   isDataSyncing: boolean;
   forceSyncAllToCloud: () => Promise<void>;
   triggerCloudSync: () => Promise<void>;
+  dbSyncedPrices: Record<string, number>;
+  syncSingleProductToCloud: (productToSync: Product) => Promise<boolean>;
+  forceRefreshCatalogFromDB: () => Promise<void>;
   // Product Card Image Display Mode (contain = full piece visible without cropping, cover = edge-to-edge fill)
   productImageFit: 'contain' | 'cover';
   setProductImageFit: (fit: 'contain' | 'cover') => void;
@@ -699,6 +702,9 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return DEFAULT_INSTAGRAM_PROFILE_URL;
   });
 
+  // Track database-synced prices per product for live sync status detection in Seller Catalog Manager
+  const [dbSyncedPrices, setDbSyncedPrices] = useState<Record<string, number>>({});
+
   // Fetch initial data from backend server database (products, reels, Instagram journal & settings)
   useEffect(() => {
     // 1. Persistent Product Catalog Hydration & Real-time Sync (Cloud Firestore)
@@ -707,13 +713,19 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       unsubscribeProducts = onSnapshot(collection(db, 'products'), (snap) => {
         if (!snap.empty) {
           const cloudProducts: Product[] = [];
+          const cloudPrices: Record<string, number> = {};
           snap.forEach((d) => {
             const data = d.data() as Product;
             if (data && data.id && data.title) {
-              cloudProducts.push(sanitizeProduct(data));
+              const cleaned = sanitizeProduct(data);
+              cloudProducts.push(cleaned);
+              if (typeof cleaned.price === 'number') {
+                cloudPrices[cleaned.id] = cleaned.price;
+              }
             }
           });
 
+          setDbSyncedPrices((prev) => ({ ...prev, ...cloudPrices }));
           if (cloudProducts.length > 0) {
             setProducts((prev) => reconcileProductCatalog(cloudProducts, prev));
             setIsCloudSynced(true);
@@ -729,10 +741,12 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const hydrateCatalog = async () => {
       // If Firestore collection was empty or offline, hydrate from /api/products or static /products.json
+      // Append cache-busting timestamp or version query parameter to force bypass of stale browser caches
       try {
         let items: Product[] | null = null;
+        const ts = Date.now();
         try {
-          const res = await fetch('/api/products');
+          const res = await fetch(`/api/products?t=${ts}`, { cache: 'no-store' });
           if (res.ok) {
             items = await res.json();
           }
@@ -740,7 +754,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         if (!items || !Array.isArray(items) || items.length === 0) {
           try {
-            const staticRes = await fetch('/products.json');
+            const staticRes = await fetch(`/products.json?v=${ts}`, { cache: 'no-store' });
             if (staticRes.ok) {
               items = await staticRes.json();
             }
@@ -1349,14 +1363,21 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       // 1. Batch sync all products to Cloud Firestore
       const batch = writeBatch(db);
+      const newPrices: Record<string, number> = {};
       products.forEach((p) => {
         const prodRef = doc(db, 'products', p.id);
         batch.set(prodRef, p, { merge: true });
+        if (typeof p.price === 'number') {
+          newPrices[p.id] = p.price;
+        }
       });
       await batch.commit();
 
-      // 2. Also save to server JSON disk
-      await fetch('/api/products', {
+      setDbSyncedPrices((prev) => ({ ...prev, ...newPrices }));
+
+      // 2. Also save to server JSON disk with cache-busting version query param
+      const ts = Date.now();
+      await fetch(`/api/products?v=${ts}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(products),
@@ -1371,6 +1392,57 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (err) {
       console.error('Failed to save to Cloud Firestore', err);
       setSyncStatusText('⚠️ Saved locally, cloud sync retry needed');
+    }
+  };
+
+  const forceRefreshCatalogFromDB = async (): Promise<void> => {
+    setSyncStatusText('Clearing local cache and fetching fresh product catalog from Cloud Firestore...');
+    try {
+      // 1. Clear local storage cache
+      localStorage.removeItem('artified_products_custom');
+
+      // 2. Fetch fresh documents directly from Cloud Firestore collection `products`
+      const snap = await getDocs(collection(db, 'products'));
+      const freshCloudProducts: Product[] = [];
+      const freshPrices: Record<string, number> = {};
+
+      if (!snap.empty) {
+        snap.forEach((d) => {
+          const data = d.data() as Product;
+          if (data && data.id && data.title) {
+            const cleaned = sanitizeProduct(data);
+            freshCloudProducts.push(cleaned);
+            if (typeof cleaned.price === 'number') {
+              freshPrices[cleaned.id] = cleaned.price;
+            }
+          }
+        });
+      }
+
+      // 3. Fallback/Bypass fetch to server API with cache-busting timestamp
+      const ts = Date.now();
+      let serverItems: Product[] | null = null;
+      try {
+        const res = await fetch(`/api/products?t=${ts}`, { cache: 'no-store' });
+        if (res.ok) serverItems = await res.json();
+      } catch {}
+
+      const mergedList = freshCloudProducts.length > 0 
+        ? freshCloudProducts 
+        : (serverItems && Array.isArray(serverItems) && serverItems.length > 0 ? serverItems : PRODUCTS);
+
+      setProducts(mergedList);
+      setDbSyncedPrices(freshPrices);
+
+      try {
+        localStorage.setItem('artified_products_custom', JSON.stringify(mergedList));
+      } catch {}
+
+      setIsCloudSynced(true);
+      setSyncStatusText('🟢 Force refreshed entire catalog from Cloud Firestore database!');
+    } catch (err) {
+      console.error('Error force refreshing catalog from Firestore:', err);
+      setSyncStatusText('⚠️ Cache refresh warning: check network connection');
     }
   };
 
@@ -1452,6 +1524,10 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const prodRef = doc(db, 'products', cleanedProduct.id);
       await setDoc(prodRef, cleanedProduct, { merge: true });
+      setDbSyncedPrices((prev) => ({
+        ...prev,
+        [cleanedProduct.id]: cleanedProduct.price
+      }));
       setIsCloudSynced(true);
       setSyncStatusText(`🟢 Saved "${cleanedProduct.title}" to Cloud Firestore`);
     } catch (cloudErr) {
@@ -1500,7 +1576,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } catch (e) {
         console.warn('Failed to save custom products', e);
       }
-      fetch('/api/products', {
+      const ts = Date.now();
+      fetch(`/api/products?v=${ts}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(next),
@@ -1512,10 +1589,54 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const prodRef = doc(db, 'products', cleanedProduct.id);
       await setDoc(prodRef, cleanedProduct, { merge: true });
+      setDbSyncedPrices((prev) => ({
+        ...prev,
+        [cleanedProduct.id]: cleanedProduct.price
+      }));
       setIsCloudSynced(true);
       setSyncStatusText(`🟢 Added "${cleanedProduct.title}" to Cloud Firestore`);
     } catch (cloudErr) {
       console.warn('Notice: Firestore add error, saved locally:', cloudErr);
+    }
+  };
+
+  const syncSingleProductToCloud = async (productToSync: Product): Promise<boolean> => {
+    try {
+      const nowIso = new Date().toISOString();
+      const cleanedProduct: Product = sanitizeProduct({ 
+        ...productToSync, 
+        updatedAt: nowIso
+      });
+
+      // 1. Permanent Cloud Firestore save
+      const prodRef = doc(db, 'products', cleanedProduct.id);
+      await setDoc(prodRef, cleanedProduct, { merge: true });
+
+      // 2. Update local dbSyncedPrices map
+      setDbSyncedPrices((prev) => ({
+        ...prev,
+        [cleanedProduct.id]: cleanedProduct.price
+      }));
+
+      // 3. Save to server JSON disk with cache-busting version query param
+      const ts = Date.now();
+      const updatedList = products.map((p) => (p.id === cleanedProduct.id ? cleanedProduct : p));
+      fetch(`/api/products?v=${ts}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedList),
+      }).catch(() => {});
+
+      try {
+        localStorage.setItem('artified_products_custom', JSON.stringify(updatedList));
+      } catch {}
+
+      setIsCloudSynced(true);
+      setSyncStatusText(`🟢 Synced "${cleanedProduct.title}" (NPR ${cleanedProduct.price}) to Cloud Firestore`);
+      return true;
+    } catch (err) {
+      console.warn('Notice: Firestore single product sync error:', err);
+      return false;
     }
   };
 
@@ -2295,6 +2416,9 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isDataSyncing,
         forceSyncAllToCloud,
         triggerCloudSync: forceSyncAllToCloud,
+        dbSyncedPrices,
+        syncSingleProductToCloud,
+        forceRefreshCatalogFromDB,
         // Product Card Image Display Mode
         productImageFit,
         setProductImageFit,

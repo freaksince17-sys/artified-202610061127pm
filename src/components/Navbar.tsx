@@ -315,8 +315,6 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigateSection }) => {
               <span>Follow on Instagram</span>
             </button>
 
-
-
             {/* Tab 5: Track Order */}
             <button
               type="button"
@@ -335,7 +333,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigateSection }) => {
               <span>{t('navTrackOrder')}</span>
             </button>
 
-            {/* Tab 6: Order Progress (Strictly for Seller) */}
+            {/* Order Progress (Strictly for Seller) - Positioned at the rightest part */}
             {isSellerMode && (
               <button
                 type="button"
@@ -514,8 +512,6 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigateSection }) => {
                   <ExternalLink className="w-4 h-4 text-[#8C847E]" />
                 </a>
 
-
-
                 {/* 4. Track Order */}
                 <button
                   onClick={() => {
@@ -535,7 +531,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigateSection }) => {
                   <ChevronRight className="w-4 h-4 text-[#8C847E]" />
                 </button>
 
-                {/* 5. Order Progress (Strictly for Seller) */}
+                {/* Order Progress (Strictly for Seller) - Positioned at the rightest/bottom-most position */}
                 {isSellerMode && (
                   <button
                     onClick={() => {

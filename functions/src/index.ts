@@ -8,6 +8,7 @@
  */
 
 import { onDocumentUpdated, onDocumentDeleted } from "firebase-functions/v2/firestore";
+import { onRequest } from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
 import * as nodemailer from "nodemailer";
 
@@ -453,6 +454,63 @@ export const onTrackedOrderDeleted = onDocumentDeleted(
         `[TrackedOrder Delete Cascade] Error cleaning up records for "${targetId}":`,
         err
       );
+    }
+  }
+);
+
+/**
+ * Cloud Function: checkCatalogPriceVersion
+ * Lightweight HTTP endpoint to fetch current Firestore price versioning & price map,
+ * allowing frontends to quickly verify if local product catalog is stale.
+ */
+export const checkCatalogPriceVersion = onRequest(
+  { cors: true },
+  async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    res.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+
+    if (req.method === "OPTIONS") {
+      res.status(204).send("");
+      return;
+    }
+
+    try {
+      const snap = await db.collection("products").get();
+      const prices: Record<string, number> = {};
+      let maxUpdatedAt = "1970-01-01T00:00:00.000Z";
+      let priceSum = 0;
+
+      snap.forEach((docSnap) => {
+        const data = docSnap.data();
+        if (data && data.id) {
+          if (typeof data.price === "number") {
+            prices[data.id] = data.price;
+            priceSum += data.price;
+          }
+          if (data.updatedAt && typeof data.updatedAt === "string" && data.updatedAt > maxUpdatedAt) {
+            maxUpdatedAt = data.updatedAt;
+          }
+        }
+      });
+
+      const catalogVersion = `v-${snap.size}-${priceSum}-${new Date(maxUpdatedAt).getTime() || Date.now()}`;
+
+      res.status(200).json({
+        status: "success",
+        catalogVersion,
+        productCount: snap.size,
+        lastUpdated: maxUpdatedAt,
+        prices,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (err: any) {
+      console.error("[checkCatalogPriceVersion] Error:", err);
+      res.status(500).json({
+        status: "error",
+        message: err.message || "Failed to check price versioning",
+      });
     }
   }
 );

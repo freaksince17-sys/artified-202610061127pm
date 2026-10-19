@@ -115,6 +115,44 @@ async function startServer() {
     }
   });
 
+  // GET /api/catalog-price-version - Lightweight price versioning endpoint
+  app.get('/api/catalog-price-version', (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    try {
+      let productList = PRODUCTS;
+      if (fs.existsSync(productsJsonPath)) {
+        productList = JSON.parse(fs.readFileSync(productsJsonPath, 'utf-8'));
+      }
+      const prices: Record<string, number> = {};
+      let priceSum = 0;
+      let maxUpdatedAt = "1970-01-01T00:00:00.000Z";
+
+      productList.forEach((p: any) => {
+        if (p && p.id && typeof p.price === 'number') {
+          prices[p.id] = p.price;
+          priceSum += p.price;
+        }
+        if (p && p.updatedAt && typeof p.updatedAt === 'string' && p.updatedAt > maxUpdatedAt) {
+          maxUpdatedAt = p.updatedAt;
+        }
+      });
+
+      const catalogVersion = `v-${productList.length}-${priceSum}-${new Date(maxUpdatedAt).getTime() || Date.now()}`;
+
+      return res.json({
+        status: "success",
+        catalogVersion,
+        productCount: productList.length,
+        lastUpdated: maxUpdatedAt,
+        prices,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (err) {
+      console.error('Error fetching price versioning:', err);
+      return res.status(500).json({ error: 'Failed to check catalog price version' });
+    }
+  });
+
   // Helper to sanitize images so we never serve broken ephemeral /uploads/ paths
   const processImages = (images: string[]): string[] => {
     return (images || []).map((imgUrl) => {

@@ -18,7 +18,11 @@ import {
   Cloud,
   RefreshCw,
   Star,
-  Bell
+  Bell,
+  CheckCircle2,
+  AlertTriangle,
+  Clock,
+  RotateCcw
 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { Product } from '../types';
@@ -43,11 +47,39 @@ export const SellerCatalogListModal: React.FC = () => {
     forceSyncAllToCloud,
     bestsellerThreshold,
     setBestsellerThreshold,
-    openReviewsManager
+    openReviewsManager,
+    dbSyncedPrices,
+    syncSingleProductToCloud,
+    forceRefreshCatalogFromDB
   } = useCart();
 
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isForceRefreshing, setIsForceRefreshing] = useState(false);
   const [syncSuccessMsg, setSyncSuccessMsg] = useState<string | null>(null);
+  const [syncingProductId, setSyncingProductId] = useState<string | null>(null);
+
+  const handleForceRefreshAll = async () => {
+    setIsForceRefreshing(true);
+    setSyncSuccessMsg(null);
+    try {
+      await forceRefreshCatalogFromDB();
+      setSyncSuccessMsg('Client cache cleared! Re-fetched entire product catalog directly from database.');
+      setTimeout(() => setSyncSuccessMsg(null), 5000);
+    } catch {
+      setSyncSuccessMsg('Failed to refresh catalog from database.');
+    } finally {
+      setIsForceRefreshing(false);
+    }
+  };
+
+  const handleSyncSingleProduct = async (product: Product) => {
+    setSyncingProductId(product.id);
+    try {
+      await syncSingleProductToCloud(product);
+    } finally {
+      setSyncingProductId(null);
+    }
+  };
 
   const handleForceSync = async () => {
     setIsSyncing(true);
@@ -237,12 +269,24 @@ export const SellerCatalogListModal: React.FC = () => {
             </span>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap justify-end">
             {syncSuccessMsg && (
               <span className="text-[11px] font-semibold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-md border border-emerald-300">
                 {syncSuccessMsg}
               </span>
             )}
+            
+            <button
+              type="button"
+              onClick={handleForceRefreshAll}
+              disabled={isForceRefreshing}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-white text-[#1C1B1A] border border-[#D5C9BE] rounded-lg hover:bg-[#FAF8F5] transition-colors disabled:opacity-50 shadow-xs cursor-pointer"
+              title="Clear client-side cache and re-fetch entire product catalog directly from Cloud Firestore database"
+            >
+              <RotateCcw className={`w-3.5 h-3.5 text-[#C5A880] ${isForceRefreshing ? 'animate-spin' : ''}`} />
+              <span>{isForceRefreshing ? 'Refreshing All...' : 'Force Refresh All'}</span>
+            </button>
+
             <button
               type="button"
               onClick={handleForceSync}
@@ -503,6 +547,10 @@ export const SellerCatalogListModal: React.FC = () => {
             filteredProducts.map((prod, index) => {
               const coverImg = getRealProductImage(prod.title, prod.images[0]);
               const isSelected = selectedProductIds.includes(prod.id);
+              const dbPrice = dbSyncedPrices[prod.id];
+              const isPriceSynced = typeof dbPrice === 'number' && dbPrice === prod.price;
+              const isPriceStale = typeof dbPrice === 'number' && dbPrice !== prod.price;
+
               return (
                 <div 
                   key={prod.id} 
@@ -615,8 +663,8 @@ export const SellerCatalogListModal: React.FC = () => {
                   {/* Middle / Right: Pricing, Stock Toggle, New Arrival Toggle & Actions */}
                   <div className="flex items-center justify-between sm:justify-end gap-2.5 sm:gap-3 w-full sm:w-auto shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-[#E8DFD8]/40">
                     
-                    {/* Price */}
-                    <div className="text-left sm:text-right">
+                    {/* Price & Sync Status Indicator */}
+                    <div className="text-left sm:text-right flex flex-col items-start sm:items-end gap-0.5">
                       <div className="font-semibold text-xs sm:text-sm text-[#1C1B1A]">
                         NPR {prod.price.toLocaleString()}
                       </div>
@@ -625,6 +673,59 @@ export const SellerCatalogListModal: React.FC = () => {
                           NPR {prod.originalPrice.toLocaleString()}
                         </div>
                       )}
+
+                      {/* Sync Status Badge */}
+                      <div className="mt-0.5">
+                        {isPriceSynced ? (
+                          <span 
+                            className="text-[9px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded flex items-center gap-1 shadow-2xs"
+                            title="Price is 100% synced with Cloud Firestore database"
+                          >
+                            <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" />
+                            <span>Synced with DB</span>
+                          </span>
+                        ) : isPriceStale ? (
+                          <div className="flex items-center gap-1">
+                            <span 
+                              className="text-[9px] font-bold text-rose-800 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded flex items-center gap-1 animate-pulse shadow-2xs"
+                              title={`Local price NPR ${prod.price.toLocaleString()} differs from Database price NPR ${dbPrice.toLocaleString()}`}
+                            >
+                              <AlertTriangle className="w-2.5 h-2.5 text-rose-600" />
+                              <span>Stale (DB: NPR {dbPrice.toLocaleString()})</span>
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleSyncSingleProduct(prod)}
+                              disabled={syncingProductId === prod.id}
+                              className="px-1.5 py-0.5 bg-rose-600 hover:bg-rose-700 text-white rounded text-[9px] font-bold shadow-2xs flex items-center gap-1 transition-colors cursor-pointer"
+                              title="Re-sync updated price to Cloud Firestore database"
+                            >
+                              <RefreshCw className={`w-2.5 h-2.5 ${syncingProductId === prod.id ? 'animate-spin' : ''}`} />
+                              <span>Re-sync</span>
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1">
+                            <span 
+                              className="text-[9px] font-medium text-amber-800 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded flex items-center gap-1 shadow-2xs"
+                              title="Not yet recorded in Cloud Firestore database"
+                            >
+                              <Clock className="w-2.5 h-2.5 text-amber-600" />
+                              <span>Pending Sync</span>
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleSyncSingleProduct(prod)}
+                              disabled={syncingProductId === prod.id}
+                              className="px-1.5 py-0.5 bg-[#1C1B1A] text-white hover:bg-[#34312F] rounded text-[9px] font-bold shadow-2xs flex items-center gap-1 transition-colors cursor-pointer"
+                              title="Push product price to Cloud Firestore database"
+                            >
+                              <RefreshCw className={`w-2.5 h-2.5 ${syncingProductId === prod.id ? 'animate-spin' : ''}`} />
+                              <span>Sync</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
 
                     {/* New Arrival Direct Toggle Button */}
