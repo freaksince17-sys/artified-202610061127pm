@@ -184,6 +184,41 @@ async function startServer() {
     }
   });
 
+  // DELETE /api/reviews/:id - Remove review persistently from server disk and products.json
+  app.delete('/api/reviews/:id', (req, res) => {
+    try {
+      const reviewId = req.params.id;
+      if (!reviewId) return res.status(400).json({ error: 'Review ID required' });
+
+      if (fs.existsSync(reviewsJsonPath)) {
+        try {
+          const reviews = JSON.parse(fs.readFileSync(reviewsJsonPath, 'utf-8'));
+          const filtered = reviews.filter((r: any) => r.id !== reviewId);
+          fs.writeFileSync(reviewsJsonPath, JSON.stringify(filtered, null, 2), 'utf-8');
+        } catch {}
+      }
+
+      if (fs.existsSync(productsJsonPath)) {
+        try {
+          const productList = JSON.parse(fs.readFileSync(productsJsonPath, 'utf-8'));
+          const updatedProducts = productList.map((p: any) => {
+            const currentCustom = p.customReviews || [];
+            const cleanCustom = currentCustom.filter((cr: any) => cr.id !== reviewId);
+            return {
+              ...p,
+              customReviews: [...cleanCustom, { id: reviewId, isDeleted: true }]
+            };
+          });
+          fs.writeFileSync(productsJsonPath, JSON.stringify(updatedProducts, null, 2), 'utf-8');
+        } catch {}
+      }
+
+      return res.json({ success: true, deletedId: reviewId });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message || 'Failed to delete review' });
+    }
+  });
+
   // GET /api/catalog-price-version - Lightweight price versioning endpoint
   app.get('/api/catalog-price-version', (_req, res) => {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');

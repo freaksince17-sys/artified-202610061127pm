@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   X, 
   Star, 
@@ -19,6 +19,7 @@ import { useCart } from '../context/CartContext';
 import { ProductReviewItem, Product } from '../types';
 import { getProductReviews } from '../utils/productStats';
 import { getRealProductImage } from '../utils/productImages';
+import { subscribeToAllProductReviews, FirestoreProductReview } from '../services/reviewService';
 
 interface ReviewWithProduct extends ProductReviewItem {
   productId: string;
@@ -41,6 +42,7 @@ export const SellerReviewsModal: React.FC = () => {
 
   const [selectedProductFilter, setSelectedProductFilter] = useState<string>(reviewsManagerProductId || 'all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [firestoreReviews, setFirestoreReviews] = useState<FirestoreProductReview[]>([]);
   
   // Editor form state (for both creating and editing reviews)
   const [isEditing, setIsEditing] = useState(false);
@@ -60,28 +62,63 @@ export const SellerReviewsModal: React.FC = () => {
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   // Synchronize when opened with a specific product ID
-  React.useEffect(() => {
+  useEffect(() => {
     if (reviewsManagerProductId) {
       setSelectedProductFilter(reviewsManagerProductId);
     }
   }, [reviewsManagerProductId]);
 
-  // Aggregate all reviews across all products
+  // Subscribe to all Firestore product reviews for real-time seller synchronization
+  useEffect(() => {
+    if (!isReviewsManagerOpen) return;
+    const unsubscribe = subscribeToAllProductReviews((fetched) => {
+      if (Array.isArray(fetched)) {
+        setFirestoreReviews(fetched);
+      }
+    });
+    return () => unsubscribe();
+  }, [isReviewsManagerOpen]);
+
+  // Aggregate all reviews across all products & Firestore collection
   const allReviewsWithProduct: ReviewWithProduct[] = useMemo(() => {
-    const list: ReviewWithProduct[] = [];
+    const map = new Map<string, ReviewWithProduct>();
+
+    // 1. Load product-level custom reviews & curated fallback reviews
     products.forEach((prod) => {
       const prodReviews = getProductReviews(prod);
       prodReviews.forEach((rev) => {
-        list.push({
+        map.set(rev.id, {
           ...rev,
           productId: prod.id,
           productTitle: prod.title,
-          productImage: getRealProductImage(prod.title, prod.images[0]),
+          productImage: getRealProductImage(prod.title, prod.images?.[0]),
         });
       });
     });
-    return list;
-  }, [products]);
+
+    // 2. Merge all Firestore product_reviews collection items
+    firestoreReviews.forEach((fr) => {
+      const pId = fr.productId || products[0]?.id || 'pearl-beaded-bag';
+      const matchedProd = products.find(p => p.id === pId || p.title?.toLowerCase() === fr.productTitle?.toLowerCase()) || products[0];
+      const prodTitle = fr.productTitle || matchedProd?.title || 'Pearl Beaded Bag';
+      const prodImage = matchedProd ? getRealProductImage(matchedProd.title, matchedProd.images?.[0]) : getRealProductImage(prodTitle, '');
+
+      map.set(fr.id, {
+        id: fr.id,
+        author: fr.author,
+        location: fr.location || 'Kathmandu, Nepal',
+        rating: fr.rating,
+        date: fr.date || 'Recently',
+        verified: fr.verified !== false,
+        comment: fr.comment,
+        productId: matchedProd?.id || pId,
+        productTitle: prodTitle,
+        productImage: prodImage,
+      });
+    });
+
+    return Array.from(map.values());
+  }, [products, firestoreReviews]);
 
   // Filter and search reviews
   const filteredReviews = useMemo(() => {

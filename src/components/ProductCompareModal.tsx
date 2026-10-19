@@ -16,7 +16,7 @@ import {
   Plus
 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
-import { calculateTotalSold, calculateReviewsCount, isProductBestSeller } from '../utils/productStats';
+import { calculateTotalSold, calculateReviewsCount, isProductBestSeller, getProductReviews } from '../utils/productStats';
 import { Product } from '../types';
 import { getRealProductImage, CAVIAR_PEARL_BAG_IMAGE } from '../utils/productImages';
 
@@ -292,7 +292,14 @@ const ComparisonColumn: React.FC<ComparisonColumnProps> = ({
   bestsellerThreshold
 }) => {
   const isBestSeller = isProductBestSeller(product, bestsellerThreshold);
-  const reviewsCount = calculateReviewsCount(product);
+  const productReviews = React.useMemo(() => getProductReviews(product), [product]);
+  const reviewsCount = productReviews.length > 0 ? productReviews.length : calculateReviewsCount(product);
+  const rawRatingVal = productReviews.length > 0
+    ? (productReviews.reduce((acc, r) => acc + (r.rating || 4.7), 0) / productReviews.length)
+    : (product.rating ? Number(product.rating) : 4.7);
+  const averageRatingVal = Math.min(4.8, Math.max(4.0, rawRatingVal));
+  const averageRatingStr = averageRatingVal.toFixed(1);
+
   const totalSold = calculateTotalSold(product);
 
   const fallback = CAVIAR_PEARL_BAG_IMAGE;
@@ -365,10 +372,10 @@ const ComparisonColumn: React.FC<ComparisonColumnProps> = ({
           <div className="flex items-center gap-1 text-xs text-[#736C65] pt-0.5">
             <div className="flex items-center text-amber-400">
               {[...Array(5)].map((_, i) => (
-                <Star key={i} className="w-3 h-3 fill-amber-400" />
+                <Star key={i} className={`w-3 h-3 ${i < Math.round(averageRatingVal) ? 'fill-amber-400' : 'text-zinc-300'}`} />
               ))}
             </div>
-            <span className="font-bold text-[#1C1B1A]">{product.rating}</span>
+            <span className="font-bold text-[#1C1B1A]">{averageRatingStr}</span>
             <span className="text-[11px]">({reviewsCount} reviews • {totalSold} sold)</span>
           </div>
         </div>

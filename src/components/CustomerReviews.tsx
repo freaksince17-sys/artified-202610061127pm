@@ -123,7 +123,7 @@ export const INITIAL_CUSTOMER_REVIEWS: CustomerReviewWithPhoto[] = [
     id: 'cr-7',
     author: 'Saanvi Malla',
     location: 'Kathmandu, Nepal',
-    rating: 4.0,
+    rating: 4.7,
     reviewTitle: 'Super shiny crystals ra cute heart lock',
     comment: 'Aafno ra bahini ko lagi kineko thie. Crystal sparkle gham ma dherai ramro dekhincha! Heart clasp secure cha so scooter chadda pani jhardena. Highly recommended!',
     productName: 'Crystal Bead Bracelets with Heart Clasp',

@@ -253,3 +253,20 @@ export function subscribeToAllProductReviews(
 
   return unsubscribe;
 }
+
+/**
+ * Deletes a product review from Firestore product_reviews collection and server database.
+ */
+export async function deleteProductReviewFromFirestore(reviewId: string): Promise<void> {
+  if (!reviewId) return;
+  try {
+    const docRef = doc(db, REVIEWS_COLLECTION, reviewId);
+    await deleteDoc(docRef);
+  } catch (err) {
+    console.warn('Notice: Firestore review delete notice:', err);
+  }
+
+  try {
+    await fetch(`/api/reviews/${reviewId}`, { method: 'DELETE' });
+  } catch {}
+}

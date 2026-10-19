@@ -35,6 +35,7 @@ import { handleFirestoreError, OperationType } from '../utils/firestoreErrors';
 import { compressImage } from '../utils/imageCompressor';
 import { sanitizeForFirestore } from '../utils/firestoreSanitizer';
 import { sanitizeReviewItem, getProductReviews, isProductBestSeller } from '../utils/productStats';
+import { deleteProductReviewFromFirestore } from '../services/reviewService';
 
 import { buildTrackedOrderFromOrderDetails, syncTrackedOrdersFromServer, syncOrdersFromFirestore } from '../data/trackingData';
 import { saveOrderToFirestore } from '../services/orderTrackingService';
@@ -1258,8 +1259,10 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Delete a review (or hide curated default)
   const deleteProductReview = async (productId: string, reviewId: string) => {
     try {
+      await deleteProductReviewFromFirestore(reviewId);
+
       const updatedProducts = products.map((prod) => {
-        if (prod.id === productId) {
+        if (prod.id === productId || prod.customReviews?.some(r => r.id === reviewId)) {
           const existingCustom = (prod.customReviews || []).filter((r) => r.id !== reviewId);
           return {
             ...prod,

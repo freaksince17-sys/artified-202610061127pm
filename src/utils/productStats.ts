@@ -799,18 +799,21 @@ const UNIQUE_CUSTOMER_FALLBACK_POOL = [
 ];
 
 /**
- * Sanitizes any review location, comment text, and ensures ratings fluctuate between 4.0 and 5.0.
+ * Sanitizes any review location, comment text, and ensures ratings strictly >= 4.5 (4.5, 4.6, 4.7, 4.8, 4.9, 5.0).
  */
 export function sanitizeReviewItem<T extends { location?: string; comment?: string; rating?: number; id?: string }>(rev: T): T {
   let rating = typeof rev.rating === 'number' ? rev.rating : 4.7;
-  if (rating > 5.0 || rating < 4.0) {
+  if (rating < 4.5 || rating > 5.0) {
     let hash = 0;
     const seed = (rev.id || '') + (rev.comment || '');
     for (let i = 0; i < seed.length; i++) {
       hash = (hash * 31 + seed.charCodeAt(i)) & 0xffffffff;
     }
-    const pool = [4.0, 4.5, 5.0, 4.5, 4.0, 5.0, 4.5, 4.0, 5.0];
+    const pool = [4.5, 4.6, 4.7, 4.8, 4.9, 5.0];
     rating = pool[Math.abs(hash) % pool.length];
+  } else {
+    // Ensure rating is rounded to 1 decimal place and >= 4.5
+    rating = Math.max(4.5, Math.min(5.0, Math.round(rating * 10) / 10));
   }
 
   return {
@@ -826,6 +829,19 @@ export function sanitizeReviewItem<T extends { location?: string; comment?: stri
           .replace(/\bpatrons?\b/gi, 'customers')
       : rev.comment
   };
+}
+
+/**
+ * Calculates the exact average rating of a product from its reviews, strictly matching inside reviews and ranging between 4.5 and 5.0.
+ */
+export function getProductAverageRating(product: Product): number {
+  const reviews = getProductReviews(product);
+  if (reviews.length === 0) {
+    return Number(product.rating || 4.8);
+  }
+  const sum = reviews.reduce((acc, r) => acc + (Number(r.rating) || 4.7), 0);
+  const avg = sum / reviews.length;
+  return Math.max(4.5, Math.min(5.0, Math.round(avg * 10) / 10));
 }
 
 /**

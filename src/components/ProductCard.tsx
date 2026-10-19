@@ -3,7 +3,7 @@ import { Heart, Eye, Star, Edit3, Scale, Bell } from 'lucide-react';
 import { Product } from '../types';
 import { useCart } from '../context/CartContext';
 import { useLanguage } from '../context/LanguageContext';
-import { calculateTotalSold, isProductBestSeller, calculateReviewsCount, getDisplayOriginalPrice, calculateDiscountPercent } from '../utils/productStats';
+import { calculateTotalSold, isProductBestSeller, calculateReviewsCount, getDisplayOriginalPrice, calculateDiscountPercent, getProductReviews } from '../utils/productStats';
 import { RestockNotifyModal } from './RestockNotifyModal';
 import { isProductWaitlisted } from '../utils/waitlistService';
 
@@ -43,7 +43,14 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, isSelected = 
 
   const totalSold = calculateTotalSold(product);
   const isBestSeller = isProductBestSeller(product, bestsellerThreshold);
-  const dynamicReviewsCount = calculateReviewsCount(product);
+  
+  const productReviews = React.useMemo(() => getProductReviews(product), [product]);
+  const dynamicReviewsCount = productReviews.length > 0 ? productReviews.length : calculateReviewsCount(product);
+  const rawRatingVal = productReviews.length > 0
+    ? (productReviews.reduce((acc, r) => acc + (r.rating || 4.7), 0) / productReviews.length)
+    : (product.rating ? Number(product.rating) : 4.7);
+  const averageRatingVal = Math.min(4.8, Math.max(4.0, rawRatingVal));
+  const averageRatingStr = averageRatingVal.toFixed(1);
 
   const wishlisted = isWishlisted(product.id);
 
@@ -248,12 +255,12 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, isSelected = 
               {[1, 2, 3, 4, 5].map((star) => (
                 <Star
                   key={star}
-                  className={`w-2 h-2 sm:w-2.5 sm:h-2.5 ${star <= Math.round(product.rating || 4.7) ? 'fill-current' : 'text-zinc-300 dark:text-zinc-600'}`}
+                  className={`w-2 h-2 sm:w-2.5 sm:h-2.5 ${star <= Math.round(averageRatingVal) ? 'fill-current' : 'text-zinc-300 dark:text-zinc-600'}`}
                 />
               ))}
             </div>
             <span className="text-[9px] sm:text-[10px] font-bold text-[#1C1B1A] dark:text-[#E8E2D9]">
-              {Number(product.rating || 4.7).toFixed(1)}
+              {averageRatingStr}
             </span>
             <span className="text-[9px] sm:text-[10px] text-[#736C65] dark:text-[#A8A096]">
               ({dynamicReviewsCount})
