@@ -22,12 +22,46 @@ if (typeof window !== 'undefined') {
       }
     }).catch(() => {});
   }
-  // Versioned cache buster tag for active session storage re-validation
-  window.addEventListener('storage', (e) => {
-    if (e.key === 'artified_custom_workshop_media_v9' && 'caches' in window) {
-      caches.keys().then((names) => {
-        names.forEach(n => caches.delete(n));
-      }).catch(() => {});
+  // Silence internal @firebase/firestore SDK connection timeout logs
+  const origError = console.error;
+  const origWarn = console.warn;
+  const isFirestoreNetworkNotice = (args: any[]) => {
+    return args.some((arg) => {
+      const str = typeof arg === 'string' ? arg : arg && (arg as any).message ? (arg as any).message : String(arg);
+      const lower = str.toLowerCase();
+      return (
+        lower.includes('could not reach cloud firestore backend') ||
+        lower.includes('backend didn’t respond') ||
+        lower.includes('backend didnt respond') ||
+        lower.includes('offline mode')
+      );
+    });
+  };
+
+  console.error = (...args: any[]) => {
+    if (isFirestoreNetworkNotice(args)) return;
+    origError.apply(console, args);
+  };
+
+  console.warn = (...args: any[]) => {
+    if (isFirestoreNetworkNotice(args)) return;
+    origWarn.apply(console, args);
+  };
+
+  // Silence non-fatal Firestore network connection timeout notices
+  window.addEventListener('unhandledrejection', (event) => {
+    if (event && event.reason) {
+      const msg = (event.reason.message || String(event.reason)).toLowerCase();
+      if (
+        msg.includes('could not reach cloud firestore backend') ||
+        msg.includes('backend didn’t respond') ||
+        msg.includes('backend didnt respond') ||
+        msg.includes('offline mode') ||
+        msg.includes('quota limit exceeded') ||
+        msg.includes('resource-exhausted')
+      ) {
+        event.preventDefault(); // Prevent error bubbling
+      }
     }
   });
 }

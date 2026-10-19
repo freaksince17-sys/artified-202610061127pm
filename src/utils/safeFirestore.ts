@@ -33,7 +33,13 @@ export function detectQuotaError(err: any): boolean {
     msg.includes('exceeds the limit') ||
     msg.includes('payload size exceeds') ||
     msg.includes('exhausted') ||
-    msg.includes('quota');
+    msg.includes('quota') ||
+    msg.includes('could not reach cloud firestore backend') ||
+    msg.includes('backend didn’t respond') ||
+    msg.includes('backend didnt respond') ||
+    msg.includes('offline mode') ||
+    msg.includes('network error') ||
+    msg.includes('unavailable');
   if (isQuota) {
     if (!msg.includes('payload size')) {
       setFirestoreQuotaExceeded(true);
