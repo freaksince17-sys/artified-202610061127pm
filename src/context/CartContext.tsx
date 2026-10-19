@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Product, CartItem, DeliveryZone, OrderDetails, TikTokReel, CraftStoryData, InstagramJournalItem, ProductReviewItem } from '../types';
+import { Product, CartItem, DeliveryZone, OrderDetails, TikTokReel, CraftStoryData, InstagramJournalItem, ProductReviewItem, SortOption } from '../types';
 import { 
   DELIVERY_ZONES, 
   PRODUCTS, 
@@ -34,7 +34,7 @@ import {
 import { handleFirestoreError, OperationType } from '../utils/firestoreErrors';
 import { compressImage } from '../utils/imageCompressor';
 import { sanitizeForFirestore } from '../utils/firestoreSanitizer';
-import { sanitizeReviewItem, getProductReviews, isProductBestSeller } from '../utils/productStats';
+import { sanitizeReviewItem, getProductReviews, isProductBestSeller, calculateDiscountPercent, calculateTotalSold } from '../utils/productStats';
 import { deleteProductReviewFromFirestore } from '../services/reviewService';
 
 import { buildTrackedOrderFromOrderDetails, syncTrackedOrdersFromServer, syncOrdersFromFirestore } from '../data/trackingData';
@@ -124,6 +124,8 @@ interface CartContextType {
   setSearchQuery: (query: string) => void;
   selectedCategory: string;
   setSelectedCategory: (cat: string) => void;
+  sortBy: SortOption;
+  setSortBy: (sort: SortOption) => void;
   completedOrder: OrderDetails | null;
   setCompletedOrder: (order: OrderDetails | null) => void;
   isTrackerOpen: boolean;
@@ -329,6 +331,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [activeReel, setActiveReel] = useState<TikTokReel | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [sortBy, setSortBy] = useState<SortOption>('featured');
   const [completedOrder, setCompletedOrderState] = useState<OrderDetails | null>(null);
 
   // Smooth Non-Intrusive Add-to-Cart Visual Feedback State
@@ -957,6 +960,12 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Products State - Guaranteed all 33 products loaded immediately with authoritative prices reconciled
   const [products, setProducts] = useState<Product[]>(() => {
     try {
+      const priceListVersion = localStorage.getItem('artified_price_list_v2026');
+      if (priceListVersion !== 'true') {
+        localStorage.removeItem('artified_products_custom');
+        localStorage.setItem('artified_price_list_v2026', 'true');
+      }
+
       const saved = localStorage.getItem('artified_products_custom');
       if (saved) {
         if (saved.length > 500000) {
@@ -1051,21 +1060,15 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsReviewsManagerOpen(true);
   };
 
-  // Dynamically Filtered Products based on selected Category and Search
+  // Dynamically Filtered & Sorted Products based on selected Category, Search, and SortOption
   const filteredProducts = React.useMemo(() => {
     let result = [...products];
 
-    // Filter by search query
+    // Filter by search query strictly matching product title (name)
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
       result = result.filter(
-        (p) =>
-          p.title.toLowerCase().includes(q) ||
-          p.subtitle.toLowerCase().includes(q) ||
-          p.description.toLowerCase().includes(q) ||
-          p.category.toLowerCase().includes(q) ||
-          p.tags.some((t) => t.toLowerCase().includes(q)) ||
-          p.materials.some((m) => m.toLowerCase().includes(q))
+        (p) => p.title.toLowerCase().includes(q)
       );
     }
 
@@ -1084,8 +1087,45 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       result = result.filter((p) => p.isBestSeller || isProductBestSeller(p, bestsellerThreshold));
     }
 
+    // Sort by requested options
+    if (sortBy === 'rating-desc') {
+      result.sort((a, b) => {
+        const ratingA = Number(a.rating || 4.7);
+        const ratingB = Number(b.rating || 4.7);
+        if (ratingB !== ratingA) return ratingB - ratingA;
+        return a.title.localeCompare(b.title);
+      });
+    } else if (sortBy === 'discount-desc') {
+      result.sort((a, b) => {
+        const discA = calculateDiscountPercent(a);
+        const discB = calculateDiscountPercent(b);
+        if (discB !== discA) return discB - discA;
+        return a.price - b.price;
+      });
+    } else if (sortBy === 'newest') {
+      result.sort((a, b) => {
+        if (a.isNewArrival === b.isNewArrival) return a.title.localeCompare(b.title);
+        return a.isNewArrival ? -1 : 1;
+      });
+    } else if (sortBy === 'price-asc') {
+      result.sort((a, b) => a.price - b.price);
+    } else if (sortBy === 'price-desc') {
+      result.sort((a, b) => b.price - a.price);
+    } else if (sortBy === 'name-asc') {
+      result.sort((a, b) => a.title.localeCompare(b.title));
+    } else if (sortBy === 'name-desc') {
+      result.sort((a, b) => b.title.localeCompare(a.title));
+    } else {
+      result.sort((a, b) => {
+        const soldA = calculateTotalSold(a);
+        const soldB = calculateTotalSold(b);
+        if (soldB !== soldA) return soldB - soldA;
+        return a.title.localeCompare(b.title);
+      });
+    }
+
     return result;
-  }, [products, selectedCategory, searchQuery, bestsellerThreshold]);
+  }, [products, selectedCategory, searchQuery, sortBy, bestsellerThreshold]);
 
   // Navigate left or right between products within the active collection
   const navigateProduct = (direction: 'next' | 'prev') => {
@@ -2336,6 +2376,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setSearchQuery,
         selectedCategory,
         setSelectedCategory,
+        sortBy,
+        setSortBy,
         completedOrder,
         setCompletedOrder,
         isTrackerOpen,

@@ -345,4 +345,7 @@ export interface WorkshopEventSummary {
   nextBatchDate?: string;
 }
 
+export type SortOption = 'featured' | 'rating-desc' | 'discount-desc' | 'newest' | 'price-asc' | 'price-desc' | 'name-asc' | 'name-desc';
+
+
 

@@ -918,5 +918,21 @@ export function getProductReviews(product: Product): ProductReviewItem[] {
     }
   }
 
-  return combined.map(sanitizeReviewItem);
+  // Deduplicate by ID and author+comment signature to prevent duplicates (e.g. Shyna comment recorded twice)
+  const uniqueCombined: ProductReviewItem[] = [];
+  const seenIds = new Set<string>();
+  const seenSignatures = new Set<string>();
+
+  for (const r of combined) {
+    if (!r || !r.id || !r.author || !r.comment) continue;
+    const cleanId = String(r.id).trim();
+    const sig = `${r.author.trim().toLowerCase()}_${r.comment.trim().toLowerCase()}`;
+    if (!seenIds.has(cleanId) && !seenSignatures.has(sig)) {
+      seenIds.add(cleanId);
+      seenSignatures.add(sig);
+      uniqueCombined.push(r);
+    }
+  }
+
+  return uniqueCombined.map(sanitizeReviewItem);
 }

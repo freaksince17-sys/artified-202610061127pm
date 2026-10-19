@@ -43,10 +43,6 @@ export function isMatchForProduct(data: FirestoreProductReview, productId: strin
   const normTarget = target.replace(/[^a-z0-9]/g, '');
   if (normPid && normTarget && (normPid === normTarget || normPid.includes(normTarget) || normTarget.includes(normPid))) return true;
 
-  if ((target.includes('pearl') || target.includes('bag') || target.includes('tote')) &&
-      (pId.includes('pearl') || pId.includes('bag') || pId.includes('tote') || titleSlug.includes('pearl'))) {
-    return true;
-  }
   return false;
 }
 

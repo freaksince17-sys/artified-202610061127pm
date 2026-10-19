@@ -53,7 +53,9 @@ export const ProductDetailModal: React.FC = () => {
     openReviewsManager,
     toggleCompareProduct,
     isProductCompared,
-    openCompareModal
+    openCompareModal,
+    filteredProducts,
+    navigateProduct
   } = useCart();
 
   const { language, t } = useLanguage();
@@ -213,41 +215,19 @@ export const ProductDetailModal: React.FC = () => {
     setIsZoomed(false);
   };
 
-  const categoryProducts = React.useMemo(() => {
-    let list = [...products];
-    if (selectedCategory === 'pearl-bags') {
-      list = list.filter((p) => p.category === 'pearl-bags');
-    } else if (selectedCategory === 'pearl-necklaces') {
-      list = list.filter((p) => p.category === 'pearl-necklaces');
-    } else if (selectedCategory === 'macrame') {
-      list = list.filter((p) => p.category === 'macrame');
-    } else if (selectedCategory === 'accessories') {
-      list = list.filter((p) => p.category === 'accessories');
-    } else if (selectedCategory === 'new-arrivals') {
-      list = list.filter((p) => p.isNewArrival);
-    } else if (selectedCategory === 'best-sellers') {
-      list = list.filter((p) => p.isBestSeller || isProductBestSeller(p, bestsellerThreshold));
-    }
-    return list.length > 0 ? list : products;
-  }, [products, selectedCategory, bestsellerThreshold]);
-
   const currentProductIndex = React.useMemo(() => {
     if (!quickViewProduct) return -1;
-    const idx = categoryProducts.findIndex((p) => p.id === quickViewProduct.id);
+    const idx = filteredProducts.findIndex((p) => p.id === quickViewProduct.id);
     return idx >= 0 ? idx : 0;
-  }, [categoryProducts, quickViewProduct]);
+  }, [filteredProducts, quickViewProduct]);
 
   const handlePrevProduct = () => {
-    if (categoryProducts.length <= 1) return;
-    const newIdx = (currentProductIndex - 1 + categoryProducts.length) % categoryProducts.length;
-    setQuickViewProduct(categoryProducts[newIdx]);
+    navigateProduct('prev');
     setActiveImageIndex(0);
   };
 
   const handleNextProduct = () => {
-    if (categoryProducts.length <= 1) return;
-    const newIdx = (currentProductIndex + 1) % categoryProducts.length;
-    setQuickViewProduct(categoryProducts[newIdx]);
+    navigateProduct('next');
     setActiveImageIndex(0);
   };
 
@@ -269,7 +249,7 @@ export const ProductDetailModal: React.FC = () => {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [quickViewProduct, currentProductIndex, categoryProducts]);
+  }, [quickViewProduct, currentProductIndex, filteredProducts]);
 
   const fallbackReviews = React.useMemo(() => {
     return quickViewProduct ? getProductReviews(quickViewProduct) : [];
@@ -376,7 +356,7 @@ export const ProductDetailModal: React.FC = () => {
       {/* Modal Dialog Container with Floating Side Navigation Arrows as in Image 1 */}
       <div className="relative w-full max-w-4xl my-auto z-10 flex items-center justify-center">
         {/* Previous Product Arrow (Left Side of Modal) */}
-        {categoryProducts.length > 1 && (
+        {filteredProducts.length > 1 && (
           <button
             type="button"
             onClick={handlePrevProduct}
@@ -389,7 +369,7 @@ export const ProductDetailModal: React.FC = () => {
         )}
 
         {/* Next Product Arrow (Right Side of Modal) */}
-        {categoryProducts.length > 1 && (
+        {filteredProducts.length > 1 && (
           <button
             type="button"
             onClick={handleNextProduct}
@@ -425,9 +405,9 @@ export const ProductDetailModal: React.FC = () => {
 
             {/* Right Action buttons and Counter */}
             <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-              {categoryProducts.length > 1 && (
+              {filteredProducts.length > 1 && (
                 <span className="text-xs sm:text-sm font-medium text-[#736C65] tabular-nums mr-1 sm:mr-1.5">
-                  {currentProductIndex + 1}/{categoryProducts.length}
+                  {currentProductIndex + 1}/{filteredProducts.length}
                 </span>
               )}
 

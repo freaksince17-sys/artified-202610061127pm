@@ -7,14 +7,15 @@ import {
   SearchX, 
   Sparkles,
   ShoppingBag,
-  Star
+  Star,
+  Search
 } from 'lucide-react';
 import { ProductCard } from './ProductCard';
 import { useCart } from '../context/CartContext';
 import { isProductBestSeller, calculateDiscountPercent, calculateTotalSold } from '../utils/productStats';
 import { GlobalSearchBar } from './GlobalSearchBar';
 
-type SortOption = 'featured' | 'rating-desc' | 'discount-desc' | 'newest' | 'price-asc' | 'price-desc' | 'name-asc' | 'name-desc';
+import { SortOption } from '../types';
 
 const SORT_OPTIONS: { id: SortOption; label: string }[] = [
   { id: 'featured', label: 'Sort by' },
@@ -40,10 +41,12 @@ export const ProductGrid: React.FC = () => {
     quickViewProduct,
     setQuickViewProduct,
     isSellerMode,
-    openReviewsManager
+    openReviewsManager,
+    sortBy,
+    setSortBy,
+    filteredProducts
   } = useCart();
 
-  const [sortBy, setSortBy] = useState<SortOption>('featured');
   const [isSortOpen, setIsSortOpen] = useState(false);
   const [isCategoryOpen, setIsCategoryOpen] = useState(false);
   const sortDropdownRef = useRef<HTMLDivElement>(null);
@@ -73,85 +76,6 @@ export const ProductGrid: React.FC = () => {
     { id: 'best-sellers', label: 'Best Sellers', isSpecial: true },
   ];
 
-  const filteredProducts = useMemo(() => {
-    let result = [...products];
-
-    // Filter by search query
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase().trim();
-      result = result.filter(
-        (p) =>
-          p.title.toLowerCase().includes(q) ||
-          p.subtitle.toLowerCase().includes(q) ||
-          p.description.toLowerCase().includes(q) ||
-          p.category.toLowerCase().includes(q) ||
-          p.tags.some((t) => t.toLowerCase().includes(q)) ||
-          p.materials.some((m) => m.toLowerCase().includes(q))
-      );
-    }
-
-    // Filter by category
-    if (selectedCategory === 'pearl-bags') {
-      result = result.filter((p) => p.category === 'pearl-bags');
-    } else if (selectedCategory === 'pearl-necklaces') {
-      result = result.filter((p) => p.category === 'pearl-necklaces');
-    } else if (selectedCategory === 'macrame') {
-      result = result.filter((p) => p.category === 'macrame');
-    } else if (selectedCategory === 'accessories') {
-      result = result.filter((p) => p.category === 'accessories');
-    } else if (selectedCategory === 'new-arrivals') {
-      result = result.filter((p) => p.isNewArrival);
-    } else if (selectedCategory === 'best-sellers') {
-      result = result.filter((p) => p.isBestSeller || isProductBestSeller(p, bestsellerThreshold));
-    }
-
-    // Sort by requested options (default is most sold product placed first)
-    if (sortBy === 'rating-desc') {
-      result.sort((a, b) => {
-        const ratingA = Number(a.rating || 4.7);
-        const ratingB = Number(b.rating || 4.7);
-        if (ratingB !== ratingA) {
-          return ratingB - ratingA; // Highest rating product first
-        }
-        return a.title.localeCompare(b.title);
-      });
-    } else if (sortBy === 'discount-desc') {
-      result.sort((a, b) => {
-        const discA = calculateDiscountPercent(a);
-        const discB = calculateDiscountPercent(b);
-        if (discB !== discA) {
-          return discB - discA; // Highest percentage discount appears first
-        }
-        return a.price - b.price; // Secondary sort by price
-      });
-    } else if (sortBy === 'newest') {
-      result.sort((a, b) => {
-        if (a.isNewArrival === b.isNewArrival) return a.title.localeCompare(b.title);
-        return a.isNewArrival ? -1 : 1;
-      });
-    } else if (sortBy === 'price-asc') {
-      result.sort((a, b) => a.price - b.price);
-    } else if (sortBy === 'price-desc') {
-      result.sort((a, b) => b.price - a.price);
-    } else if (sortBy === 'name-asc') {
-      result.sort((a, b) => a.title.localeCompare(b.title));
-    } else if (sortBy === 'name-desc') {
-      result.sort((a, b) => b.title.localeCompare(a.title));
-    } else {
-      // Default ('featured'): Most sold products placed first
-      result.sort((a, b) => {
-        const soldA = calculateTotalSold(a);
-        const soldB = calculateTotalSold(b);
-        if (soldB !== soldA) {
-          return soldB - soldA; // Highest units sold appears first
-        }
-        return a.title.localeCompare(b.title);
-      });
-    }
-
-    return result;
-  }, [products, selectedCategory, searchQuery, sortBy, bestsellerThreshold]);
-
   const currentSortLabel = SORT_OPTIONS.find((opt) => opt.id === sortBy)?.label || 'Sort by';
   const currentCategoryLabel = 
     categories.find((cat) => cat.id === selectedCategory)?.label || 'All Creations';
@@ -159,39 +83,39 @@ export const ProductGrid: React.FC = () => {
   return (
     <section id="shop-section" className="pt-0 sm:pt-1 pb-4 sm:pb-6 px-2 sm:px-3 lg:px-4 max-w-[1440px] mx-auto">
       {/* Category Dropdown (All Creations), Centered Search Bar, & Custom Sort Bar */}
-      <div className="flex items-center justify-between gap-1.5 sm:gap-2.5 mb-2 sm:mb-3 relative z-50 w-full flex-wrap sm:flex-nowrap">
-        {/* Left: Category Dropdown (All Creations, Pearl Bags, Pearl Necklaces, Macrame, Accessories, New Arrivals, Best Sellers) */}
-        <div ref={categoryDropdownRef} className="relative z-[60] shrink-0">
+      <div className="relative z-40 py-1.5 px-2 mb-2 flex items-center justify-between gap-1.5 sm:gap-2 w-full flex-wrap sm:flex-nowrap">
+        {/* Left: Category Dropdown */}
+        <div ref={categoryDropdownRef} className="relative z-[60] shrink-0 order-1">
           <button
             type="button"
             onClick={() => {
               setIsCategoryOpen(!isCategoryOpen);
               setIsSortOpen(false);
             }}
-            className="flex items-center justify-between gap-1.5 sm:gap-2 bg-white border border-[#D1D5DB] rounded-xl px-2.5 sm:px-3 py-1.5 sm:py-2 text-xs text-[#111827] min-w-[125px] sm:min-w-[160px] shadow-2xs hover:border-[#9CA3AF] focus:outline-none transition-colors cursor-pointer"
+            className="flex items-center justify-between gap-1.5 bg-white border border-[#D1D5DB] rounded-lg px-2.5 py-1 text-xs text-[#111827] min-w-[110px] sm:min-w-[145px] shadow-2xs hover:border-[#9CA3AF] focus:outline-none transition-colors cursor-pointer"
           >
             <span className="font-normal flex items-center gap-1.5 truncate">
-              {selectedCategory === 'new-arrivals' && <Sparkles className="w-3.5 h-3.5 text-[#C5A880] fill-[#C5A880] shrink-0" />}
-              {selectedCategory === 'best-sellers' && <Star className="w-3.5 h-3.5 text-[#D4AF37] fill-[#D4AF37] shrink-0" />}
+              {selectedCategory === 'new-arrivals' && <Sparkles className="w-3 h-3 text-[#C5A880] fill-[#C5A880] shrink-0" />}
+              {selectedCategory === 'best-sellers' && <Star className="w-3 h-3 text-[#D4AF37] fill-[#D4AF37] shrink-0" />}
               <span>{currentCategoryLabel}</span>
             </span>
             {isCategoryOpen ? (
-              <ChevronUp className="w-3.5 h-3.5 text-[#374151] shrink-0" />
+              <ChevronUp className="w-3 h-3 text-[#374151] shrink-0" />
             ) : (
-              <ChevronDown className="w-3.5 h-3.5 text-[#374151] shrink-0" />
+              <ChevronDown className="w-3 h-3 text-[#374151] shrink-0" />
             )}
           </button>
 
           {isCategoryOpen && (
-            <div className="absolute left-0 mt-1.5 w-full min-w-[210px] bg-white border border-[#D1D5DB] rounded-2xl shadow-2xl py-1.5 z-[100] animate-fade-in">
+            <div className="absolute left-0 mt-1 w-full min-w-[200px] bg-white border border-[#D1D5DB] rounded-xl shadow-2xl py-1 z-[100] animate-fade-in">
               {categories.map((cat) => {
                 const isSelected = selectedCategory === cat.id;
                 const isDividerBefore = cat.id === 'new-arrivals';
                 return (
                   <React.Fragment key={cat.id}>
                     {isDividerBefore && (
-                      <div className="my-1.5 border-t border-[#E5E7EB]">
-                        <span className="block px-3.5 pt-1.5 pb-0.5 text-[9px] font-bold uppercase tracking-wider text-[#9CA3AF]">
+                      <div className="my-1 border-t border-[#E5E7EB]">
+                        <span className="block px-3 pt-1 pb-0.5 text-[9px] font-bold uppercase tracking-wider text-[#9CA3AF]">
                           Featured Collections
                         </span>
                       </div>
@@ -202,7 +126,7 @@ export const ProductGrid: React.FC = () => {
                         setSelectedCategory(cat.id);
                         setIsCategoryOpen(false);
                       }}
-                      className={`w-full text-left px-3.5 py-2 text-xs sm:text-sm transition-colors flex items-center justify-between cursor-pointer ${
+                      className={`w-full text-left px-3 py-1.5 text-xs transition-colors flex items-center justify-between cursor-pointer ${
                         isSelected
                           ? 'bg-[#E5E5E5] text-[#111827] font-semibold'
                           : cat.isSpecial
@@ -211,12 +135,12 @@ export const ProductGrid: React.FC = () => {
                       }`}
                     >
                       <span className="flex items-center gap-1.5">
-                        {cat.id === 'new-arrivals' && <Sparkles className="w-3.5 h-3.5 text-[#C5A880] fill-[#C5A880]" />}
-                        {cat.id === 'best-sellers' && <Star className="w-3.5 h-3.5 text-[#D4AF37] fill-[#D4AF37]" />}
+                        {cat.id === 'new-arrivals' && <Sparkles className="w-3 h-3 text-[#C5A880] fill-[#C5A880]" />}
+                        {cat.id === 'best-sellers' && <Star className="w-3 h-3 text-[#D4AF37] fill-[#D4AF37]" />}
                         <span>{cat.label}</span>
                       </span>
                       {isSelected && (
-                        <span className="text-[11px] text-[#111827] font-bold">✓</span>
+                        <span className="text-[10px] text-[#111827] font-bold">✓</span>
                       )}
                     </button>
                   </React.Fragment>
@@ -224,6 +148,30 @@ export const ProductGrid: React.FC = () => {
               })}
             </div>
           )}
+        </div>
+
+        {/* Center: Search Bar */}
+        <div className="flex-1 min-w-[120px] sm:min-w-[180px] max-w-md mx-1 order-3 sm:order-2">
+          <div className="relative w-full">
+            <Search className="w-3.5 h-3.5 text-[#6B7280] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search creations..."
+              className="w-full pl-8 pr-7 py-1 text-xs bg-white border border-[#D1D5DB] rounded-lg text-[#111827] placeholder:text-[#9CA3AF] focus:outline-none focus:border-[#4B5563] shadow-2xs transition-colors"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-[#6B7280] hover:text-[#111827] font-bold p-0.5 cursor-pointer"
+                aria-label="Clear search"
+              >
+                ✕
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Right: Custom Sort Dropdown */}
@@ -234,13 +182,13 @@ export const ProductGrid: React.FC = () => {
               setIsSortOpen(!isSortOpen);
               setIsCategoryOpen(false);
             }}
-            className="flex items-center justify-between gap-1.5 sm:gap-2.5 bg-white border border-[#D1D5DB] rounded-xl px-3 sm:px-3.5 py-2 text-xs text-[#111827] min-w-[115px] sm:min-w-[155px] shadow-2xs hover:border-[#9CA3AF] focus:outline-none transition-colors cursor-pointer"
+            className="flex items-center justify-between gap-1.5 bg-white border border-[#D1D5DB] rounded-lg px-2.5 py-1 text-xs text-[#111827] min-w-[105px] sm:min-w-[135px] shadow-2xs hover:border-[#9CA3AF] focus:outline-none transition-colors cursor-pointer"
           >
             <span className="font-normal">{currentSortLabel}</span>
             {isSortOpen ? (
-              <ChevronUp className="w-3.5 h-3.5 text-[#374151] shrink-0" />
+              <ChevronUp className="w-3 h-3 text-[#374151] shrink-0" />
             ) : (
-              <ChevronDown className="w-3.5 h-3.5 text-[#374151] shrink-0" />
+              <ChevronDown className="w-3 h-3 text-[#374151] shrink-0" />
             )}
           </button>
 
