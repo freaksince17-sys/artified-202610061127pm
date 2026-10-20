@@ -62,6 +62,7 @@ export const SellerProductModal: React.FC = () => {
   const [title, setTitle] = useState('');
   const [subtitle, setSubtitle] = useState('');
   const [category, setCategory] = useState<'pearl-bags' | 'pearl-necklaces' | 'macrame' | 'accessories' | 'custom-beaded'>('pearl-bags');
+  const [sku, setSku] = useState('');
   const [price, setPrice] = useState<number>(3500);
   const [originalPrice, setOriginalPrice] = useState<number | undefined>(4000);
   const [inStock, setInStock] = useState<boolean>(true);
@@ -95,6 +96,7 @@ export const SellerProductModal: React.FC = () => {
       setTitle(editingProduct.title);
       setSubtitle(editingProduct.subtitle || '');
       setCategory(editingProduct.category);
+      setSku(editingProduct.sku || `ART-${editingProduct.category.slice(0, 3).toUpperCase()}-${editingProduct.id.slice(-4).toUpperCase()}`);
       setPrice(editingProduct.price);
       setOriginalPrice(editingProduct.originalPrice);
       setInStock(editingProduct.inStock);
@@ -118,6 +120,7 @@ export const SellerProductModal: React.FC = () => {
       setTitle(`New Handcrafted Piece #${randomSuffix}`);
       setSubtitle('Custom hand-beaded pearl couture crafted in Kathmandu, Nepal');
       setCategory('pearl-bags');
+      setSku(`ART-BAG-${randomSuffix}`);
       setPrice(3950);
       setOriginalPrice(4500);
       setInStock(true);
@@ -253,6 +256,7 @@ export const SellerProductModal: React.FC = () => {
       inStock,
       stockCount: Number(stockCount) || 0,
       inventoryCount: Number(inventoryCount) >= 0 ? Number(inventoryCount) : Number(stockCount) || 0,
+      sku: sku.trim() || `ART-${category.slice(0, 3).toUpperCase()}-001`,
       leadTime: leadTime.trim(),
       materials: materials.length > 0 ? materials : ['High-luster handcrafted pearls', 'Reinforced nylon thread'],
       dimensions: dimensions.trim(),
@@ -363,8 +367,11 @@ export const SellerProductModal: React.FC = () => {
                   </span>
                 )}
               </div>
-              <p className="text-[10px] text-[#736C65] tracking-wide uppercase font-medium">
-                Product Catalog Studio
+              <p className="text-[10px] text-[#736C65] tracking-wide uppercase font-medium flex items-center gap-2">
+                <span>Product Catalog Studio</span>
+                <span className="text-[9px] font-mono font-bold bg-[#1C1B1A] text-[#D4AF37] px-1.5 py-0.2 rounded border border-[#C5A880]/40">
+                  SKU: {sku || 'ART-BAG-001'}
+                </span>
               </p>
             </div>
           </div>
@@ -580,7 +587,7 @@ export const SellerProductModal: React.FC = () => {
               />
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-[#1C1B1A] mb-1">
                   Collection / Category *
@@ -600,13 +607,26 @@ export const SellerProductModal: React.FC = () => {
 
               <div>
                 <label className="block text-xs font-semibold text-[#1C1B1A] mb-1">
-                  Handmade Making Time (Lead Time)
+                  Stock Keeping Unit (SKU)
+                </label>
+                <input
+                  type="text"
+                  value={sku}
+                  onChange={(e) => setSku(e.target.value.toUpperCase())}
+                  placeholder="e.g. ART-BAG-001"
+                  className="w-full text-xs font-mono font-bold px-3 py-2 border border-[#E8DFD8] rounded-lg bg-[#FAF8F5] uppercase tracking-wider focus:outline-none focus:border-[#C5A880]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-[#1C1B1A] mb-1">
+                  Lead Time
                 </label>
                 <input
                   type="text"
                   value={leadTime}
                   onChange={(e) => setLeadTime(e.target.value)}
-                  placeholder="e.g. Handmade to order: 2–4 business days"
+                  placeholder="e.g. Handmade: 2–4 days"
                   className="w-full text-xs px-3 py-2 border border-[#E8DFD8] rounded-lg bg-[#FAF8F5] focus:outline-none focus:border-[#C5A880]"
                 />
               </div>

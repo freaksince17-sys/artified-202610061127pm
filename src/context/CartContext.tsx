@@ -1643,10 +1643,72 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       .catch(() => {});
 
     // Real-time cross-browser polling loop (every 3 seconds & on focus) so Chrome purchases update Edge live even when Firestore read quota is exceeded
-    const triggerCrossBrowserSync = () => {
-      syncConfirmedSalesOrdersFromFirestore(getAllOrdersForSeller(), products).catch(() => {});
+    const triggerCrossBrowserSync = async () => {
+      try {
+        await syncConfirmedSalesOrdersFromFirestore(getAllOrdersForSeller(), products).catch(() => {});
+        const res = await fetch(`/api/products?t=${Date.now()}`, { cache: 'no-store' });
+        if (res.ok) {
+          const serverProducts = await res.json();
+          if (Array.isArray(serverProducts) && serverProducts.length > 0) {
+            setProducts((prev) => {
+              let changed = false;
+              const updated = prev.map((prod) => {
+                const sp = serverProducts.find((p: any) => p.id === prod.id);
+                if (!sp) return prod;
+                const spOnline = Number(sp.onlineSalesCount) || 0;
+                const spTotal = Number(sp.totalSold) || ((sp.soldCount || 54) + spOnline);
+                const spInv = typeof sp.inventoryCount === 'number' ? sp.inventoryCount : (sp.stockCount ?? prod.inventoryCount ?? 10);
+
+                if (
+                  spOnline !== (prod.onlineSalesCount || 0) ||
+                  spTotal !== (prod.totalSold || 0) ||
+                  spInv !== prod.inventoryCount
+                ) {
+                  changed = true;
+                  return {
+                    ...prod,
+                    onlineSalesCount: Math.max(prod.onlineSalesCount || 0, spOnline),
+                    totalSold: Math.max(prod.totalSold || 0, spTotal),
+                    inventoryCount: Math.min(prod.inventoryCount ?? 10, spInv),
+                    stockCount: Math.min(prod.stockCount ?? 10, spInv),
+                    inStock: spInv > 0
+                  };
+                }
+                return prod;
+              });
+
+              if (changed) {
+                try {
+                  localStorage.setItem('artified_products_v3', JSON.stringify(updated));
+                } catch {}
+                setQuickViewProduct((qv) => (qv ? updated.find((p) => p.id === qv.id) || qv : null));
+                return updated;
+              }
+              return prev;
+            });
+          }
+        }
+      } catch {}
     };
 
+    // Custom event listener for sales increments across incognito & browser tabs
+    const handleSalesIncremented = (evt: Event) => {
+      const customEvt = evt as CustomEvent;
+      const verifiedMap = customEvt.detail?.verifiedSalesByProduct;
+      if (verifiedMap && typeof verifiedMap === 'object') {
+        setProducts((prev) => {
+          const updated = applyVerifiedSalesToProducts(prev, verifiedMap, bestsellerThreshold);
+          try {
+            localStorage.setItem('artified_products_v3', JSON.stringify(updated));
+          } catch {}
+          setQuickViewProduct((qv) => (qv ? updated.find((p) => p.id === qv.id) || qv : null));
+          return updated;
+        });
+      }
+    };
+    window.addEventListener('artified_sales_incremented', handleSalesIncremented);
+
+    triggerCrossBrowserSync();
     const syncIntervalId = window.setInterval(triggerCrossBrowserSync, 3000);
     window.addEventListener('focus', triggerCrossBrowserSync);
     document.addEventListener('visibilitychange', triggerCrossBrowserSync);
@@ -1656,6 +1718,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         window.clearInterval(syncIntervalId);
         window.removeEventListener('focus', triggerCrossBrowserSync);
         document.removeEventListener('visibilitychange', triggerCrossBrowserSync);
+        window.removeEventListener('artified_sales_incremented', handleSalesIncremented);
         unsubSalesHistory();
         unsubProducts();
       } catch {}

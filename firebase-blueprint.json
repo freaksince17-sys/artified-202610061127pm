@@ -19,6 +19,7 @@
         "inStock": { "type": "boolean" },
         "stockCount": { "type": "number" },
         "inventoryCount": { "type": "number", "description": "Available inventory count for the product" },
+        "sku": { "type": "string", "maxLength": 128, "description": "Stock Keeping Unit identifier e.g. ART-[#BAG-001" },
         "leadTime": { "type": "string", "maxLength": 256 },
         "dimensions": { "type": "string", "maxLength": 256 },
         "weight": { "type": "string", "maxLength": 128 },

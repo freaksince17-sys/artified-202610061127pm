@@ -64,14 +64,25 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigateSection }) => {
   const { theme, isDarkMode, toggleTheme } = useTheme();
 
   const [isScrolled, setIsScrolled] = useState(false);
+  const [isHiddenOnScrollUp, setIsHiddenOnScrollUp] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const lastScrollY = useRef(0);
 
   useEffect(() => {
     const handleScroll = () => {
-      setIsScrolled(window.scrollY > 20);
+      const currentScrollY = window.scrollY;
+      setIsScrolled(currentScrollY > 20);
+
+      // Hide header when scrolling UP away from top
+      if (currentScrollY > 60 && currentScrollY < lastScrollY.current) {
+        setIsHiddenOnScrollUp(true);
+      } else {
+        setIsHiddenOnScrollUp(false);
+      }
+      lastScrollY.current = currentScrollY;
     };
-    window.addEventListener('scroll', handleScroll);
+    window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
@@ -109,7 +120,9 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigateSection }) => {
   return (
     <>
       <header
-        className={`sticky top-0 z-30 transition-all duration-300 ${
+        className={`sticky top-0 z-30 transition-all duration-300 transform ${
+          isHiddenOnScrollUp ? '-translate-y-full opacity-0 pointer-events-none' : 'translate-y-0 opacity-100'
+        } ${
           isScrolled
             ? 'bg-[#FAF8F5]/95 dark:bg-[#0F0E0E]/95 backdrop-blur-md shadow-[0_4px_24px_rgba(0,0,0,0.15)] border-b border-[#E8DFD8] dark:border-[#262422]'
             : 'bg-[#FAF8F5] dark:bg-[#0F0E0E] border-b border-[#F0EBE5] dark:border-[#1E1D1B]'

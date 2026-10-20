@@ -6,7 +6,8 @@ import {
   getDocs,
   increment,
   serverTimestamp,
-  writeBatch
+  writeBatch,
+  runTransaction
 } from 'firebase/firestore';
 import { Product, TrackedOrderData } from '../types';
 import { PRODUCTS } from '../data/products';
@@ -371,14 +372,19 @@ export function applyVerifiedSalesToProducts(
       Number(prod.totalSold) || 0,
       baseSold + verifiedOnline
     );
-    const stockCount = typeof prod.stockCount === 'number' ? prod.stockCount : 8;
-    const inventoryCount = typeof prod.inventoryCount === 'number' ? prod.inventoryCount : stockCount;
+    const previousOnline = Number(prod.onlineSalesCount) || 0;
+    const newlySold = Math.max(0, verifiedOnline - previousOnline);
+    const currentStock = typeof prod.inventoryCount === 'number' ? prod.inventoryCount : (prod.stockCount ?? 10);
+    const updatedInventory = Math.max(0, currentStock - newlySold);
+
     return {
       ...prod,
       soldCount: baseSold,
       onlineSalesCount: verifiedOnline,
       totalSold: verifiedTotal,
-      inventoryCount,
+      inventoryCount: updatedInventory,
+      stockCount: updatedInventory,
+      inStock: updatedInventory > 0,
       isBestSeller: verifiedTotal >= bestsellerThreshold || prod.isBestSeller
     };
   });
@@ -586,50 +592,20 @@ export async function trackConfirmedOrderSalesInFirestore(
     }
   } catch {}
 
-  // 2. Direct Firestore atomic increment(1) + sales_history collection write (if newly counted)
+  // 2. Direct Firestore atomic transaction to decrement inventoryCount and increment onlineSalesCount / totalSold without race conditions
   if (newRecords.length > 0 && !isFirestoreQuotaExceeded) {
     try {
-      const batch = writeBatch(db);
-      for (const rec of newRecords) {
-        const historyRef = doc(db, 'sales_history', rec.id);
-        batch.set(
-          historyRef,
-          {
-            ...rec,
-            timestamp: serverTimestamp()
-          },
-          { merge: true }
-        );
-      }
+      const itemsToTransact = Object.entries(newlyAddedQuantities).map(([pid, qtyToAdd]) => {
+        const prod = currentProducts.find((p) => p.id === pid) || PRODUCTS.find((p) => p.id === pid);
+        return {
+          productId: pid,
+          quantity: qtyToAdd,
+          unitPrice: productPrices[pid] || prod?.price || 1500,
+          productTitle: prod?.title || ''
+        };
+      });
 
-      const trackerDocRef = doc(db, 'store_settings', 'confirmed_sales_orders');
-      batch.set(
-        trackerDocRef,
-        {
-          orderIds: Array.from(getCountedSalesOrderIds()),
-          lastConfirmedOrderId: formattedOrderId,
-          updatedAt: nowIso
-        },
-        { merge: true }
-      );
-
-      await batch.commit();
-
-      for (const [productId, qtyToAdd] of Object.entries(newlyAddedQuantities)) {
-        const prodRef = doc(db, 'products', productId);
-        for (let i = 0; i < qtyToAdd; i++) {
-          await setDoc(
-            prodRef,
-            {
-              id: productId,
-              onlineSalesCount: increment(1),
-              totalSold: increment(1),
-              updatedAt: nowIso
-            },
-            { merge: true }
-          );
-        }
-      }
+      await executeProductPurchaseTransaction(itemsToTransact, formattedOrderId, currentProducts);
     } catch (err) {
       detectQuotaError(err);
     }
@@ -760,4 +736,140 @@ export async function syncConfirmedSalesOrdersFromFirestore(
  */
 export function calculateCatalogTotalCreationsSold(products: Product[] = PRODUCTS): number {
   return (products || []).reduce((sum, prod) => sum + calculateTotalSold(prod), 0);
+}
+
+/**
+ * Executes an atomic Firestore transaction during product purchase to decrement inventoryCount
+ * and increment onlineSalesCount / totalSold without race conditions across multiple browser sessions.
+ */
+export async function executeProductPurchaseTransaction(
+  items: Array<{ productId: string; quantity: number; unitPrice?: number; productTitle?: string }>,
+  orderId: string,
+  currentProducts: Product[] = PRODUCTS
+): Promise<Record<string, { newInventory: number; newOnlineSales: number; newTotalSold: number }>> {
+  const results: Record<string, { newInventory: number; newOnlineSales: number; newTotalSold: number }> = {};
+  if (!db || isFirestoreQuotaExceeded || !items || items.length === 0) return results;
+
+  try {
+    await runTransaction(db, async (transaction) => {
+      const nowIso = new Date().toISOString();
+
+      for (const item of items) {
+        if (!item || !item.productId) continue;
+        const pid = item.productId;
+        const qtyToBuy = Math.max(1, Number(item.quantity) || 1);
+        const prodRef = doc(db, 'products', pid);
+
+        // 1. Read the product document inside the transaction
+        const prodSnap = await transaction.get(prodRef);
+        const catalogProd = currentProducts.find((p) => p.id === pid) || PRODUCTS.find((p) => p.id === pid);
+
+        let currentInventory = 10;
+        let currentOnlineSales = 0;
+        let currentBaseSold = catalogProd?.soldCount ?? 54;
+        let currentTotalSold = catalogProd?.totalSold ?? (currentBaseSold + currentOnlineSales);
+
+        if (prodSnap.exists()) {
+          const data = prodSnap.data() as Partial<Product>;
+          if (typeof data.inventoryCount === 'number' && !isNaN(data.inventoryCount)) {
+            currentInventory = data.inventoryCount;
+          } else if (typeof data.stockCount === 'number' && !isNaN(data.stockCount)) {
+            currentInventory = data.stockCount;
+          } else if (catalogProd && typeof catalogProd.inventoryCount === 'number') {
+            currentInventory = catalogProd.inventoryCount;
+          }
+
+          if (typeof data.onlineSalesCount === 'number' && !isNaN(data.onlineSalesCount)) {
+            currentOnlineSales = data.onlineSalesCount;
+          }
+          if (typeof data.soldCount === 'number' && !isNaN(data.soldCount)) {
+            currentBaseSold = data.soldCount;
+          }
+          if (typeof data.totalSold === 'number' && !isNaN(data.totalSold)) {
+            currentTotalSold = data.totalSold;
+          } else {
+            currentTotalSold = currentBaseSold + currentOnlineSales;
+          }
+        } else if (catalogProd) {
+          currentInventory = catalogProd.inventoryCount ?? catalogProd.stockCount ?? 10;
+          currentOnlineSales = catalogProd.onlineSalesCount ?? 0;
+          currentTotalSold = catalogProd.totalSold ?? ((catalogProd.soldCount ?? 54) + currentOnlineSales);
+        }
+
+        // 2. Compute atomic decrements & increments
+        const newInventory = Math.max(0, currentInventory - qtyToBuy);
+        const newOnlineSales = currentOnlineSales + qtyToBuy;
+        const newTotalSold = currentTotalSold + qtyToBuy;
+        const newInStock = newInventory > 0;
+
+        results[pid] = {
+          newInventory,
+          newOnlineSales,
+          newTotalSold
+        };
+
+        // 3. Write atomic updates back to Firestore product doc inside transaction
+        transaction.set(
+          prodRef,
+          {
+            id: pid,
+            title: catalogProd?.title || item.productTitle || pid,
+            inventoryCount: newInventory,
+            stockCount: newInventory,
+            inStock: newInStock,
+            onlineSalesCount: newOnlineSales,
+            totalSold: newTotalSold,
+            updatedAt: nowIso
+          },
+          { merge: true }
+        );
+
+        // 4. Record sales_history entry inside the transaction
+        const canonical = getCanonicalOrderKey(orderId);
+        const recId = `${canonical}_${pid}`;
+        const historyRef = doc(db, 'sales_history', recId);
+        const unitPrice = item.unitPrice || catalogProd?.price || 1500;
+
+        transaction.set(
+          historyRef,
+          {
+            id: recId,
+            productId: pid,
+            productTitle: catalogProd?.title || item.productTitle || '',
+            category: catalogProd?.category || 'pearl-bags',
+            orderId,
+            quantity: qtyToBuy,
+            unitPrice,
+            revenue: qtyToBuy * unitPrice,
+            timestamp: serverTimestamp(),
+            createdAt: nowIso,
+            status: 'completed'
+          },
+          { merge: true }
+        );
+      }
+    });
+    // Trigger low stock Cloud Function email dispatch for any product whose inventoryCount dropped below 5
+    for (const [pid, res] of Object.entries(results)) {
+      if (res.newInventory < 5) {
+        const prod = currentProducts.find((p) => p.id === pid) || PRODUCTS.find((p) => p.id === pid);
+        fetch('/api/send-low-stock-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            productId: pid,
+            productTitle: prod?.title || pid,
+            sku: prod?.sku || `ART-${pid.slice(-4).toUpperCase()}`,
+            remainingInventory: res.newInventory,
+            sellerEmail: 'freaksince17@gmail.com'
+          })
+        }).catch(() => {});
+      }
+    }
+  } catch (err) {
+    detectQuotaError(err);
+    console.warn('Notice: executeProductPurchaseTransaction notice:', err);
+  }
+
+  return results;
 }

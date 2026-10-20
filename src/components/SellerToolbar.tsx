@@ -19,7 +19,9 @@ import {
   TrendingUp,
   BarChart3,
   Download,
-  FileSpreadsheet
+  FileSpreadsheet,
+  AlertCircle,
+  X
 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { SellerPaymentSettingsModal } from './SellerPaymentSettingsModal';
@@ -256,16 +258,6 @@ export const SellerToolbar: React.FC = () => {
                 <span>Trends (Recharts)</span>
               </button>
             </div>
-
-            <button
-              type="button"
-              onClick={handleDownloadCurrentMonthReport}
-              className="w-full py-1.5 px-2.5 bg-[#D4AF37]/15 hover:bg-[#D4AF37]/25 text-[#E6C687] text-[11px] font-bold rounded-lg flex items-center justify-center gap-1.5 transition-colors border border-[#D4AF37]/40 shadow-2xs"
-              title="Download current month sales report (CSV)"
-            >
-              <Download className="w-3.5 h-3.5 text-[#D4AF37]" />
-              <span>Download Sales Report (CSV)</span>
-            </button>
 
             {/* Compact Monthly Bestseller Threshold */}
             <div className="py-1 px-2.5 rounded-lg bg-white/5 border border-white/10 flex items-center justify-between text-[11px]">

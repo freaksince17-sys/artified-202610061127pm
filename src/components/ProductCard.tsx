@@ -98,8 +98,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, isSelected = 
       onMouseLeave={() => setIsHovered(false)}
       className="group relative flex flex-col bg-white dark:bg-[#161514] rounded-lg overflow-hidden border border-[#E5E7EB] dark:border-[#2D2B28] hover:border-[#C5A880] dark:hover:border-[#D4AF37] transition-all duration-200 shadow-2xs hover:shadow-md cursor-pointer z-0"
     >
-      {/* Image Container with secondary flip - 4:3 Compact Aspect Ratio */}
-      <div className="relative aspect-[4/3] max-h-[135px] sm:max-h-[155px] bg-[#F9FAFB] dark:bg-[#1C1A18] overflow-hidden">
+      {/* Image Container with secondary flip - 4:3 Concise Aspect Ratio */}
+      <div className="relative aspect-[4/3] max-h-[110px] sm:max-h-[130px] bg-[#F9FAFB] dark:bg-[#1C1A18] overflow-hidden">
         {/* Badges - positioned strictly in front of product photo */}
         <div className="absolute top-1 left-1 sm:top-1.5 sm:left-1.5 z-30 flex flex-col gap-1 items-start pointer-events-none">
           {isOutOfStock && !isSellerMode && (
@@ -239,7 +239,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, isSelected = 
       </div>
 
       {/* Product Details - Modeled directly on high-density reference style */}
-      <div className="p-1.5 sm:p-2 flex-1 flex flex-col justify-between bg-white dark:bg-[#161514]">
+      <div className="p-1 sm:p-1.5 flex-1 flex flex-col justify-between bg-white dark:bg-[#161514]">
         <div>
           {/* Title - Full title displayed completely without truncation */}
           <h3 className="text-[11px] sm:text-xs font-normal text-[#1C1B1A] dark:text-[#E8E2D9] leading-snug group-hover:text-[#C5A880] dark:group-hover:text-[#D4AF37] transition-colors break-words" title={product.title}>
