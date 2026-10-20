@@ -2,14 +2,16 @@ import { db } from '../firebase';
 import { 
   doc, 
   getDoc, 
-  setDoc as fsSetDoc,
   collection, 
   getDocs,
   arrayUnion
 } from 'firebase/firestore';
 import {
+  safeSetDoc,
   safeDeleteDoc as deleteDoc,
   safeOnSnapshot as onSnapshot,
+  isFirestoreQuotaExceeded,
+  detectQuotaError,
   stripUndefinedDeep
 } from '../utils/safeFirestore';
 import { TrackedOrderData, OrderProductionPhase } from '../types';
@@ -66,6 +68,7 @@ export function getOrderDocId(rawId: string): string {
  * and the user's `tracked_orders` sub-collection.
  */
 export async function saveOrderToFirestore(order: TrackedOrderData, userSessionId?: string): Promise<void> {
+  if (isFirestoreQuotaExceeded) return;
   const docId = getOrderDocId(order.orderId);
   if (!docId) return;
 
@@ -131,10 +134,10 @@ export async function saveOrderToFirestore(order: TrackedOrderData, userSessionI
     });
 
     const writePromises: Promise<any>[] = [
-      fsSetDoc(orderDocRef, payload, { merge: true }),
-      fsSetDoc(mainDocRef, payload, { merge: true }),
-      fsSetDoc(statusLogRef, statusLogPayload, { merge: true }),
-      fsSetDoc(userSubDocRef, payload, { merge: true })
+      safeSetDoc(orderDocRef, payload, { merge: true }),
+      safeSetDoc(mainDocRef, payload, { merge: true }),
+      safeSetDoc(statusLogRef, statusLogPayload, { merge: true }),
+      safeSetDoc(userSubDocRef, payload, { merge: true })
     ];
 
     // Also persist progressive sequence number in store_settings/order_sequence for cross-incognito continuity
@@ -144,7 +147,7 @@ export async function saveOrderToFirestore(order: TrackedOrderData, userSessionI
       const orderSeq = parseInt(seqMatch[2], 10);
       if (!isNaN(orderYear) && !isNaN(orderSeq) && orderSeq < 100000) {
         writePromises.push(
-          fsSetDoc(
+          safeSetDoc(
             doc(db, 'store_settings', 'order_sequence'),
             {
               [`lastSeq_${orderYear}`]: orderSeq,
@@ -158,6 +161,7 @@ export async function saveOrderToFirestore(order: TrackedOrderData, userSessionI
 
     await Promise.all(writePromises);
   } catch (error) {
+    detectQuotaError(error);
     console.warn('Notice: Firestore save error, saving locally:', error);
   }
 }
@@ -168,6 +172,7 @@ export async function saveOrderToFirestore(order: TrackedOrderData, userSessionI
  * and records the tombstone in `store_settings/deleted_orders`.
  */
 export async function deleteOrderFromFirestore(rawOrderId: string): Promise<void> {
+  if (isFirestoreQuotaExceeded) return;
   const variants = getOrderIdVariants(rawOrderId);
   const sessionToken = getUserSessionToken();
 
@@ -186,7 +191,7 @@ export async function deleteOrderFromFirestore(rawOrderId: string): Promise<void
   }
 
   deletePromises.push(
-    fsSetDoc(
+    safeSetDoc(
       doc(db, 'store_settings', 'deleted_orders'),
       {
         deletedIds: arrayUnion(...variants),
@@ -204,6 +209,7 @@ export async function deleteOrderFromFirestore(rawOrderId: string): Promise<void
  * and `users/{sessionToken}/tracked_orders`) that do not belong to CURRENT_ORDER_GENERATION / CURRENT_PURGE_EPOCH.
  */
 export async function purgeAllOrdersFromFirestore(forceAll = false): Promise<void> {
+  if (isFirestoreQuotaExceeded) return;
   const sessionToken = getUserSessionToken();
   const collectionsToPurge = [
     ORDERS_COLLECTION,

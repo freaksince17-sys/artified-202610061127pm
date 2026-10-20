@@ -566,9 +566,6 @@ export const InstagramShowcase: React.FC<InstagramShowcaseProps> = ({ embedded =
               <h2 className="font-serif text-2xl sm:text-3xl lg:text-4xl text-[#1C1B1A] font-semibold">
                 Follow on Instagram
               </h2>
-              <p className="text-xs sm:text-sm text-[#736C65] mt-1 max-w-lg">
-                Discover real customer unboxings, slow-motion pearl shine tests, and wedding styling guides straight from our workshop in Kathmandu, Nepal.
-              </p>
             </div>
 
             {/* Direct Link to Instagram Button, Hover to Play Control & Seller Controls */}

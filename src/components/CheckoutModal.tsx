@@ -40,7 +40,7 @@ import {
   fetchPaymentSettingsFromServer, 
   SellerPaymentSettings 
 } from '../data/paymentSettings';
-import { buildTrackedOrderFromOrderDetails, saveTrackedOrder, generateUniqueOrderId, syncOrdersFromFirestore } from '../data/trackingData';
+import { buildTrackedOrderFromOrderDetails, saveTrackedOrder, generateUniqueOrderId, syncOrdersFromFirestore, getOrderManufactureDeliveryBreakdown } from '../data/trackingData';
 import { sendOrderConfirmationEmail } from '../services/emailService';
 import { compressAndStampPaymentScreenshot } from '../utils/imageCompressor';
 
@@ -81,7 +81,7 @@ export const CheckoutModal: React.FC = () => {
   const [landmark, setLandmark] = useState('');
   const [recipientName, setRecipientName] = useState('');
   const [senderName, setSenderName] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cod');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('esewa');
   const [transactionId, setTransactionId] = useState('');
   const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null);
   const [rawScreenshotFile, setRawScreenshotFile] = useState<File | null>(null);
@@ -112,7 +112,7 @@ export const CheckoutModal: React.FC = () => {
       setLandmark('');
       setRecipientName('');
       setSenderName('');
-      setPaymentMethod('cod');
+      setPaymentMethod('esewa');
       setTransactionId('');
       setScreenshotPreview(null);
       setRawScreenshotFile(null);
@@ -144,6 +144,15 @@ export const CheckoutModal: React.FC = () => {
   }, 0);
   const safeDiscount = Math.max(0, Math.min(itemsSubtotal, Number(discount) || 0));
   const grandTotal = Math.max(0, itemsSubtotal + currentDeliveryFee + giftFee - safeDiscount);
+  const checkoutBreakdown = getOrderManufactureDeliveryBreakdown(
+    itemsToBuy.map((i) => ({
+      productId: i.product?.id,
+      title: i.product?.title || '',
+      category: i.product?.category
+    })),
+    selectedDeliveryZone?.name,
+    address
+  );
 
   const validateDetails = () => {
     const errs: { [key: string]: string } = {};
@@ -297,7 +306,16 @@ export const CheckoutModal: React.FC = () => {
     if (order.landmark) {
       text += `🏛️ *Landmark:* Near ${order.landmark}\n`;
     }
-    text += `🚚 *Delivery Zone:* ${order.deliveryZone.name} (Estimated: ${order.deliveryZone.estimatedDays})\n`;
+    const orderBreakdown = getOrderManufactureDeliveryBreakdown(
+      singleOrderItems.map((i) => ({
+        productId: i.product?.id,
+        title: i.product?.title || '',
+        category: i.product?.category
+      })),
+      order.deliveryZone.name,
+      order.address
+    );
+    text += `🚚 *Delivery Zone:* ${order.deliveryZone.name} (Est. Total: ${orderBreakdown.totalEstimatedDaysText} — ${orderBreakdown.manufactureDaysText} manufacture + ${orderBreakdown.deliveryDaysText} delivery)\n`;
     text += `\n🛒 *Items (${singleOrderItems.length}):*\n`;
     singleOrderItems.forEach((item, idx) => {
       text += `${idx + 1}. ${item.product.title} (Qty: ${item.quantity}) - NPR ${(item.product.price * item.quantity).toLocaleString()}\n`;
@@ -329,7 +347,7 @@ export const CheckoutModal: React.FC = () => {
     }
 
     if (order.paymentMethod !== 'cod') {
-      text += `📸 *Payment Screenshot:* Already saved & stamped under ${order.orderId} in Seller Order Progress on website (Attaching screenshot below in WhatsApp chat as well)\n`;
+      text += `📸 *Payment Screenshot:* Recorded on website under ${order.orderId} — *(Customer Reminder: Please paste or attach your payment screenshot manually right below this message in WhatsApp!)*\n`;
     }
 
     text += `\n💰 *Total Payable: NPR ${order.total.toLocaleString()}*\n\n`;
@@ -366,12 +384,8 @@ export const CheckoutModal: React.FC = () => {
     const text = buildOrderWhatsAppText(order);
 
     if (order.paymentScreenshot) {
-      const copiedImg = await copyScreenshotImageToClipboard(order.paymentScreenshot);
-      if (copiedImg) {
-        setScreenshotClipboardNotice('✅ Stamped screenshot auto-copied to your clipboard! Simply press Paste (Ctrl+V) or tap 📎 in WhatsApp chat.');
-      } else {
-        setScreenshotClipboardNotice('📲 In WhatsApp chat, tap the 📎 / 📷 icon to attach your payment screenshot from your gallery.');
-      }
+      await copyScreenshotImageToClipboard(order.paymentScreenshot);
+      setScreenshotClipboardNotice('📲 Reminder: After sending the auto-generated order message in WhatsApp, please paste (Ctrl+V) or attach (📎 / 📷) your payment screenshot manually in the chat!');
     }
 
     const encoded = encodeURIComponent(text);
@@ -502,8 +516,19 @@ export const CheckoutModal: React.FC = () => {
                           </div>
                           <div className="text-right">
                             <span className="text-xs font-bold text-[#1C1B1A] block">NPR {zone.fee}</span>
-                            <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded font-medium">
-                              {zone.estimatedDays}
+                            <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded font-medium block">
+                              {(() => {
+                                const zBd = getOrderManufactureDeliveryBreakdown(
+                                  itemsToBuy.map((i) => ({
+                                    productId: i.product?.id,
+                                    title: i.product?.title || '',
+                                    category: i.product?.category
+                                  })),
+                                  zone.name,
+                                  ''
+                                );
+                                return `Total: ${zBd.totalEstimatedDaysText} (${zBd.manufactureDaysText} mfg + ${zone.estimatedDays} del)`;
+                              })()}
                             </span>
                           </div>
                         </div>
@@ -615,6 +640,12 @@ export const CheckoutModal: React.FC = () => {
                     <span>Delivery ({selectedDeliveryZone.name})</span>
                     <span>NPR {currentDeliveryFee.toLocaleString()}</span>
                   </div>
+                  <div className="flex justify-between text-[11px] text-[#736C65]">
+                    <span>Estimated Total Time ({checkoutBreakdown.categoryLabel})</span>
+                    <span className="font-semibold text-[#1C1B1A]">
+                      {checkoutBreakdown.totalEstimatedDaysText} ({checkoutBreakdown.manufactureDaysText} mfg + {checkoutBreakdown.deliveryDaysText} del)
+                    </span>
+                  </div>
                   {discount > 0 && (
                     <div className="flex justify-between text-emerald-700 font-medium">
                       <span>Voucher Applied</span>
@@ -641,7 +672,20 @@ export const CheckoutModal: React.FC = () => {
           {step === 'payment' && (
             <div className="space-y-4">
               
-              {/* Payment Option Tabs - Only shows QR options enabled by Seller */}
+              {/* Priority eSewa Recommendation Banner */}
+              <div className="bg-emerald-50/90 border border-emerald-200 rounded-2xl p-3 flex items-start gap-2.5 text-xs text-emerald-950">
+                <Sparkles className="w-4 h-4 text-[#60BB46] shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold text-emerald-900 block">
+                    ✨ Why 85% of Artified customers choose eSewa QR:
+                  </span>
+                  <span className="text-[11px] text-emerald-800 leading-relaxed">
+                    <strong>Priority Handcrafting Queue</strong> (crafting starts immediately today without waiting for a phone confirmation call) + <strong>Complimentary Satin Care Pouch</strong> + <strong>Contactless Doorstep Drop</strong> without needing exact cash!
+                  </span>
+                </div>
+              </div>
+
+              {/* Payment Option Tabs - eSewa QR first & recommended, COD placed last as secondary option */}
               <div className={`grid grid-cols-2 ${
                 paymentSettings.enableFonepay && paymentSettings.enableKhalti
                   ? 'sm:grid-cols-4'
@@ -649,19 +693,26 @@ export const CheckoutModal: React.FC = () => {
                   ? 'sm:grid-cols-3'
                   : 'sm:grid-cols-2'
               } gap-2`}>
-                <button
-                  type="button"
-                  onClick={() => setPaymentMethod('cod')}
-                  className={`p-2.5 rounded-xl border flex flex-col items-center gap-1 transition-all cursor-pointer ${
-                    paymentMethod === 'cod'
-                      ? 'bg-white border-[#1C1B1A] ring-2 ring-[#1C1B1A] shadow-xs'
-                      : 'bg-white/60 border-[#E8DFD8] hover:border-[#C5A880]'
-                  }`}
-                >
-                  <Banknote className="w-4 h-4 text-[#C5A880]" />
-                  <span className="text-[11px] font-bold text-[#1C1B1A]">Cash On Delivery</span>
-                  <span className="text-[8px] text-[#736C65]">Pay at doorstep</span>
-                </button>
+                {paymentSettings.enableEsewa !== false && (
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod('esewa')}
+                    className={`relative p-2.5 rounded-xl border flex flex-col items-center gap-1 transition-all cursor-pointer ${
+                      paymentMethod === 'esewa'
+                        ? 'bg-white border-[#60BB46] ring-2 ring-[#60BB46] shadow-xs'
+                        : 'bg-white border-[#60BB46]/50 hover:border-[#60BB46]'
+                    }`}
+                  >
+                    <span className="absolute -top-2 px-1.5 py-0.2 bg-[#60BB46] text-white text-[8px] font-extrabold uppercase tracking-wider rounded-full shadow-2xs">
+                      ★ Recommended
+                    </span>
+                    <div className="w-5 h-5 rounded-full bg-[#60BB46] text-white flex items-center justify-center font-bold text-[10px] mt-1">
+                      e
+                    </div>
+                    <span className="text-[11px] font-bold text-[#1C1B1A]">eSewa QR</span>
+                    <span className="text-[8px] text-[#60BB46] font-bold">Priority Crafting ⚡</span>
+                  </button>
+                )}
 
                 {paymentSettings.enableFonepay === true && (
                   <button
@@ -678,24 +729,6 @@ export const CheckoutModal: React.FC = () => {
                     </div>
                     <span className="text-[11px] font-bold text-[#1C1B1A]">Fonepay / Bank</span>
                     <span className="text-[8px] text-[#E21A22] font-semibold">Any Bank QR</span>
-                  </button>
-                )}
-
-                {paymentSettings.enableEsewa !== false && (
-                  <button
-                    type="button"
-                    onClick={() => setPaymentMethod('esewa')}
-                    className={`p-2.5 rounded-xl border flex flex-col items-center gap-1 transition-all cursor-pointer ${
-                      paymentMethod === 'esewa'
-                        ? 'bg-white border-[#60BB46] ring-2 ring-[#60BB46] shadow-xs'
-                        : 'bg-white/60 border-[#E8DFD8] hover:border-[#60BB46]'
-                    }`}
-                  >
-                    <div className="w-5 h-5 rounded-full bg-[#60BB46] text-white flex items-center justify-center font-bold text-[10px]">
-                      e
-                    </div>
-                    <span className="text-[11px] font-bold text-[#1C1B1A]">eSewa QR</span>
-                    <span className="text-[8px] text-[#60BB46] font-semibold">Instant Wallet</span>
                   </button>
                 )}
 
@@ -716,31 +749,66 @@ export const CheckoutModal: React.FC = () => {
                     <span className="text-[8px] text-[#5D2E8E] font-semibold">Digital Payment</span>
                   </button>
                 )}
+
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod('cod')}
+                  className={`p-2.5 rounded-xl border flex flex-col items-center gap-1 transition-all cursor-pointer ${
+                    paymentMethod === 'cod'
+                      ? 'bg-white border-[#1C1B1A] ring-2 ring-[#1C1B1A] shadow-xs'
+                      : 'bg-[#FAF8F5]/80 border-[#E8DFD8] text-[#736C65] hover:border-[#C5A880] opacity-85'
+                  }`}
+                >
+                  <Banknote className="w-4 h-4 text-[#8C847E]" />
+                  <span className="text-[11px] font-semibold text-[#5E5955]">Cash On Delivery</span>
+                  <span className="text-[8px] text-amber-700 font-medium">Manual Call Verify (+1d)</span>
+                </button>
               </div>
 
-              {/* COD DETAILS */}
+              {/* COD DETAILS (With Gentle Nudge to Switch to eSewa QR) */}
               {paymentMethod === 'cod' ? (
-                <div className="bg-white p-4 rounded-2xl border border-[#E8DFD8] space-y-3 shadow-2xs">
-                  <div className="flex items-center gap-2 text-xs font-bold text-[#1C1B1A]">
-                    <Banknote className="w-4 h-4 text-[#C5A880]" />
-                    <span>Cash on Delivery (Doorstep Verification)</span>
+                <div className="bg-white p-4 rounded-2xl border border-amber-300 space-y-3 shadow-2xs">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 text-xs font-bold text-[#1C1B1A]">
+                      <Banknote className="w-4 h-4 text-amber-600" />
+                      <span>Cash on Delivery (Standard Queue — Manual Verification Required)</span>
+                    </div>
                   </div>
-                  <p className="text-xs text-[#5E5955] leading-relaxed">
-                    You can pay the full amount of <strong>NPR {grandTotal.toLocaleString()}</strong> in cash or scan the courier rider’s QR code when your handmade package arrives at your doorstep in <strong>{selectedDeliveryZone.name}</strong>.
+                  <div className="p-3 bg-amber-50/90 rounded-xl border border-amber-200 text-[11px] text-amber-950 space-y-1.5">
+                    <p className="font-bold text-amber-900">
+                      ⚠️ Please note before choosing Cash on Delivery:
+                    </p>
+                    <ul className="list-disc pl-4 space-y-1 text-amber-900">
+                      <li>
+                        <strong>Delayed Handcrafting Start (+1 Extra Day):</strong> Because every piece is handmade to order, COD bookings wait in a manual phone/WhatsApp confirmation queue before Sahina starts weaving.
+                      </li>
+                      <li>
+                        <strong>Exact Cash Required at Doorstep:</strong> Courier riders do not carry loose change for <strong>NPR {grandTotal.toLocaleString()}</strong> and you must be physically available to answer the rider’s call.
+                      </li>
+                    </ul>
+                    <div className="pt-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setPaymentMethod('esewa')}
+                        className="w-full py-2 px-3 bg-[#60BB46] hover:bg-[#52a33b] text-white font-bold text-[11px] rounded-lg flex items-center justify-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+                      >
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>⚡ Switch to eSewa QR for Instant Priority Handcrafting & Faster Dispatch</span>
+                      </button>
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-[#736C65] leading-relaxed">
+                    If you still prefer Cash on Delivery, you can pay <strong>NPR {grandTotal.toLocaleString()}</strong> at your doorstep in <strong>{selectedDeliveryZone.name}</strong> after answering our verification call.
                   </p>
-                  <div className="p-2.5 bg-[#FAF8F5] rounded-xl border border-[#E8DFD8] text-[11px] text-[#736C65] flex items-center gap-2">
-                    <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-                    <span>Open & inspect your handmade parcel in front of the rider before paying with our 24-hr check guarantee.</span>
-                  </div>
                 </div>
               ) : (
                 /* DIGITAL QR OVERVIEW & PROCEED CARD */
-                <div className="bg-white p-4 rounded-2xl border border-[#E8DFD8] space-y-3 shadow-2xs">
+                <div className="bg-white p-4 rounded-2xl border-2 border-[#60BB46]/40 space-y-3 shadow-2xs">
                   <div className="flex items-center justify-between border-b border-[#F0EBE5] pb-2.5">
                     <div className="flex items-center gap-2">
-                      <QrCode className="w-4 h-4 text-[#D4AF37]" />
+                      <QrCode className="w-4 h-4 text-[#60BB46]" />
                       <span className="text-xs font-bold text-[#1C1B1A]">
-                        Pay to: {paymentSettings.accountName}
+                        Pay to: {paymentSettings.accountName} (Priority Handcrafting Queue ⚡)
                       </span>
                     </div>
                     <span className="text-xs font-mono font-bold text-[#1C1B1A] bg-[#FAF8F5] px-2 py-0.5 rounded border border-[#E8DFD8]">
@@ -759,13 +827,13 @@ export const CheckoutModal: React.FC = () => {
                     </div>
                   ) : (
                     <p className="text-xs text-[#5E5955] leading-relaxed">
-                      In the next step, you will see the <strong>direct QR code</strong> for {paymentMethod === 'fonepay' ? 'Fonepay / Any Bank' : paymentMethod === 'esewa' ? 'eSewa' : 'Khalti'}, along with clear instructions on <strong>taking and attaching your payment screenshot</strong> for instant verification!
+                      In the next step, you will see the <strong>direct QR code</strong> for {paymentMethod === 'fonepay' ? 'Fonepay / Any Bank' : paymentMethod === 'esewa' ? 'eSewa' : 'Khalti'}, along with clear instructions on <strong>taking and attaching your payment screenshot</strong> for instant priority verification!
                     </p>
                   )}
 
                   <div className="p-2.5 bg-emerald-50/80 rounded-xl border border-emerald-200 text-xs text-emerald-900 flex items-center gap-2">
                     <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-                    <span>0% gateway commission. 100% of payment goes directly to founder and creator Sahina Shrestha.</span>
+                    <span>✓ Priority same-day material reservation • ✓ Complimentary satin dust pouch • ✓ 0% gateway fee direct to Sahina Shrestha</span>
                   </div>
                 </div>
               )}
@@ -1257,7 +1325,7 @@ export const CheckoutModal: React.FC = () => {
                       <strong>1. Automatic Website Safekeeping:</strong> Your payment screenshot is <strong>already stamped with {confirmedOrder.orderId} ({confirmedOrder.customerName}) and saved inside Seller Order Progress</strong> on this website!
                     </p>
                     <p className="bg-white/80 p-2.5 rounded-xl border border-[#A5D6A7] text-[11px] text-[#1B5E20]">
-                      <strong>2. Why WhatsApp needs 1 tap to attach the photo:</strong> WhatsApp web links (<code className="font-mono">wa.me</code>) only pre-fill text messages and cannot auto-attach gallery photos by themselves. When you click below, we <strong>auto-copy your stamped screenshot to your clipboard</strong> so you can simply <strong>Paste (<code className="font-mono">Ctrl+V</code>)</strong> or tap the <strong>📎 / 📷 icon</strong> in WhatsApp to attach your screenshot!
+                      <strong>2. Important Reminder for WhatsApp:</strong> Since WhatsApp web links (<code className="font-mono">wa.me</code>) only pre-fill text messages and cannot auto-attach gallery photos, please <strong>send the auto-generated order message first and then manually paste or attach your payment screenshot</strong> right after in the WhatsApp chat!
                     </p>
                   </div>
                 ) : (
@@ -1272,39 +1340,67 @@ export const CheckoutModal: React.FC = () => {
                   </div>
                 )}
 
-                <div className="flex flex-col sm:flex-row gap-2">
+                <div className="flex flex-col gap-2">
                   <button
                     type="button"
                     onClick={() => triggerWhatsAppConfirmation(confirmedOrder)}
-                    className="flex-1 py-3.5 px-4 bg-[#25D366] text-white font-semibold text-xs tracking-wider uppercase rounded-xl hover:bg-[#20ba5a] transition-all flex items-center justify-center gap-2 shadow-md cursor-pointer"
+                    className="w-full py-3.5 px-4 bg-[#25D366] text-white font-semibold text-xs tracking-wider uppercase rounded-xl hover:bg-[#20ba5a] transition-all flex items-center justify-center gap-2 shadow-md cursor-pointer text-center"
                   >
                     <MessageCircle className="w-4 h-4 shrink-0" />
                     <span>
-                      {confirmedOrder.paymentScreenshot
-                        ? '1. Open WhatsApp Chat with Order Details'
+                      {confirmedOrder.paymentScreenshot || confirmedOrder.paymentMethod !== 'cod'
+                        ? 'Open WhatsApp Chat to Submit Order Details and Paste Screenshot Manually'
                         : 'Confirm Order via WhatsApp (Click to Send)'}
                     </span>
                   </button>
 
-                  {confirmedOrder.paymentScreenshot && (
-                    <button
-                      type="button"
-                      onClick={() => handleShareScreenshotFileToWhatsApp(confirmedOrder)}
-                      className="py-3.5 px-4 bg-[#1B5E20] text-white font-semibold text-xs tracking-wider uppercase rounded-xl hover:bg-[#144718] transition-all flex items-center justify-center gap-1.5 shadow-sm cursor-pointer shrink-0"
-                      title="Share or download stamped screenshot image file"
-                    >
-                      <Share2 className="w-3.5 h-3.5 shrink-0" />
-                      <span>Share / Download Stamped Slip</span>
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      copyToClipboard(buildOrderWhatsAppText(confirmedOrder), 'order_details_summary');
+                      setScreenshotClipboardNotice('✅ Order details copied to clipboard! You can now paste them directly into WhatsApp alongside your payment screenshot.');
+                    }}
+                    className="w-full py-2.5 px-4 bg-white border border-[#A5D6A7] text-[#1B5E20] hover:bg-[#F1F8E9] font-semibold text-xs tracking-wider uppercase rounded-xl transition-all flex items-center justify-center gap-2 shadow-2xs cursor-pointer"
+                  >
+                    {copiedKey === 'order_details_summary' ? (
+                      <>
+                        <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span className="text-emerald-700">Order Details Copied to Clipboard!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-4 h-4 shrink-0" />
+                        <span>Copy Order Details</span>
+                      </>
+                    )}
+                  </button>
                 </div>
               </div>
 
               {/* Order Receipt Details Card */}
               <div className="bg-white p-4 rounded-xl border border-[#E8DFD8] text-left space-y-2.5 text-xs text-[#5E5955]">
-                <div className="flex justify-between border-b border-[#F0EBE5] pb-2 font-semibold text-[#1C1B1A]">
-                  <span>Order Reference</span>
-                  <span className="font-mono text-[#8C7A6B]">{confirmedOrder.orderId}</span>
+                <div className="flex items-center justify-between border-b border-[#F0EBE5] pb-2 font-semibold text-[#1C1B1A]">
+                  <div>
+                    <span>Order Reference: </span>
+                    <span className="font-mono text-[#8C7A6B]">{confirmedOrder.orderId}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => copyToClipboard(buildOrderWhatsAppText(confirmedOrder), 'order_details_summary')}
+                    className="px-2.5 py-1 bg-[#FAF8F5] hover:bg-[#F0EBE5] border border-[#E8DFD8] text-[#1C1B1A] text-[10px] font-bold uppercase tracking-wider rounded-lg flex items-center gap-1 transition-colors cursor-pointer"
+                  >
+                    {copiedKey === 'order_details_summary' ? (
+                      <>
+                        <Check className="w-3 h-3 text-emerald-600" />
+                        <span className="text-emerald-700">Copied!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3 h-3 text-[#C5A880]" />
+                        <span>Copy Order Details</span>
+                      </>
+                    )}
+                  </button>
                 </div>
 
                 <div className="flex justify-between">

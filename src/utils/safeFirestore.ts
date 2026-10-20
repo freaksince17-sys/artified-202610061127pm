@@ -3,6 +3,8 @@ import {
   updateDoc as fsUpdateDoc, 
   addDoc as fsAddDoc, 
   deleteDoc as fsDeleteDoc,
+  getDoc as fsGetDoc,
+  getDocs as fsGetDocs,
   onSnapshot as fsOnSnapshot,
   DocumentReference,
   CollectionReference,
@@ -11,24 +13,50 @@ import {
   QuerySnapshot
 } from 'firebase/firestore';
 
-// Global flag to track if Firestore has run out of daily write quota
-export let isFirestoreQuotaExceeded = false;
+// Check persistent storage on startup so quota exceeded status survives page reloads
+const TODAY_UTC_STRING = new Date().toISOString().slice(0, 10);
+let initialQuotaExceeded = false;
+try {
+  if (typeof localStorage !== 'undefined') {
+    const recordedDate = localStorage.getItem('artified_firestore_quota_exceeded_date');
+    if (recordedDate === TODAY_UTC_STRING) {
+      initialQuotaExceeded = true;
+    } else if (recordedDate && recordedDate !== TODAY_UTC_STRING) {
+      localStorage.removeItem('artified_firestore_quota_exceeded_date');
+    }
+  }
+} catch {}
+
+// Global flag to track if Firestore has run out of daily write/read quota
+export let isFirestoreQuotaExceeded = initialQuotaExceeded;
 
 export function setFirestoreQuotaExceeded(val: boolean) {
   isFirestoreQuotaExceeded = val;
   try {
     (window as any).isFirestoreQuotaExceeded = val;
+    if (val && typeof localStorage !== 'undefined') {
+      const today = new Date().toISOString().slice(0, 10);
+      localStorage.setItem('artified_firestore_quota_exceeded_date', today);
+    } else if (!val && typeof localStorage !== 'undefined') {
+      localStorage.removeItem('artified_firestore_quota_exceeded_date');
+    }
   } catch {}
 }
 
-// Automatically detect quota limit or oversized payload errors from exceptions
+// Automatically detect quota limit, resource exhaustion, or maximum backoff delay errors
 export function detectQuotaError(err: any): boolean {
   if (!err) return false;
   const msg = (err.message || String(err)).toLowerCase();
+  const code = (err.code || err.Code || '').toLowerCase();
   const isHardQuotaExceeded = 
+    code === 'resource-exhausted' ||
     msg.includes('quota limit exceeded') || 
     msg.includes('quota exceeded') ||
     msg.includes('resource-exhausted') ||
+    msg.includes('free daily write units') ||
+    msg.includes('free daily read units') ||
+    msg.includes('maximum backoff delay') ||
+    msg.includes('prevent overloading the backend') ||
     (msg.includes('quota') && msg.includes('exceeded'));
 
   if (isHardQuotaExceeded) {
@@ -180,4 +208,50 @@ export function safeOnSnapshot(
       }
     }
   );
+}
+
+/**
+ * Safe, quota-aware wrapper for Firestore writeBatch.commit()
+ */
+export async function safeCommitBatch(batch: any): Promise<boolean> {
+  if (isFirestoreQuotaExceeded || !batch) {
+    return false;
+  }
+  try {
+    await batch.commit();
+    return true;
+  } catch (err: any) {
+    detectQuotaError(err);
+    return false;
+  }
+}
+
+/**
+ * Safe, quota-aware wrapper for Firestore getDoc
+ */
+export async function safeGetDoc(ref: any): Promise<any> {
+  if (isFirestoreQuotaExceeded) {
+    return { exists: () => false, data: () => null };
+  }
+  try {
+    return await fsGetDoc(ref);
+  } catch (err: any) {
+    detectQuotaError(err);
+    return { exists: () => false, data: () => null };
+  }
+}
+
+/**
+ * Safe, quota-aware wrapper for Firestore getDocs
+ */
+export async function safeGetDocs(queryOrRef: any): Promise<any> {
+  if (isFirestoreQuotaExceeded) {
+    return { empty: true, docs: [], forEach: () => {} };
+  }
+  try {
+    return await fsGetDocs(queryOrRef);
+  } catch (err: any) {
+    detectQuotaError(err);
+    return { empty: true, docs: [], forEach: () => {} };
+  }
 }

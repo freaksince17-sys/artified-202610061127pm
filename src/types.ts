@@ -27,7 +27,6 @@ export interface Product {
   inStock: boolean;
   stockCount: number;
   inventoryCount?: number;
-  sku?: string; // e.g. "ART-BAG-001" or "ART-NCK-102"
   leadTime: string; // e.g. "Handmade to order: 2–4 business days"
   materials: string[];
   dimensions: string;

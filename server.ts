@@ -216,16 +216,9 @@ async function startServer() {
         const ordersMap = JSON.parse(fs.readFileSync(trackedOrdersJsonPath, 'utf-8'));
         let addedFromOrders = false;
         for (const [key, order] of Object.entries(ordersMap) as any) {
-          if (!order) continue;
-          const phase = order.currentPhase;
-          const isConfirmed =
-            phase === 'confirmed' ||
-            phase === 'handcrafting_and_packaging' ||
-            phase === 'beading_in_progress' ||
-            phase === 'quality_and_packaging' ||
-            phase === 'out_for_delivery' ||
-            phase === 'delivered';
-          if (!isConfirmed) continue;
+          const phase = order.currentPhase ? String(order.currentPhase).toLowerCase() : '';
+          const isCancelled = phase === 'cancelled' || phase === 'refunded' || phase === 'rejected';
+          if (isCancelled) continue;
 
           const canonicalOrderId = String(order.orderId || key)
             .replace(/[^A-Z0-9]/gi, '')
@@ -449,12 +442,19 @@ async function startServer() {
       const updatedHistory = Array.from(historyMap.values());
       saveStoredSalesHistory(updatedHistory);
 
-      // Update runtime products.json with verified sales counts
+      // Update runtime and repository products.json with verified sales counts
       if (fs.existsSync(productsJsonPath)) {
         try {
           const currentProds = JSON.parse(fs.readFileSync(productsJsonPath, 'utf-8'));
           const enriched = enrichProductsWithVerifiedSales(currentProds);
-          fs.writeFileSync(productsJsonPath, JSON.stringify(enriched, null, 2), 'utf-8');
+          const serializedEnriched = JSON.stringify(enriched, null, 2);
+          fs.writeFileSync(productsJsonPath, serializedEnriched, 'utf-8');
+          try {
+            fs.writeFileSync(path.resolve(seedDataDir, 'products.json'), serializedEnriched, 'utf-8');
+          } catch {}
+          try {
+            fs.writeFileSync(path.resolve(process.cwd(), 'public/products.json'), serializedEnriched, 'utf-8');
+          } catch {}
         } catch {}
       }
 
@@ -661,7 +661,7 @@ async function startServer() {
     });
   };
 
-  // POST /api/products - Save entire product catalog persistently
+  // POST /api/products - Save entire product catalog persistently to runtime, src/data/products.json, and public/products.json
   app.post('/api/products', (req, res) => {
     try {
       const incomingProducts = req.body;
@@ -671,18 +671,104 @@ async function startServer() {
 
       const cleanedProducts = incomingProducts.map((prod) => {
         const cleanImages = processImages(prod.images || []);
+        const { sku, ...rest } = prod || {};
         return {
-          ...prod,
+          ...rest,
           images: cleanImages,
         };
       });
 
-      fs.writeFileSync(productsJsonPath, JSON.stringify(cleanedProducts, null, 2), 'utf-8');
+      const serialized = JSON.stringify(cleanedProducts, null, 2);
+      fs.writeFileSync(productsJsonPath, serialized, 'utf-8');
+      try {
+        fs.writeFileSync(path.resolve(seedDataDir, 'products.json'), serialized, 'utf-8');
+      } catch {}
+      try {
+        fs.writeFileSync(path.resolve(process.cwd(), 'public/products.json'), serialized, 'utf-8');
+      } catch {}
 
       return res.json({ success: true, products: cleanedProducts });
     } catch (err) {
       console.error('Error saving products to products.json:', err);
       return res.status(500).json({ error: 'Failed to save products' });
+    }
+  });
+
+  // POST /api/save-all-to-repo - Save all products, orders, sales history, and studio data to repository files for deployment to artified.com.np
+  app.post('/api/save-all-to-repo', (req, res) => {
+    try {
+      const { products: incomingProducts, trackedOrders: incomingOrders, reels: incomingReels, instagramItems: incomingIg, craftStory: incomingStory, artisanProfile: incomingArtisan } = req.body || {};
+
+      if (Array.isArray(incomingProducts) && incomingProducts.length > 0) {
+        const cleanedProducts = incomingProducts.map((prod) => {
+          const cleanImages = processImages(prod.images || []);
+          const { sku, ...rest } = prod || {};
+          return {
+            ...rest,
+            images: cleanImages,
+          };
+        });
+        const serializedProds = JSON.stringify(cleanedProducts, null, 2);
+        fs.writeFileSync(productsJsonPath, serializedProds, 'utf-8');
+        try {
+          fs.writeFileSync(path.resolve(seedDataDir, 'products.json'), serializedProds, 'utf-8');
+        } catch {}
+        try {
+          fs.writeFileSync(path.resolve(process.cwd(), 'public/products.json'), serializedProds, 'utf-8');
+        } catch {}
+      }
+
+      if (incomingOrders && typeof incomingOrders === 'object') {
+        const serializedOrders = JSON.stringify(incomingOrders, null, 2);
+        fs.writeFileSync(trackedOrdersJsonPath, serializedOrders, 'utf-8');
+        try {
+          fs.writeFileSync(seedTrackedOrdersJsonPath, serializedOrders, 'utf-8');
+        } catch {}
+      }
+
+      if (Array.isArray(incomingReels) && incomingReels.length > 0) {
+        const serializedReels = JSON.stringify(incomingReels, null, 2);
+        fs.writeFileSync(tiktokReelsJsonPath, serializedReels, 'utf-8');
+        try {
+          fs.writeFileSync(path.resolve(seedDataDir, 'tiktok_reels.json'), serializedReels, 'utf-8');
+        } catch {}
+      }
+
+      if (Array.isArray(incomingIg) && incomingIg.length > 0) {
+        const serializedIg = JSON.stringify(incomingIg, null, 2);
+        fs.writeFileSync(instagramJournalJsonPath, serializedIg, 'utf-8');
+        try {
+          fs.writeFileSync(path.resolve(seedDataDir, 'instagram_journal.json'), serializedIg, 'utf-8');
+        } catch {}
+      }
+
+      if (incomingStory && typeof incomingStory === 'object') {
+        const serializedStory = JSON.stringify(incomingStory, null, 2);
+        fs.writeFileSync(craftStoryJsonPath, serializedStory, 'utf-8');
+        try {
+          fs.writeFileSync(path.resolve(seedDataDir, 'craft_story.json'), serializedStory, 'utf-8');
+        } catch {}
+      }
+
+      if (incomingArtisan && typeof incomingArtisan === 'object') {
+        const serializedArtisan = JSON.stringify(incomingArtisan, null, 2);
+        fs.writeFileSync(artisanProfileJsonPath, serializedArtisan, 'utf-8');
+        try {
+          fs.writeFileSync(path.resolve(seedDataDir, 'artisan_profile.json'), serializedArtisan, 'utf-8');
+        } catch {}
+      }
+
+      // Reconcile and persist sales_history.json to both runtime and src/data/sales_history.json
+      const reconciledHistory = loadStoredSalesHistory();
+      saveStoredSalesHistory(reconciledHistory);
+
+      return res.json({
+        success: true,
+        savedAt: new Date().toISOString()
+      });
+    } catch (err: any) {
+      console.error('Error in /api/save-all-to-repo:', err);
+      return res.status(500).json({ error: err.message || 'Failed to save all data to repository' });
     }
   });
 
@@ -936,7 +1022,11 @@ async function startServer() {
       if (!incoming || typeof incoming !== 'object') {
         return res.status(400).json({ error: 'Expected an object map' });
       }
-      fs.writeFileSync(trackedOrdersJsonPath, JSON.stringify(incoming, null, 2), 'utf-8');
+      const serialized = JSON.stringify(incoming, null, 2);
+      fs.writeFileSync(trackedOrdersJsonPath, serialized, 'utf-8');
+      try {
+        fs.writeFileSync(seedTrackedOrdersJsonPath, serialized, 'utf-8');
+      } catch {}
       return res.json({ success: true });
     } catch (err: any) {
       return res.status(500).json({ error: err.message || 'Failed to save tracked orders' });
@@ -1002,10 +1092,10 @@ async function startServer() {
   // POST /api/send-low-stock-email - Automated Cloud Function alert when inventoryCount drops below 5
   app.post('/api/send-low-stock-email', (req, res) => {
     try {
-      const { productId, productTitle, sku, remainingInventory, sellerEmail } = req.body;
+      const { productId, productTitle, remainingInventory, sellerEmail } = req.body;
       const targetEmail = sellerEmail || 'freaksince17@gmail.com';
 
-      console.log(`[Low Stock Email Trigger] Dispatched low inventory email alert for "${productTitle || productId}" (SKU: ${sku || 'N/A'}, Remaining: ${remainingInventory}) to ${targetEmail}`);
+      console.log(`[Low Stock Email Trigger] Dispatched low inventory email alert for "${productTitle || productId}" (Remaining: ${remainingInventory}) to ${targetEmail}`);
 
       const emailLogPath = path.resolve(dataDir, 'low_stock_email_alerts.json');
       let alertLogs: any[] = [];
@@ -1019,11 +1109,10 @@ async function startServer() {
         id: `alert_${Date.now()}_${productId}`,
         productId,
         productTitle: productTitle || productId,
-        sku: sku || `ART-${String(productId).slice(-4).toUpperCase()}`,
         remainingInventory: Number(remainingInventory) || 0,
         targetEmail,
         subject: `⚠️ Low Stock Alert: "${productTitle || productId}" has only ${remainingInventory} unit(s) remaining!`,
-        body: `Dear Sahina Shrestha (Artified_np Workshop Owner),\n\nThis is an automated inventory alert from your Artified Seller Studio.\n\nProduct: ${productTitle || productId}\nSKU: ${sku || 'ART-BAG-001'}\nRemaining Kathmandu Workshop Stock: ${remainingInventory} unit(s)\n\nPlease log into Seller Studio to restock this piece soon to avoid stockouts.\n\nWarm regards,\nArtified_np Cloud Function Trigger`,
+        body: `Dear Sahina Shrestha (Artified_np Workshop Owner),\n\nThis is an automated inventory alert from your Artified Seller Studio.\n\nProduct: ${productTitle || productId}\nRemaining Kathmandu Workshop Stock: ${remainingInventory} unit(s)\n\nPlease log into Seller Studio to restock this piece soon to avoid stockouts.\n\nWarm regards,\nArtified_np Cloud Function Trigger`,
         dispatchedAt: new Date().toISOString(),
         status: 'delivered'
       };
@@ -1068,7 +1157,11 @@ async function startServer() {
         }
       }
 
-      fs.writeFileSync(trackedOrdersJsonPath, JSON.stringify(map, null, 2), 'utf-8');
+      const serialized = JSON.stringify(map, null, 2);
+      fs.writeFileSync(trackedOrdersJsonPath, serialized, 'utf-8');
+      try {
+        fs.writeFileSync(seedTrackedOrdersJsonPath, serialized, 'utf-8');
+      } catch {}
       return res.json({ success: true });
     } catch (err: any) {
       return res.status(500).json({ error: err.message || 'Failed to delete tracked order' });
@@ -1079,6 +1172,9 @@ async function startServer() {
   app.delete('/api/tracked-orders', (_req, res) => {
     try {
       fs.writeFileSync(trackedOrdersJsonPath, JSON.stringify({}, null, 2), 'utf-8');
+      try {
+        fs.writeFileSync(seedTrackedOrdersJsonPath, JSON.stringify({}, null, 2), 'utf-8');
+      } catch {}
       return res.json({ success: true });
     } catch (err: any) {
       return res.status(500).json({ error: err.message || 'Failed to purge tracked orders' });

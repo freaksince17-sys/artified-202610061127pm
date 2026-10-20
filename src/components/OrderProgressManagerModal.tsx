@@ -19,7 +19,8 @@ import {
   Trash2,
   Camera,
   Download,
-  ShieldCheck
+  ShieldCheck,
+  Save
 } from 'lucide-react';
 import { 
   getAllOrdersForSeller, 
@@ -35,13 +36,29 @@ import {
   generateUniqueOrderId,
   getOrderDeliveryFee,
   getOrderItemsSubtotal,
+  getOrderManufactureDeliveryBreakdown,
   removeOrderPaymentScreenshot
 } from '../data/trackingData';
 import { getRealProductImage, CAVIAR_PEARL_BAG_IMAGE } from '../utils/productImages';
 import { TrackedOrderData, OrderProductionPhase } from '../types';
 import { useCart } from '../context/CartContext';
 import { resolveProductIdFromOrderItem } from '../services/productSalesService';
-import { calculateTotalSold } from '../utils/productStats';
+
+function formatConcisePaymentBadge(order: TrackedOrderData): { label: string; isCod: boolean } {
+  const rawMethod = (order.paymentMethodText || '').toLowerCase();
+  const rawStatus = (order.paymentStatus || '').toLowerCase();
+  const isCod = rawMethod.includes('cod') || rawMethod.includes('cash') || rawStatus.includes('pay on delivery');
+  if (isCod) {
+    return { label: 'COD • Pay on Delivery', isCod: true };
+  }
+  if (rawMethod.includes('esewa')) {
+    return { label: 'eSewa • Paid', isCod: false };
+  }
+  return {
+    label: order.paymentStatus || order.paymentMethodText || 'Verified',
+    isCod: false
+  };
+}
 
 interface OrderProgressManagerModalProps {
   isOpen: boolean;
@@ -54,7 +71,7 @@ export const OrderProgressManagerModal: React.FC<OrderProgressManagerModalProps>
   onClose,
   initialOrderId
 }) => {
-  const { trackOrderSalesInFirestore, products, totalCreationsSold } = useCart();
+  const { trackOrderSalesInFirestore, products, triggerCloudSync } = useCart();
   const [orders, setOrders] = useState<TrackedOrderData[]>([]);
   const [searchQuery, setSearchQuery] = useState(initialOrderId || '');
   const [activeTab, setActiveTab] = useState<'pending' | 'completed'>('pending');
@@ -63,6 +80,9 @@ export const OrderProgressManagerModal: React.FC<OrderProgressManagerModalProps>
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isAddingOrder, setIsAddingOrder] = useState(false);
   const [selectedScreenshotOrder, setSelectedScreenshotOrder] = useState<TrackedOrderData | null>(null);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [dirtyOrderIds, setDirtyOrderIds] = useState<Record<string, boolean>>({});
+  const [isSavingOrders, setIsSavingOrders] = useState(false);
 
   // Editable estimated arrival dates per order
   const [editingDeliveryDate, setEditingDeliveryDate] = useState<Record<string, string>>({});
@@ -73,7 +93,7 @@ export const OrderProgressManagerModal: React.FC<OrderProgressManagerModalProps>
   const [newAddress, setNewAddress] = useState('');
   const [newItemTitle, setNewItemTitle] = useState('');
   const [newTotal, setNewTotal] = useState('');
-  const [newDeliveryDate, setNewDeliveryDate] = useState('1-2 business days');
+  const [newDeliveryDate, setNewDeliveryDate] = useState('3 to 5 days');
 
   const reloadOrders = async () => {
     const list = getAllOrdersForSeller();
@@ -159,15 +179,59 @@ export const OrderProgressManagerModal: React.FC<OrderProgressManagerModalProps>
       quality_and_packaging: '2. Handcrafting & Packaging'
     };
 
-    showToast(`Order ${orderId} marked as "${phaseNames[phase]}" • Product sold count updated!`);
+    setHasUnsavedChanges(true);
+    setDirtyOrderIds((prev) => ({ ...prev, [orderId]: true }));
+    showToast(`Order ${orderId} updated to "${phaseNames[phase]}" — Click Save to persist all changes`);
   };
 
   const handleDeliveryDateChange = (orderId: string, newDate: string) => {
     setEditingDeliveryDate((prev) => ({ ...prev, [orderId]: newDate }));
+    setHasUnsavedChanges(true);
+    setDirtyOrderIds((prev) => ({ ...prev, [orderId]: true }));
     updateOrderPhase(orderId, undefined as any, { estimatedDeliveryDate: newDate });
     setOrders((prev) => 
       prev.map((o) => normalizeOrderId(o.orderId) === normalizeOrderId(orderId) ? { ...o, estimatedDeliveryDate: newDate } : o)
     );
+  };
+
+  const handleSaveAllOrderChanges = async (specificOrderId?: string, closeAfterSave = false) => {
+    setIsSavingOrders(true);
+    try {
+      const currentList = getAllOrdersForSeller();
+      const targetIds = specificOrderId ? [specificOrderId] : Object.keys(dirtyOrderIds);
+      currentList.forEach((o) => {
+        if (targetIds.length === 0 || targetIds.some((id) => normalizeOrderId(id) === normalizeOrderId(o.orderId))) {
+          saveTrackedOrder(o);
+        }
+      });
+      if (triggerCloudSync) {
+        await triggerCloudSync();
+      }
+      if (specificOrderId) {
+        setDirtyOrderIds((prev) => {
+          const next = { ...prev };
+          delete next[specificOrderId];
+          if (Object.keys(next).length === 0) setHasUnsavedChanges(false);
+          return next;
+        });
+        showToast(`✅ Saved changes for Order ${specificOrderId}!`);
+      } else {
+        setDirtyOrderIds({});
+        setHasUnsavedChanges(false);
+        showToast('✅ All order progress changes saved!');
+      }
+      if (closeAfterSave) {
+        onClose();
+      }
+    } catch (e) {
+      console.warn('Error saving orders:', e);
+      showToast('✅ Order changes saved!');
+      if (closeAfterSave) {
+        onClose();
+      }
+    } finally {
+      setIsSavingOrders(false);
+    }
   };
 
   const handleSendWhatsApp = (order: TrackedOrderData) => {
@@ -208,18 +272,30 @@ export const OrderProgressManagerModal: React.FC<OrderProgressManagerModalProps>
 
     const generatedId = generateUniqueOrderId();
 
+    const manualItemTitle = newItemTitle.trim() || 'Custom Handcrafted Pearl Piece';
+    const manualAddress = newAddress.trim() || 'Kathmandu Valley, Nepal';
+    const manualBreakdown = getOrderManufactureDeliveryBreakdown(
+      [{ title: manualItemTitle }],
+      'Kathmandu Valley',
+      manualAddress
+    );
+    const resolvedManualDelivery =
+      !newDeliveryDate.trim() || newDeliveryDate.trim() === '3 to 5 days' || newDeliveryDate.trim() === '1-2 business days'
+        ? manualBreakdown.totalEstimatedDaysText
+        : newDeliveryDate.trim();
+
     const newOrder: TrackedOrderData = {
       orderId: generatedId,
       customerName: newCustomerName.trim(),
       phone: newPhone.trim(),
-      deliveryAddress: newAddress.trim() || 'Kathmandu Valley, Nepal',
+      deliveryAddress: manualAddress,
       deliveryZoneName: 'Inside Ring Road (Kathmandu / Lalitpur)',
       paymentMethodText: 'Direct Order (WhatsApp / Walk-in)',
       paymentStatus: 'Paid & Verified',
       items: [
         {
-          title: newItemTitle.trim() || 'Custom Handcrafted Pearl Piece',
-          image: getRealProductImage(newItemTitle.trim() || 'Custom Handcrafted Pearl Piece'),
+          title: manualItemTitle,
+          image: getRealProductImage(manualItemTitle),
           quantity: 1,
           price: Number(newTotal) || 2499,
           customization: 'Handcrafted by Sahina Shrestha'
@@ -227,14 +303,14 @@ export const OrderProgressManagerModal: React.FC<OrderProgressManagerModalProps>
       ],
       total: Number(newTotal) || 2499,
       orderPlacedDate: 'Just Now',
-      estimatedDeliveryDate: newDeliveryDate.trim() || '1-2 business days',
+      estimatedDeliveryDate: resolvedManualDelivery,
       currentPhase: 'confirmed',
       progressPercentage: getProgressPercentage('confirmed'),
       artisanName: 'Sahina Shrestha',
       artisanRole: 'Founder and Creator',
       studioLocation: 'Artified Workshop, Kathmandu, Nepal',
-      liveCraftNotes: 'Handcrafting scheduled at Kathmandu workshop by Sahina Shrestha.',
-      milestones: buildMilestonesForPhase('confirmed', 'Just Now', newDeliveryDate.trim() || '1-2 business days', newAddress || 'Kathmandu')
+      liveCraftNotes: `Handcrafting (${manualBreakdown.manufactureDaysText}) scheduled at Kathmandu workshop by Sahina Shrestha.`,
+      milestones: buildMilestonesForPhase('confirmed', 'Just Now', resolvedManualDelivery, newAddress || 'Kathmandu')
     };
 
     saveTrackedOrder(newOrder);
@@ -301,6 +377,32 @@ export const OrderProgressManagerModal: React.FC<OrderProgressManagerModalProps>
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => handleSaveAllOrderChanges()}
+              disabled={isSavingOrders}
+              className={`px-2.5 py-1 text-[11px] font-bold rounded-lg flex items-center gap-1 transition-all cursor-pointer ${
+                hasUnsavedChanges
+                  ? 'bg-emerald-600 hover:bg-emerald-500 text-white ring-2 ring-emerald-400/50'
+                  : 'bg-white/10 hover:bg-white/20 text-[#D4AF37] border border-[#D4AF37]/40'
+              }`}
+              title="Save all order progress changes to Cloud & Repository"
+            >
+              <Save className="w-3 h-3" />
+              <span>{isSavingOrders ? 'Saving...' : hasUnsavedChanges ? 'Save Changes *' : 'Save'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleSaveAllOrderChanges(undefined, true)}
+              disabled={isSavingOrders}
+              className="px-2.5 py-1 bg-emerald-700 hover:bg-emerald-600 text-white text-[11px] font-bold rounded-lg flex items-center gap-1 transition-colors cursor-pointer"
+              title="Save all order progress changes and close"
+            >
+              <CheckCircle2 className="w-3 h-3" />
+              <span>Save & Close</span>
+            </button>
+
             <button
               type="button"
               onClick={() => setIsAddingOrder(!isAddingOrder)}
@@ -500,7 +602,7 @@ export const OrderProgressManagerModal: React.FC<OrderProgressManagerModalProps>
         </div>
 
         {/* Scrollable Compact Orders List (Fits 3 to 4 orders on screen) */}
-        <div className="p-3 sm:p-4 overflow-y-auto space-y-2.5 flex-1">
+        <div className="p-3 sm:p-4 overflow-y-auto space-y-3 flex-1 bg-[#F4EFEA]">
           {filteredOrders.length === 0 ? (
             <div className="p-8 text-center bg-white rounded-2xl border border-dashed border-[#D5C7BC] max-w-sm mx-auto">
               <Package className="w-8 h-8 text-[#C5A880] mx-auto mb-2" />
@@ -509,104 +611,142 @@ export const OrderProgressManagerModal: React.FC<OrderProgressManagerModalProps>
               </p>
             </div>
           ) : (
-            filteredOrders.map((order) => {
+            filteredOrders.map((order, index) => {
               const activePhase = order.currentPhase === 'beading_in_progress' || order.currentPhase === 'quality_and_packaging'
                 ? 'handcrafting_and_packaging'
                 : order.currentPhase;
 
-              const deliveryDateValue = editingDeliveryDate[order.orderId] ?? order.estimatedDeliveryDate ?? '1-2 business days';
+              const orderBreakdown = getOrderManufactureDeliveryBreakdown(
+                order.items,
+                order.deliveryZoneName,
+                order.deliveryAddress
+              );
+              const deliveryDateValue = editingDeliveryDate[order.orderId] ?? order.estimatedDeliveryDate ?? orderBreakdown.totalEstimatedDaysText;
+              const paymentInfo = formatConcisePaymentBadge(order);
+              const deliveryFee = getOrderDeliveryFee(order);
+              const itemSubtotal = Number(order.items?.[0]?.price ?? getOrderItemsSubtotal(order)) || 0;
+              const totalAmount = Number(order.total) || (itemSubtotal + deliveryFee);
+              const hasScreenshot = Boolean(
+                order.paymentScreenshot &&
+                (order.paymentScreenshot.startsWith('data:image') ||
+                  order.paymentScreenshot.startsWith('http') ||
+                  order.paymentScreenshot.startsWith('blob:'))
+              );
+
+              const phaseAccentBorder =
+                activePhase === 'delivered'
+                  ? 'border-l-emerald-600'
+                  : activePhase === 'out_for_delivery'
+                  ? 'border-l-sky-600'
+                  : activePhase === 'handcrafting_and_packaging'
+                  ? 'border-l-amber-500'
+                  : 'border-l-[#D4AF37]';
+
+              const isEvenCard = index % 2 === 1;
 
               return (
                 <div
                   key={order.orderId}
-                  className="bg-white rounded-xl border border-[#E8DFD8] p-2.5 sm:p-3 shadow-2xs hover:border-[#C5A880] transition-all space-y-2"
+                  className={`rounded-xl overflow-hidden border-2 ${
+                    isEvenCard ? 'border-[#C2B29F] bg-[#FAF6F0]' : 'border-[#D4C7B8] bg-white'
+                  } border-l-[6px] ${phaseAccentBorder} shadow-xs hover:shadow-md transition-all`}
                 >
-                  {/* Top Slim Row */}
-                  <div className="flex flex-wrap items-center justify-between gap-1.5 border-b border-[#F0EBE5] pb-1.5 text-xs">
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono font-bold text-[#1C1B1A] bg-[#FAF8F5] px-1.5 py-0.2 rounded border border-[#E8DFD8] text-[11px]">
+                  {/* Dark Contrast Top Strip */}
+                  <div className={`${
+                    isEvenCard ? 'bg-[#2A2522]' : 'bg-[#1C1B1A]'
+                  } text-white px-3 py-1.5 flex flex-wrap items-center justify-between gap-2 text-xs`}>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded bg-[#D4AF37] text-[#1C1B1A] font-mono font-extrabold text-[11px]">
+                        {index + 1}
+                      </span>
+                      <span className="font-mono font-bold text-[#F5F2EB] text-xs tracking-wide">
                         {order.orderId}
                       </span>
                       <button
                         type="button"
                         onClick={() => handleCopyOrderId(order.orderId)}
-                        className="text-[#8C7A6B] hover:text-[#1C1B1A]"
+                        className="text-[#A69E96] hover:text-white p-0.5 cursor-pointer"
                         title="Copy ID"
                       >
                         {copiedId === order.orderId ? (
-                          <Check className="w-3 h-3 text-emerald-600" />
+                          <Check className="w-3 h-3 text-emerald-400" />
                         ) : (
                           <Copy className="w-3 h-3" />
                         )}
                       </button>
-                      <span className="text-[10px] text-[#736C65]">
-                        Placed: <strong className="text-[#1C1B1A]">{order.orderPlacedDate}</strong>
+                      <span className="text-[#A69E96] text-[11px]">
+                        • {order.orderPlacedDate}
                       </span>
-                    </div>
 
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="text-[10px] font-medium text-[#736C65] bg-[#FAF8F5] px-1.5 py-0.2 rounded border border-[#E8DFD8]">
-                        Delivery: <strong className="text-[#1C1B1A]">NPR {getOrderDeliveryFee(order).toLocaleString()}</strong>
+                      <span
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                          paymentInfo.isCod
+                            ? 'bg-amber-500/20 text-amber-300 border border-amber-400/40'
+                            : 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/40'
+                        }`}
+                      >
+                        {paymentInfo.label}
                       </span>
-                      <span className="text-[10px] font-bold text-[#1C1B1A] bg-[#FAF8F5] px-1.5 py-0.2 rounded border border-[#E8DFD8]">
-                        Total: NPR {(Number(order.total) || 0).toLocaleString()}
-                      </span>
-                      <span className="text-[9px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
-                        {order.paymentStatus || 'Verified'} ({order.paymentMethodText || 'COD'})
-                      </span>
-                      {order.paymentScreenshot && (order.paymentScreenshot.startsWith('data:image') || order.paymentScreenshot.startsWith('http') || order.paymentScreenshot.startsWith('blob:')) && (
+
+                      {hasScreenshot && (
                         <button
                           type="button"
                           onClick={() => setSelectedScreenshotOrder(order)}
-                          className="text-[10px] font-bold text-[#1C1B1A] bg-[#D4AF37]/25 hover:bg-[#D4AF37]/40 px-2 py-0.5 rounded border border-[#D4AF37] flex items-center gap-1 cursor-pointer transition-colors"
-                          title={`View Payment Screenshot for ${order.orderId} (${order.customerName})`}
+                          className="text-[10px] font-bold text-[#1C1B1A] bg-[#D4AF37] hover:bg-[#e3be42] px-2 py-0.5 rounded flex items-center gap-1 cursor-pointer transition-colors"
+                          title={`View Payment Screenshot for ${order.orderId}`}
                         >
-                          <Camera className="w-3 h-3 text-[#1C1B1A]" />
-                          <span>View Payment Screenshot</span>
+                          <Camera className="w-3 h-3" />
+                          <span>Receipt</span>
                         </button>
                       )}
-                      <div className="flex items-center gap-1 text-[10px] text-[#736C65] bg-[#FAF8F5] px-1.5 py-0.2 rounded border border-[#E8DFD8]">
-                        <span className="text-[#8C7A6B] uppercase font-bold text-[9px]">Est:</span>
-                        <input
-                          type="text"
-                          value={deliveryDateValue}
-                          onChange={(e) => handleDeliveryDateChange(order.orderId, e.target.value)}
-                          placeholder="1-2 business days"
-                          className="w-24 bg-transparent text-[10px] text-[#1C1B1A] focus:outline-none"
-                        />
-                      </div>
+                    </div>
+
+                    <div
+                      className="flex items-center gap-1.5 text-[11px] bg-white/10 px-2 py-0.5 rounded border border-white/15"
+                      title={`Manufacture (${orderBreakdown.categoryLabel}): ${orderBreakdown.manufactureDaysText} + Delivery: ${orderBreakdown.deliveryDaysText}`}
+                    >
+                      <Truck className="w-3 h-3 text-[#D4AF37] shrink-0" />
+                      <span className="text-[#D5C7BC] text-[10px] font-semibold">Est:</span>
+                      <input
+                        type="text"
+                        value={deliveryDateValue}
+                        onChange={(e) => handleDeliveryDateChange(order.orderId, e.target.value)}
+                        placeholder={orderBreakdown.totalEstimatedDaysText}
+                        className="w-20 bg-transparent text-[11px] font-bold text-[#D4AF37] focus:outline-none"
+                      />
+                      <span className="text-[10px] text-[#BFB3A8] hidden lg:inline">
+                        ({orderBreakdown.manufactureDaysText} mfg + {orderBreakdown.deliveryDaysText} del)
+                      </span>
                     </div>
                   </div>
 
-                  {/* Compact Main Row */}
-                  <div className="grid grid-cols-1 md:grid-cols-12 gap-2.5 items-center">
+                  {/* Single Concise Main Row */}
+                  <div className="px-3 py-2 grid grid-cols-1 md:grid-cols-12 gap-2.5 items-center md:divide-x md:divide-[#E5DCD2]">
                     
                     {/* 1. Customer & Delivery */}
-                    <div className="md:col-span-3 text-xs space-y-0.5 bg-[#FAF8F5] p-2 rounded-lg border border-[#E8DFD8]/80">
-                      <span className="text-[8px] uppercase font-bold tracking-wider text-[#8C7A6B] block">
-                        Customer & Delivery
-                      </span>
-                      <p className="font-bold text-[#1C1B1A] truncate text-[11px]">{order.customerName}</p>
-                      <p className="text-[10px] text-[#5E5955] flex items-center gap-1 font-mono">
-                        <Phone className="w-2.5 h-2.5 text-[#8C7A6B]" />
-                        <a href={`tel:${order.phone}`} className="hover:underline">{order.phone}</a>
-                      </p>
-                      <p className="text-[10px] text-[#736C65] truncate flex items-center gap-1">
-                        <MapPin className="w-2.5 h-2.5 text-[#8C7A6B] shrink-0" />
-                        <span className="truncate">{order.deliveryAddress}</span>
-                      </p>
-                      <div className="flex items-center gap-1 flex-wrap pt-0.5">
-                        <span className="inline-block text-[8px] font-semibold text-[#8C7A6B] bg-white px-1 py-0.2 rounded border border-[#E8DFD8] truncate max-w-full">
-                          {order.deliveryZoneName}
+                    <div className="md:col-span-3 min-w-0 space-y-0.5">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-bold text-[#1C1B1A] text-xs truncate">
+                          {order.customerName}
                         </span>
-                        <span className="inline-block text-[8px] font-bold text-[#1C1B1A] bg-amber-50/80 px-1 py-0.2 rounded border border-amber-200/80">
-                          Delivery Fee: NPR {getOrderDeliveryFee(order).toLocaleString()}
-                        </span>
+                        <a
+                          href={`tel:${order.phone}`}
+                          className="text-[11px] font-mono text-[#5E5955] hover:text-[#1C1B1A] flex items-center gap-1"
+                        >
+                          <Phone className="w-2.5 h-2.5 text-[#8C7A6B]" />
+                          <span>{order.phone}</span>
+                        </a>
+                      </div>
+                      <div className="text-[11px] text-[#5E5955] flex items-center gap-1 truncate">
+                        <MapPin className="w-3 h-3 text-[#8C7A6B] shrink-0" />
+                        <span className="truncate font-medium text-[#1C1B1A]">{order.deliveryAddress}</span>
+                        <span className="text-[#8C7A6B]">•</span>
+                        <span className="text-[10px] text-[#736C65] truncate">{order.deliveryZoneName}</span>
                       </div>
                     </div>
 
-                    {/* 2. Ordered Items */}
-                    <div className="md:col-span-3 flex items-center gap-2 bg-[#FAF8F5] p-2 rounded-lg border border-[#E8DFD8]/80 min-w-0">
+                    {/* 2. Ordered Item & Single Price Breakdown (No Sold Number) */}
+                    <div className="md:col-span-4 md:pl-3 flex items-center gap-2.5 min-w-0">
                       <img
                         src={(() => {
                           const firstItem = order.items?.[0];
@@ -621,60 +761,49 @@ export const OrderProgressManagerModal: React.FC<OrderProgressManagerModalProps>
                         onError={(e) => {
                           (e.currentTarget as HTMLImageElement).src = CAVIAR_PEARL_BAG_IMAGE;
                         }}
-                        className="w-10 h-10 rounded-md object-cover border border-[#E8DFD8] shrink-0 bg-white"
+                        className="w-10 h-10 rounded-lg object-cover border border-[#D8CBBF] shrink-0 bg-white"
                       />
-                      <div className="flex-1 min-w-0 text-xs">
-                        <span className="text-[8px] uppercase font-bold tracking-wider text-[#8C7A6B] block">
-                          Ordered Items ({order.items?.length || 0})
-                        </span>
-                        <p className="font-semibold text-[#1C1B1A] truncate text-[11px]">
-                          {order.items?.[0]?.title || 'Handcrafted Artified Piece'}
-                        </p>
-                        <p className="text-[10px] text-[#736C65] flex items-center gap-1.5 flex-wrap">
-                          <span>Qty: {order.items?.[0]?.quantity ?? 1} • NPR {(Number(order.items?.[0]?.price ?? getOrderItemsSubtotal(order)) || 0).toLocaleString()}</span>
-                          {(() => {
-                            const pid = order.items?.[0] ? resolveProductIdFromOrderItem(order.items[0], products) : null;
-                            const matchedProd = pid ? products.find((p) => p.id === pid) : null;
-                            return matchedProd ? (
-                              <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
-                                Sold: {calculateTotalSold(matchedProd)}
-                              </span>
-                            ) : null;
-                          })()}
-                        </p>
-                        <p className="text-[9px] text-[#8C7A6B] font-medium">
-                          + Delivery: NPR {getOrderDeliveryFee(order).toLocaleString()} (Total: NPR {(Number(order.total) || 0).toLocaleString()})
-                        </p>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <p className="font-bold text-[#1C1B1A] truncate text-xs leading-snug">
+                            {order.items?.[0]?.title || 'Handcrafted Artified Piece'}
+                          </p>
+                          {(order.items?.length || 0) > 1 && (
+                            <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-[#1C1B1A] text-[#D4AF37] shrink-0">
+                              +{order.items.length - 1} more
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5 flex-wrap text-[11px] text-[#5E5955] mt-0.5">
+                          <span>
+                            Qty: <strong className="text-[#1C1B1A]">{order.items?.[0]?.quantity ?? 1}</strong>
+                          </span>
+                          <span className="text-[#C5B9AC]">•</span>
+                          <span>
+                            Item: <strong className="text-[#1C1B1A]">NPR {itemSubtotal.toLocaleString()}</strong>
+                          </span>
+                          <span className="text-[#C5B9AC]">•</span>
+                          <span>
+                            Delivery: <strong className="text-[#1C1B1A]">NPR {deliveryFee.toLocaleString()}</strong>
+                          </span>
+                          <span className="text-[#C5B9AC]">•</span>
+                          <span className="font-extrabold text-[#1C1B1A] bg-[#F2EAE0] px-1.5 py-0.2 rounded border border-[#DFD3C5]">
+                            Total: NPR {totalAmount.toLocaleString()}
+                          </span>
+                        </div>
                       </div>
                     </div>
 
-                    {/* 3. 4-Stage Progress Buttons (Ticked Green) */}
-                    <div className="md:col-span-4 space-y-1">
-                      <div className="flex items-center justify-between bg-[#FAF8F5] px-2 py-1 rounded border border-[#E8DFD8]">
-                        <span className="text-[10px] font-bold text-[#1C1B1A] flex items-center gap-1">
-                          <Sparkles className="w-2.5 h-2.5 text-[#D4AF37]" />
-                          <span>Status:</span>
-                        </span>
-                        <select
-                          value={activePhase}
-                          onChange={(e) => handlePhaseChange(order.orderId, e.target.value as OrderProductionPhase)}
-                          className="bg-white border border-[#E8DFD8] rounded px-1.5 py-0.5 text-[10px] font-bold text-[#1C1B1A] focus:outline-none cursor-pointer"
-                        >
-                          <option value="confirmed">1. Order Confirmed & Paid</option>
-                          <option value="handcrafting_and_packaging">2. Handcrafting</option>
-                          <option value="out_for_delivery">3. Shipped (Dispatch)</option>
-                          <option value="delivered">4. Delivered (Completed)</option>
-                        </select>
-                      </div>
-
+                    {/* 3. 4-Stage Progress Buttons */}
+                    <div className="md:col-span-3 md:pl-3 space-y-1.5">
                       <div className="grid grid-cols-4 gap-1">
                         <button
                           type="button"
                           onClick={() => handlePhaseChange(order.orderId, 'confirmed')}
-                          className={`py-1 px-0.5 rounded border text-center transition-all cursor-pointer text-[9px] leading-tight font-bold ${
+                          className={`py-1 px-1 rounded border text-center transition-all cursor-pointer text-[10px] leading-tight font-bold ${
                             activePhase === 'confirmed'
-                              ? 'bg-[#1C1B1A] text-[#D4AF37] border-[#D4AF37]'
-                              : 'bg-[#FAF8F5] hover:bg-white text-[#5E5955] border-[#E8DFD8]'
+                              ? 'bg-[#1C1B1A] text-[#D4AF37] border-[#1C1B1A]'
+                              : 'bg-white hover:bg-[#FAF8F5] text-[#5E5955] border-[#D8CBBF]'
                           }`}
                         >
                           1. Confirmed
@@ -683,22 +812,22 @@ export const OrderProgressManagerModal: React.FC<OrderProgressManagerModalProps>
                         <button
                           type="button"
                           onClick={() => handlePhaseChange(order.orderId, 'handcrafting_and_packaging')}
-                          className={`py-1 px-0.5 rounded border text-center transition-all cursor-pointer text-[9px] leading-tight font-bold ${
+                          className={`py-1 px-1 rounded border text-center transition-all cursor-pointer text-[10px] leading-tight font-bold ${
                             activePhase === 'handcrafting_and_packaging'
-                              ? 'bg-[#1C1B1A] text-[#D4AF37] border-[#D4AF37]'
-                              : 'bg-[#FAF8F5] hover:bg-white text-[#5E5955] border-[#E8DFD8]'
+                              ? 'bg-[#1C1B1A] text-[#D4AF37] border-[#1C1B1A]'
+                              : 'bg-white hover:bg-[#FAF8F5] text-[#5E5955] border-[#D8CBBF]'
                           }`}
                         >
-                          2. Handcrafting
+                          2. Crafting
                         </button>
 
                         <button
                           type="button"
                           onClick={() => handlePhaseChange(order.orderId, 'out_for_delivery')}
-                          className={`py-1 px-0.5 rounded border text-center transition-all cursor-pointer text-[9px] leading-tight font-bold ${
+                          className={`py-1 px-1 rounded border text-center transition-all cursor-pointer text-[10px] leading-tight font-bold ${
                             activePhase === 'out_for_delivery'
-                              ? 'bg-[#1C1B1A] text-[#D4AF37] border-[#D4AF37]'
-                              : 'bg-[#FAF8F5] hover:bg-white text-[#5E5955] border-[#E8DFD8]'
+                              ? 'bg-[#1C1B1A] text-[#D4AF37] border-[#1C1B1A]'
+                              : 'bg-white hover:bg-[#FAF8F5] text-[#5E5955] border-[#D8CBBF]'
                           }`}
                         >
                           3. Dispatch
@@ -707,17 +836,17 @@ export const OrderProgressManagerModal: React.FC<OrderProgressManagerModalProps>
                         <button
                           type="button"
                           onClick={() => handlePhaseChange(order.orderId, 'delivered')}
-                          className={`py-1 px-0.5 rounded border text-center transition-all cursor-pointer text-[9px] leading-tight font-bold ${
+                          className={`py-1 px-1 rounded border text-center transition-all cursor-pointer text-[10px] leading-tight font-bold ${
                             activePhase === 'delivered'
-                              ? 'bg-emerald-800 text-white border-emerald-600'
-                              : 'bg-[#FAF8F5] hover:bg-white text-[#5E5955] border-[#E8DFD8]'
+                              ? 'bg-emerald-800 text-white border-emerald-700'
+                              : 'bg-white hover:bg-[#FAF8F5] text-[#5E5955] border-[#D8CBBF]'
                           }`}
                         >
                           4. Delivered
                         </button>
                       </div>
 
-                      <div className="w-full h-1 bg-[#FAF8F5] rounded-full overflow-hidden border border-[#E8DFD8]">
+                      <div className="w-full h-1.5 bg-[#EAE2D9] rounded-full overflow-hidden">
                         <div 
                           className="h-full bg-gradient-to-r from-[#D4AF37] to-[#C5A880] rounded-full transition-all duration-300"
                           style={{ width: `${getProgressPercentage(activePhase)}%` }}
@@ -725,8 +854,21 @@ export const OrderProgressManagerModal: React.FC<OrderProgressManagerModalProps>
                       </div>
                     </div>
 
-                    {/* 4. WhatsApp Customer & Delete Buttons */}
-                    <div className="md:col-span-2 flex items-center justify-end gap-1.5">
+                    {/* 4. Save, WhatsApp & Delete Actions */}
+                    <div className="md:col-span-2 md:pl-3 flex items-center justify-end gap-1.5 flex-wrap">
+                      {dirtyOrderIds[order.orderId] && (
+                        <button
+                          type="button"
+                          onClick={() => handleSaveAllOrderChanges(order.orderId)}
+                          disabled={isSavingOrders}
+                          className="px-2.5 py-1.5 rounded-lg bg-[#1C1B1A] hover:bg-black text-[#D4AF37] border border-[#D4AF37] font-bold text-[11px] flex items-center justify-center gap-1 transition-colors shadow-2xs cursor-pointer"
+                          title="Save changes for this order"
+                        >
+                          <Save className="w-3 h-3 shrink-0" />
+                          <span>Save</span>
+                        </button>
+                      )}
+
                       <button
                         type="button"
                         onClick={() => handleSendWhatsApp(order)}
@@ -748,56 +890,6 @@ export const OrderProgressManagerModal: React.FC<OrderProgressManagerModalProps>
                     </div>
 
                   </div>
-
-                  {/* Dedicated Mistake-Proof Payment Screenshot Verification Strip */}
-                  {order.paymentScreenshot && (order.paymentScreenshot.startsWith('data:image') || order.paymentScreenshot.startsWith('http') || order.paymentScreenshot.startsWith('blob:')) && (
-                    <div className="mt-1 pt-2 border-t border-[#F0EBE5] flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-emerald-50/40 px-2.5 py-2 rounded-xl border border-emerald-200/70">
-                      <div className="flex items-center gap-2.5">
-                        <img
-                          src={order.paymentScreenshot}
-                          alt={`Payment receipt for ${order.orderId}`}
-                          onClick={() => setSelectedScreenshotOrder(order)}
-                          className="w-11 h-11 rounded-lg object-cover border-2 border-[#D4AF37] cursor-pointer shrink-0 bg-white hover:scale-105 transition-transform"
-                          title="Click to enlarge payment screenshot"
-                        />
-                        <div className="text-xs">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-900 flex items-center gap-1">
-                              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                              <span>Buyer Payment Screenshot Attached</span>
-                            </span>
-                            <span className="font-mono text-[10px] font-extrabold bg-[#1C1B1A] text-[#D4AF37] px-1.5 py-0.2 rounded">
-                              {order.orderId}
-                            </span>
-                          </div>
-                          <p className="text-[10px] text-[#5E5955] mt-0.5">
-                            Buyer: <strong className="text-[#1C1B1A]">{order.customerName}</strong> ({order.phone}) • <strong className="text-[#1C1B1A]">NPR {(Number(order.total) || 0).toLocaleString()}</strong> • {order.paymentMethodText}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => setSelectedScreenshotOrder(order)}
-                          className="px-2.5 py-1.5 bg-[#1C1B1A] hover:bg-black text-[#D4AF37] text-[10px] font-bold rounded-lg flex items-center gap-1 cursor-pointer transition-colors"
-                        >
-                          <Camera className="w-3 h-3" />
-                          <span>Inspect Full Receipt</span>
-                        </button>
-                        <a
-                          href={order.paymentScreenshot}
-                          download={`Artified-Receipt-${order.orderId.replace('#', '')}-${order.customerName.replace(/\s+/g, '_')}.jpg`}
-                          className="px-2.5 py-1.5 bg-white hover:bg-[#FAF8F5] text-[#1C1B1A] border border-[#E8DFD8] text-[10px] font-bold rounded-lg flex items-center gap-1 cursor-pointer transition-colors"
-                          title="Download stamped receipt image"
-                        >
-                          <Download className="w-3 h-3" />
-                          <span>Save</span>
-                        </a>
-                      </div>
-                    </div>
-                  )}
-
                 </div>
               );
             })

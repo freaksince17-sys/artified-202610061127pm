@@ -8,15 +8,21 @@ import {
   CURRENT_PURGE_EPOCH
 } from '../services/orderTrackingService';
 import { db } from '../firebase';
-import { doc, getDoc, collection, getDocs, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
+import { isFirestoreQuotaExceeded, detectQuotaError, safeOnSnapshot as onSnapshot } from '../utils/safeFirestore';
 import { getRealProductImage } from '../utils/productImages';
 import { trackConfirmedOrderSalesInFirestore } from '../services/productSalesService';
+import { PRODUCTS } from './products';
 import SAVED_TRACKED_ORDERS from './tracked_orders.json';
 
 /**
  * Permanently purged legacy Order IDs (canonical compact uppercase without '#' or '-')
  */
 const PERMANENTLY_PURGED_CANONICAL_IDS = new Set<string>([
+  'ART20261852',
+  'ART20261853',
+  'ART2026615397',
+  'ART2026423390',
   'ART20264846',
   'ART20265526',
   'ART20268842',
@@ -27,25 +33,33 @@ const PERMANENTLY_PURGED_CANONICAL_IDS = new Set<string>([
   'ART20264729'
 ]);
 
-/**
- * Maps the customer's first two random Order IDs (#ART-2026-615397 and #ART-2026-423390)
- * to their official progressive Order IDs (#ART-2026-1852 and #ART-2026-1853) so that pasting
- * either the original random ID or the progressive ID works seamlessly everywhere.
- */
-export const LEGACY_ORDER_ID_ALIASES: Record<string, string> = {
-  'ART2026615397': 'ART-2026-1852',
-  '615397': 'ART-2026-1852',
-  'ART2026423390': 'ART-2026-1853',
-  '423390': 'ART-2026-1853'
-};
+export const LEGACY_ORDER_ID_ALIASES: Record<string, string> = {};
 
 /**
- * Raw legacy strings that were mistakenly added to deleted_orders previously and must never block
- * the customer's rescued orders #ART-2026-615397 (#ART-2026-1852) and #ART-2026-423390 (#ART-2026-1853).
+ * Protected serial orders (#ART-2026-1854 through #ART-2026-1873) that must not be hidden
+ * by stale browser-local deleted_orders entries in Google AI Pro or incognito tabs.
  */
 const RESCUED_RAW_LEGACY_COMPACT_IDS = new Set<string>([
-  'ART2026615397',
-  'ART2026423390'
+  'ART20261854',
+  'ART20261855',
+  'ART20261856',
+  'ART20261857',
+  'ART20261858',
+  'ART20261859',
+  'ART20261860',
+  'ART20261861',
+  'ART20261862',
+  'ART20261863',
+  'ART20261864',
+  'ART20261865',
+  'ART20261866',
+  'ART20261867',
+  'ART20261868',
+  'ART20261869',
+  'ART20261870',
+  'ART20261871',
+  'ART20261872',
+  'ART20261873'
 ]);
 
 /**
@@ -191,8 +205,144 @@ export function getOrderDeliveryFee(order: TrackedOrderData): number {
   return 0;
 }
 
+export interface OrderManufactureDeliveryBreakdown {
+  isPearlBag: boolean;
+  categoryLabel: string;
+  manufactureMinDays: number;
+  manufactureMaxDays: number;
+  manufactureDaysText: string;
+  deliveryMinDays: number;
+  deliveryMaxDays: number;
+  deliveryDaysText: string;
+  totalMinDays: number;
+  totalMaxDays: number;
+  totalEstimatedDaysText: string;
+  detailedSummaryText: string;
+}
+
 /**
- * Normalizes item images and guarantees numeric values for total, subtotal, deliveryFee, and prices
+ * Determines whether a single order item or product is a Pearl Bag (2–3 days manufacture)
+ * vs Necklace, Accessories, or Macrame (1–2 days manufacture).
+ */
+export function isOrderItemPearlBag(item?: { productId?: string; title?: string; category?: string } | null): boolean {
+  if (!item) return false;
+  if (item.category === 'pearl-bags') return true;
+  if (item.category === 'pearl-necklaces' || item.category === 'accessories' || item.category === 'macrame') {
+    return false;
+  }
+  const titleLower = (item.title || '').toLowerCase().trim();
+  if (item.productId && Array.isArray(PRODUCTS)) {
+    const matched = PRODUCTS.find((p) => p.id === item.productId);
+    if (matched) {
+      if (matched.category === 'pearl-bags') return true;
+      if (matched.category === 'pearl-necklaces' || matched.category === 'accessories' || matched.category === 'macrame') {
+        return false;
+      }
+    }
+  }
+  if (titleLower && Array.isArray(PRODUCTS)) {
+    const matchedByTitle = PRODUCTS.find((p) => (p.title || '').toLowerCase().trim() === titleLower);
+    if (matchedByTitle) {
+      if (matchedByTitle.category === 'pearl-bags') return true;
+      if (matchedByTitle.category === 'pearl-necklaces' || matchedByTitle.category === 'accessories' || matchedByTitle.category === 'macrame') {
+        return false;
+      }
+    }
+  }
+  if (titleLower.includes('macrame') || titleLower.includes('keychain') || titleLower.includes('necklace') || titleLower.includes('choker') || titleLower.includes('earring') || titleLower.includes('bracelet') || titleLower.includes('clip') || titleLower.includes('headband')) {
+    return false;
+  }
+  return /\b(bag|bags|clutch|purse|tote|handbag|potli|crossbody)\b/i.test(titleLower);
+}
+
+/**
+ * Calculates manufacture days + courier delivery days for any order:
+ * - Necklace, Accessories & Macrame: 1 to 2 days manufacture time
+ * - Pearl Bags: 2 to 3 days manufacture time
+ * - Kathmandu Valley delivery: 1 to 2 days courier time -> Total: 2 to 4 days (Necklace/Acc/Macrame) or 3 to 5 days (Pearl Bags)
+ * - Outside Valley delivery: 3 to 7 days courier time -> Total: 4 to 9 days (Necklace/Acc/Macrame) or 5 to 10 days (Pearl Bags)
+ */
+export function getOrderManufactureDeliveryBreakdown(
+  items?: Array<{ productId?: string; title?: string; category?: string }> | null,
+  deliveryZoneName?: string,
+  deliveryAddress?: string
+): OrderManufactureDeliveryBreakdown {
+  const safeItems = Array.isArray(items) && items.length > 0 ? items : [{ title: '' }];
+  const hasPearlBag = safeItems.some((it) => isOrderItemPearlBag(it));
+
+  const manufactureMinDays = hasPearlBag ? 2 : 1;
+  const manufactureMaxDays = hasPearlBag ? 3 : 2;
+  const manufactureDaysText = hasPearlBag ? '2 to 3 days' : '1 to 2 days';
+  const categoryLabel = hasPearlBag ? 'Pearl Bag' : 'Necklace / Accessories / Macrame';
+
+  const locText = `${deliveryZoneName || ''} ${deliveryAddress || ''}`.toLowerCase();
+  const isOutsideValley =
+    locText.includes('outside valley') ||
+    locText.includes('outside kathmandu') ||
+    locText.includes('pokhara') ||
+    locText.includes('chitwan') ||
+    locText.includes('bharatpur') ||
+    locText.includes('narayangarh') ||
+    locText.includes('butwal') ||
+    locText.includes('bhairahawa') ||
+    locText.includes('biratnagar') ||
+    locText.includes('dharan') ||
+    locText.includes('itahari') ||
+    locText.includes('jhapa') ||
+    locText.includes('birtamode') ||
+    locText.includes('damak') ||
+    locText.includes('nepalgunj') ||
+    locText.includes('dhangadhi') ||
+    locText.includes('hetauda') ||
+    locText.includes('birgunj') ||
+    locText.includes('janakpur');
+
+  const deliveryMinDays = isOutsideValley ? 3 : 1;
+  const deliveryMaxDays = isOutsideValley ? 7 : 2;
+  const deliveryDaysText = isOutsideValley ? '3 to 7 days' : '1 to 2 days';
+
+  const totalMinDays = manufactureMinDays + deliveryMinDays;
+  const totalMaxDays = manufactureMaxDays + deliveryMaxDays;
+  const totalEstimatedDaysText = `${totalMinDays} to ${totalMaxDays} days`;
+  const detailedSummaryText = `${totalMinDays} to ${totalMaxDays} days (${manufactureDaysText} manufacture + ${deliveryDaysText} delivery)`;
+
+  return {
+    isPearlBag: hasPearlBag,
+    categoryLabel,
+    manufactureMinDays,
+    manufactureMaxDays,
+    manufactureDaysText,
+    deliveryMinDays,
+    deliveryMaxDays,
+    deliveryDaysText,
+    totalMinDays,
+    totalMaxDays,
+    totalEstimatedDaysText,
+    detailedSummaryText
+  };
+}
+
+const LEGACY_DELIVERY_ONLY_STRINGS = new Set([
+  '',
+  '1 to 2 days',
+  '1-2 days',
+  '1–2 days',
+  '1-2 business days',
+  '1–2 business days',
+  'within 1–2 days',
+  'within 1-2 days',
+  '2-3 business days',
+  '2–3 business days',
+  '3 to 7 days',
+  '3-7 days',
+  '3–7 days',
+  '3-7 business days',
+  '3–5 business days'
+]);
+
+/**
+ * Normalizes item images and guarantees numeric values for total, subtotal, deliveryFee, and prices,
+ * and ensures estimatedDeliveryDate includes the item manufacture days (1-2d for necklace/accessories/macrame, 2-3d for pearl bags).
  */
 export function sanitizeOrderItems(order: TrackedOrderData): TrackedOrderData {
   const normId = normalizeOrderId(order.orderId);
@@ -213,9 +363,17 @@ export function sanitizeOrderItems(order: TrackedOrderData): TrackedOrderData {
       ? total - subtotal
       : 0;
 
+  const breakdown = getOrderManufactureDeliveryBreakdown(items, order.deliveryZoneName, order.deliveryAddress);
+  const rawEst = (order.estimatedDeliveryDate || '').trim();
+  const resolvedEstimatedDeliveryDate =
+    !rawEst || LEGACY_DELIVERY_ONLY_STRINGS.has(rawEst.toLowerCase())
+      ? breakdown.totalEstimatedDaysText
+      : rawEst;
+
   return {
     ...order,
     orderId: normId.startsWith('#') ? normId : `#${normId}`,
+    estimatedDeliveryDate: resolvedEstimatedDeliveryDate,
     total,
     subtotal,
     deliveryFee,
@@ -641,15 +799,22 @@ export async function saveTrackedOrder(order: TrackedOrderData): Promise<void> {
     window.dispatchEvent(new CustomEvent('artified_order_updated', { detail: sanitized }));
 
     // 4. Real-time Firestore sync (awaited so callers like CheckoutModal guarantee cloud persistence across browsers/incognito)
-    await saveOrderToFirestore(lightweightForStorage).catch((err) => {
-      console.warn('Notice: Firestore order tracking save:', err);
-    });
+    if (!isFirestoreQuotaExceeded) {
+      await saveOrderToFirestore(lightweightForStorage).catch((err) => {
+        detectQuotaError(err);
+        console.warn('Notice: Firestore order tracking save:', err);
+      });
+    }
 
     // 5. Track and increment product sold count in Firestore if order is confirmed & paid or completed
-    trackConfirmedOrderSalesInFirestore(sanitized).catch((err) => {
-      console.warn('Notice: Product sales count sync:', err);
-    });
+    if (!isFirestoreQuotaExceeded) {
+      trackConfirmedOrderSalesInFirestore(sanitized).catch((err) => {
+        detectQuotaError(err);
+        console.warn('Notice: Product sales count sync:', err);
+      });
+    }
   } catch (e) {
+    detectQuotaError(e);
     console.warn('Failed to save tracked order', e);
   }
 }
@@ -942,19 +1107,41 @@ export function getAllOrdersForSeller(): TrackedOrderData[] {
     }
   });
 
-  return Object.values(result).map((o) => sanitizeOrderItems(o));
+  const extractYearAndSeq = (orderId: string): [number, number] => {
+    const norm = normalizeOrderId(orderId);
+    const m = norm.match(/^ART-(\d{4})-(\d+)$/);
+    if (m) {
+      return [parseInt(m[1], 10), parseInt(m[2], 10)];
+    }
+    const numMatch = norm.match(/(\d+)$/);
+    return [2026, numMatch ? parseInt(numMatch[1], 10) : 999999];
+  };
+
+  return Object.values(result)
+    .map((o) => sanitizeOrderItems(o))
+    .sort((a, b) => {
+      const [yearA, seqA] = extractYearAndSeq(a.orderId);
+      const [yearB, seqB] = extractYearAndSeq(b.orderId);
+      if (yearA !== yearB) return yearA - yearB;
+      return seqA - seqB;
+    });
 }
 
 /**
- * Fetches and synchronizes orders from Cloud Firestore so orders placed
- * across different devices and browsers are visible to the seller immediately.
+ * Fetches and synchronizes orders from Cloud Firestore (`orders` and `tracked_orders`)
+ * so orders placed or uploaded across any browser, device, or domain (artified.com.np & Google AI Pro)
+ * are visible to the seller immediately and sorted serially.
  */
 export async function syncOrdersFromFirestore(): Promise<TrackedOrderData[]> {
+  if (isFirestoreQuotaExceeded) {
+    return getAllOrdersForSeller();
+  }
   try {
-    const [snap, deletedSnap, seqSnap] = await Promise.all([
-      getDocs(collection(db, 'orders')),
-      getDoc(doc(db, 'store_settings', 'deleted_orders')).catch(() => null),
-      getDoc(doc(db, 'store_settings', 'order_sequence')).catch(() => null)
+    const [ordersSnap, trackedSnap, deletedSnap, seqSnap] = await Promise.all([
+      getDocs(collection(db, 'orders')).catch((e) => { detectQuotaError(e); return null; }),
+      getDocs(collection(db, 'tracked_orders')).catch((e) => { detectQuotaError(e); return null; }),
+      getDoc(doc(db, 'store_settings', 'deleted_orders')).catch((e) => { detectQuotaError(e); return null; }),
+      getDoc(doc(db, 'store_settings', 'order_sequence')).catch((e) => { detectQuotaError(e); return null; })
     ]);
 
     if (deletedSnap && deletedSnap.exists()) {
@@ -985,11 +1172,132 @@ export async function syncOrdersFromFirestore(): Promise<TrackedOrderData[]> {
       }
     }
 
+    const mergedCloudMap: Record<string, TrackedOrderData> = {};
+    const processSnapshot = (snap: any) => {
+      if (!snap) return;
+      snap.forEach((docSnap: any) => {
+        const data = docSnap.data() as TrackedOrderData;
+        if (data && (data.orderId || docSnap.id)) {
+          const norm = normalizeOrderId(data.orderId || docSnap.id);
+          const seqMatch = norm.match(/^ART-(\d{4})-(\d+)$/);
+          if (seqMatch) {
+            const yr = parseInt(seqMatch[1], 10);
+            const sq = parseInt(seqMatch[2], 10);
+            if (!isNaN(yr) && !isNaN(sq) && sq < 100000) {
+              if (!CLOUD_MAX_SEQUENCE[yr] || sq > CLOUD_MAX_SEQUENCE[yr]) {
+                CLOUD_MAX_SEQUENCE[yr] = sq;
+              }
+              try {
+                const prev = parseInt(localStorage.getItem(`artified_last_seq_${yr}`) || '0', 10);
+                if (sq > prev) {
+                  localStorage.setItem(`artified_last_seq_${yr}`, String(sq));
+                }
+              } catch {}
+            }
+          }
+          if (!isOrderDeletedOrPurged(norm, data)) {
+            if (shouldAcceptIncomingOrder(mergedCloudMap[norm], data)) {
+              mergedCloudMap[norm] = {
+                ...data,
+                orderId: `#${norm}`
+              };
+            }
+          }
+        }
+      });
+    };
+
+    processSnapshot(trackedSnap);
+    processSnapshot(ordersSnap);
+
+    const remoteList = Object.values(mergedCloudMap);
+    if (remoteList.length > 0) {
+      try {
+        let map: Record<string, TrackedOrderData> = { ...IN_MEMORY_TRACKED_ORDERS };
+        try {
+          const raw = localStorage.getItem('artified_tracked_orders');
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            Object.entries(parsed).forEach(([k, v]: [string, any]) => {
+              const n = normalizeOrderId(v?.orderId || k);
+              if (!isOrderDeletedOrPurged(n, v) && shouldAcceptIncomingOrder(map[n], v)) {
+                map[n] = v;
+              }
+            });
+          }
+        } catch {}
+
+        remoteList.forEach((o) => {
+          const norm = normalizeOrderId(o.orderId);
+          const hadInMemory = Boolean(IN_MEMORY_TRACKED_ORDERS[norm]);
+          if (shouldAcceptIncomingOrder(map[norm], o)) {
+            const cleanCloudOrder: TrackedOrderData = {
+              ...o,
+              orderId: `#${norm}`,
+              items: (o.items || []).map((it) => ({
+                ...it,
+                image: it.image && (it.image.includes('ibb.co') || (it.image.startsWith('data:') && it.image.length > 5000)) ? '' : it.image
+              }))
+            };
+            map[norm] = cleanCloudOrder;
+            IN_MEMORY_TRACKED_ORDERS[norm] = cleanCloudOrder;
+            if (SAVED_TRACKED_ORDERS && typeof SAVED_TRACKED_ORDERS === 'object') {
+              (SAVED_TRACKED_ORDERS as Record<string, any>)[norm] = cleanCloudOrder;
+            }
+            // Mirror newly discovered cloud orders to local server runtime disk so /api/tracked-orders stays synced across domains
+            if (!hadInMemory) {
+              try {
+                fetch('/api/tracked-order', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(cleanCloudOrder)
+                }).catch(() => {});
+              } catch {}
+            }
+          }
+        });
+        persistTrackedOrdersMapToLocalStorage(map);
+      } catch {}
+    }
+
+    return getAllOrdersForSeller();
+  } catch (err) {
+    detectQuotaError(err);
+    console.warn('Notice: Firestore orders sync:', err);
+    return getAllOrdersForSeller();
+  }
+}
+
+/**
+ * Subscribes to real-time order updates across all customer devices and domains
+ */
+export function subscribeAllOrdersForSeller(onUpdate: (orders: TrackedOrderData[]) => void): () => void {
+  const pollServerAndCloudOrders = async () => {
+    try {
+      const res = await fetch(`/api/tracked-orders?t=${Date.now()}`, { cache: 'no-store' });
+      if (res.ok) {
+        const serverMap = await res.json();
+        if (serverMap && typeof serverMap === 'object') {
+          syncTrackedOrdersFromServer(serverMap);
+        }
+      }
+    } catch {}
+    try {
+      const synced = await syncOrdersFromFirestore();
+      onUpdate(synced);
+    } catch {
+      onUpdate(getAllOrdersForSeller());
+    }
+  };
+
+  const intervalId = typeof window !== 'undefined' ? window.setInterval(pollServerAndCloudOrders, 4500) : null;
+
+  const handleSnapshot = (snapshot: any) => {
     const remoteList: TrackedOrderData[] = [];
-    snap.forEach((docSnap) => {
+    snapshot.forEach((docSnap: any) => {
       const data = docSnap.data() as TrackedOrderData;
-      if (data && data.orderId) {
-        const norm = normalizeOrderId(data.orderId);
+      if (data && (data.orderId || docSnap.id)) {
+        const norm = normalizeOrderId(data.orderId || docSnap.id);
         const seqMatch = norm.match(/^ART-(\d{4})-(\d+)$/);
         if (seqMatch) {
           const yr = parseInt(seqMatch[1], 10);
@@ -998,16 +1306,10 @@ export async function syncOrdersFromFirestore(): Promise<TrackedOrderData[]> {
             if (!CLOUD_MAX_SEQUENCE[yr] || sq > CLOUD_MAX_SEQUENCE[yr]) {
               CLOUD_MAX_SEQUENCE[yr] = sq;
             }
-            try {
-              const prev = parseInt(localStorage.getItem(`artified_last_seq_${yr}`) || '0', 10);
-              if (sq > prev) {
-                localStorage.setItem(`artified_last_seq_${yr}`, String(sq));
-              }
-            } catch {}
           }
         }
-        if (!isOrderDeletedOrPurged(data.orderId, data)) {
-          remoteList.push(data);
+        if (!isOrderDeletedOrPurged(norm, data)) {
+          remoteList.push({ ...data, orderId: `#${norm}` });
         }
       }
     });
@@ -1021,7 +1323,7 @@ export async function syncOrdersFromFirestore(): Promise<TrackedOrderData[]> {
             const parsed = JSON.parse(raw);
             Object.entries(parsed).forEach(([k, v]: [string, any]) => {
               const n = normalizeOrderId(v?.orderId || k);
-              if (shouldAcceptIncomingOrder(map[n], v)) {
+              if (!isOrderDeletedOrPurged(n, v) && shouldAcceptIncomingOrder(map[n], v)) {
                 map[n] = v;
               }
             });
@@ -1031,7 +1333,7 @@ export async function syncOrdersFromFirestore(): Promise<TrackedOrderData[]> {
         remoteList.forEach((o) => {
           const norm = normalizeOrderId(o.orderId);
           if (shouldAcceptIncomingOrder(map[norm], o)) {
-            map[norm] = {
+            const cleanCloudOrder: TrackedOrderData = {
               ...o,
               orderId: `#${norm}`,
               items: (o.items || []).map((it) => ({
@@ -1039,107 +1341,35 @@ export async function syncOrdersFromFirestore(): Promise<TrackedOrderData[]> {
                 image: it.image && (it.image.includes('ibb.co') || (it.image.startsWith('data:') && it.image.length > 5000)) ? '' : it.image
               }))
             };
-            IN_MEMORY_TRACKED_ORDERS[norm] = map[norm];
+            map[norm] = cleanCloudOrder;
+            IN_MEMORY_TRACKED_ORDERS[norm] = cleanCloudOrder;
+            if (SAVED_TRACKED_ORDERS && typeof SAVED_TRACKED_ORDERS === 'object') {
+              (SAVED_TRACKED_ORDERS as Record<string, any>)[norm] = cleanCloudOrder;
+            }
           }
         });
         persistTrackedOrdersMapToLocalStorage(map);
       } catch {}
     }
 
-    return getAllOrdersForSeller();
-  } catch (err) {
-    console.warn('Notice: Firestore orders sync:', err);
-    return getAllOrdersForSeller();
-  }
-}
-
-/**
- * Subscribes to real-time order updates across all customer devices
- */
-export function subscribeAllOrdersForSeller(onUpdate: (orders: TrackedOrderData[]) => void): () => void {
-  const pollServerOrders = async () => {
-    try {
-      const res = await fetch(`/api/tracked-orders?t=${Date.now()}`, { cache: 'no-store' });
-      if (res.ok) {
-        const serverMap = await res.json();
-        if (serverMap && typeof serverMap === 'object') {
-          syncTrackedOrdersFromServer(serverMap);
-          onUpdate(getAllOrdersForSeller());
-        }
-      }
-    } catch {}
+    onUpdate(getAllOrdersForSeller());
   };
 
-  const intervalId = typeof window !== 'undefined' ? window.setInterval(pollServerOrders, 3500) : null;
-
   try {
-    const unsub = onSnapshot(
+    const unsubOrders = onSnapshot(
       collection(db, 'orders'),
-      (snapshot) => {
-        const remoteList: TrackedOrderData[] = [];
-        snapshot.forEach((docSnap) => {
-          const data = docSnap.data() as TrackedOrderData;
-          if (data && data.orderId) {
-            const norm = normalizeOrderId(data.orderId);
-            const seqMatch = norm.match(/^ART-(\d{4})-(\d+)$/);
-            if (seqMatch) {
-              const yr = parseInt(seqMatch[1], 10);
-              const sq = parseInt(seqMatch[2], 10);
-              if (!isNaN(yr) && !isNaN(sq) && sq < 100000) {
-                if (!CLOUD_MAX_SEQUENCE[yr] || sq > CLOUD_MAX_SEQUENCE[yr]) {
-                  CLOUD_MAX_SEQUENCE[yr] = sq;
-                }
-              }
-            }
-            if (!isOrderDeletedOrPurged(data.orderId, data)) {
-              remoteList.push(data);
-            }
-          }
-        });
-
-        if (remoteList.length > 0) {
-          try {
-            let map: Record<string, TrackedOrderData> = { ...IN_MEMORY_TRACKED_ORDERS };
-            try {
-              const raw = localStorage.getItem('artified_tracked_orders');
-              if (raw) {
-                const parsed = JSON.parse(raw);
-                Object.entries(parsed).forEach(([k, v]: [string, any]) => {
-                  const n = normalizeOrderId(v?.orderId || k);
-                  if (shouldAcceptIncomingOrder(map[n], v)) {
-                    map[n] = v;
-                  }
-                });
-              }
-            } catch {}
-
-            remoteList.forEach((o) => {
-              const norm = normalizeOrderId(o.orderId);
-              if (shouldAcceptIncomingOrder(map[norm], o)) {
-                map[norm] = {
-                  ...o,
-                  orderId: `#${norm}`,
-                  items: (o.items || []).map((it) => ({
-                    ...it,
-                    image: it.image && (it.image.includes('ibb.co') || (it.image.startsWith('data:') && it.image.length > 5000)) ? '' : it.image
-                  }))
-                };
-                IN_MEMORY_TRACKED_ORDERS[norm] = map[norm];
-              }
-            });
-            persistTrackedOrdersMapToLocalStorage(map);
-          } catch {}
-        }
-
-        onUpdate(getAllOrdersForSeller());
-      },
-      () => {
-        onUpdate(getAllOrdersForSeller());
-      }
+      handleSnapshot,
+      () => onUpdate(getAllOrdersForSeller())
+    );
+    const unsubTracked = onSnapshot(
+      collection(db, 'tracked_orders'),
+      handleSnapshot,
+      () => onUpdate(getAllOrdersForSeller())
     );
     return () => {
       if (intervalId !== null) window.clearInterval(intervalId);
-      unsub();
+      unsubOrders();
+      unsubTracked();
     };
   } catch {
     return () => {
@@ -1151,6 +1381,20 @@ export function subscribeAllOrdersForSeller(onUpdate: (orders: TrackedOrderData[
 export function buildTrackedOrderFromOrderDetails(order: OrderDetails): TrackedOrderData {
   const phase: OrderProductionPhase = 'confirmed';
   const norm = normalizeOrderId(order.orderId);
+  const mappedItems = order.items.map((i) => ({
+    productId: i.product.id,
+    title: i.product.title,
+    category: i.product.category,
+    image: getRealProductImage(i.product.title, i.product.images[0], i.product.id),
+    quantity: i.quantity,
+    price: i.product.price,
+    customization: i.customizationNote || '',
+  }));
+  const breakdown = getOrderManufactureDeliveryBreakdown(
+    mappedItems,
+    order.deliveryZone.name,
+    order.address
+  );
   return {
     orderId: `#${norm}`,
     customerName: order.customerName,
@@ -1167,29 +1411,22 @@ export function buildTrackedOrderFromOrderDetails(order: OrderDetails): TrackedO
         : `Khalti QR (Txn: ${order.transactionId || 'Screenshot Attached'})`,
     paymentStatus: order.paymentMethod === 'cod' ? 'Pay on Delivery' : 'Paid & Verified',
     paymentScreenshot: order.paymentScreenshot || '',
-    items: order.items.map((i) => ({
-      productId: i.product.id,
-      title: i.product.title,
-      image: getRealProductImage(i.product.title, i.product.images[0], i.product.id),
-      quantity: i.quantity,
-      price: i.product.price,
-      customization: i.customizationNote || '',
-    })),
+    items: mappedItems,
     subtotal: order.subtotal,
     deliveryFee: order.deliveryFee,
     total: order.total,
     orderPlacedDate: order.createdAt || 'Just now',
-    estimatedDeliveryDate: order.deliveryZone.estimatedDays,
+    estimatedDeliveryDate: breakdown.totalEstimatedDaysText,
     currentPhase: phase,
     progressPercentage: getProgressPercentage(phase),
     artisanName: 'Sahina Shrestha',
     artisanRole: 'Founder and Creator',
     studioLocation: 'Artified Workshop, Kathmandu, Nepal',
-    liveCraftNotes: `Your order was received and confirmed! Sahina Shrestha has reserved the required luster pearls and high-strength threads. Handcrafting is scheduled at our Kathmandu workshop.`,
+    liveCraftNotes: `Your order was received and confirmed! Sahina Shrestha has reserved the required luster pearls and high-strength threads. Handcrafting (${breakdown.manufactureDaysText}) is scheduled at our Kathmandu workshop.`,
     milestones: buildMilestonesForPhase(
       phase,
       order.createdAt || 'Today',
-      order.deliveryZone.estimatedDays,
+      breakdown.totalEstimatedDaysText,
       order.deliveryZone.name
     ),
     updatedAt: new Date().toISOString(),

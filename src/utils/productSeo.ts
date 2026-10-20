@@ -64,7 +64,6 @@ export function buildProductSeoMetadata(product: Product): ProductSeoData {
       ? product.images.filter((img) => !img.startsWith('data:')).map((img) => (img.startsWith('http') ? img : `${BASE_URL}${img.startsWith('/') ? '' : '/'}${img}`))
       : [imageUrl],
     'description': cleanSnippet || description,
-    'sku': product.id,
     'category': product.category || 'Handcrafted Fashion Accessories',
     'brand': {
       '@type': 'Brand',

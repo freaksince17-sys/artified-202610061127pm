@@ -68,19 +68,30 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigateSection }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const lastScrollY = useRef(0);
+  const isScrolledRef = useRef(false);
+  const isHiddenRef = useRef(false);
+  const rafTickingRef = useRef(false);
 
   useEffect(() => {
     const handleScroll = () => {
-      const currentScrollY = window.scrollY;
-      setIsScrolled(currentScrollY > 20);
+      if (rafTickingRef.current) return;
+      rafTickingRef.current = true;
+      window.requestAnimationFrame(() => {
+        const currentScrollY = window.scrollY;
+        const nextScrolled = currentScrollY > 20;
+        const nextHidden = currentScrollY > 60 && currentScrollY < lastScrollY.current - 4;
 
-      // Hide header when scrolling UP away from top
-      if (currentScrollY > 60 && currentScrollY < lastScrollY.current) {
-        setIsHiddenOnScrollUp(true);
-      } else {
-        setIsHiddenOnScrollUp(false);
-      }
-      lastScrollY.current = currentScrollY;
+        if (nextScrolled !== isScrolledRef.current) {
+          isScrolledRef.current = nextScrolled;
+          setIsScrolled(nextScrolled);
+        }
+        if (nextHidden !== isHiddenRef.current && Math.abs(currentScrollY - lastScrollY.current) > 4) {
+          isHiddenRef.current = nextHidden;
+          setIsHiddenOnScrollUp(nextHidden);
+        }
+        lastScrollY.current = currentScrollY;
+        rafTickingRef.current = false;
+      });
     };
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
@@ -120,11 +131,11 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigateSection }) => {
   return (
     <>
       <header
-        className={`sticky top-0 z-30 transition-all duration-300 transform ${
-          isHiddenOnScrollUp ? '-translate-y-full opacity-0 pointer-events-none' : 'translate-y-0 opacity-100'
+        className={`sticky top-0 z-30 transition-transform duration-200 will-change-transform ${
+          isHiddenOnScrollUp ? '-translate-y-full pointer-events-none' : 'translate-y-0'
         } ${
           isScrolled
-            ? 'bg-[#FAF8F5]/95 dark:bg-[#0F0E0E]/95 backdrop-blur-md shadow-[0_4px_24px_rgba(0,0,0,0.15)] border-b border-[#E8DFD8] dark:border-[#262422]'
+            ? 'bg-[#FAF8F5]/98 dark:bg-[#0F0E0E]/98 shadow-[0_4px_20px_rgba(0,0,0,0.08)] border-b border-[#E8DFD8] dark:border-[#262422]'
             : 'bg-[#FAF8F5] dark:bg-[#0F0E0E] border-b border-[#F0EBE5] dark:border-[#1E1D1B]'
         }`}
       >
@@ -231,7 +242,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigateSection }) => {
 
           {/* Desktop Navigation Links */}
           <nav 
-            className="hidden lg:flex items-center justify-center gap-5 xl:gap-7 py-1 border-t border-[#E8DFD8]/60 dark:border-[#262422] text-[11px] sm:text-xs font-medium tracking-[0.08em] uppercase text-[#4A4541] dark:text-[#A69E96]"
+            className="hidden lg:flex items-center justify-center gap-5 xl:gap-7 py-1.5 border-t border-[#D8CBB8] dark:border-[#262422] text-[11px] sm:text-xs font-semibold tracking-[0.08em] uppercase text-[#1C1B1A] dark:text-[#A69E96]"
             aria-label="Main desktop navigation"
           >
             {/* Tab 0: Shop */}
@@ -244,10 +255,10 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigateSection }) => {
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
               aria-label="Browse creations catalog"
-              className={`hover:text-[#1C1B1A] dark:hover:text-[#FAF8F5] transition-colors pb-1 border-b-2 cursor-pointer ${
+              className={`hover:text-[#000000] dark:hover:text-[#FAF8F5] transition-colors pb-1 border-b-2 cursor-pointer ${
                 activeNavTab === 'home'
-                  ? 'border-[#C5A880] text-[#1C1B1A] dark:text-[#FAF8F5] font-semibold'
-                  : 'border-transparent text-[#5E5955] dark:text-[#A69E96]'
+                  ? 'border-[#1C1B1A] dark:border-[#C5A880] text-[#000000] dark:text-[#FAF8F5] font-extrabold'
+                  : 'border-transparent text-[#2C2825] dark:text-[#A69E96]'
               }`}
             >
               {t('navCreations')}

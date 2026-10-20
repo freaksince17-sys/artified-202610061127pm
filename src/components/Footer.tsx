@@ -85,11 +85,11 @@ export const Footer: React.FC = () => {
                 Kathmandu Atelier, Nepal
               </p>
             </div>
-            <p className="text-xs text-[#A69E96] leading-relaxed">
-              Handmade pearl evening bags, freshwater baroque chokers, and macrame creations woven with patient mastery in Kathmandu, Nepal.
+            <p className="text-xs text-[#E5E0D8] leading-relaxed font-medium">
+              Handmade pearl bags, pearl necklace, accessories and macrame creations
             </p>
             <div className="flex flex-col gap-2 pt-1 text-xs">
-              <span className="text-[10px] uppercase font-bold text-[#8C7A6B] tracking-wider block">
+              <span className="text-[10px] uppercase font-bold text-[#C5A880] tracking-wider block">
                 Official Channels:
               </span>
               <a
@@ -117,7 +117,7 @@ export const Footer: React.FC = () => {
                 </svg>
                 <div className="text-left flex-1 min-w-0">
                   <span className="font-semibold text-xs block text-white group-hover:text-zinc-200 transition-colors">@artified_np</span>
-                  <span className="text-[10px] text-[#A69E96]">TikTok • Viral Clips & Drops</span>
+                  <span className="text-[10px] text-[#D6CFC7]">TikTok • Viral Clips & Drops</span>
                 </div>
                 <ExternalLink className="w-3.5 h-3.5 text-zinc-400 group-hover:text-white" />
               </a>
@@ -126,10 +126,10 @@ export const Footer: React.FC = () => {
 
           {/* Column 2: Handcrafted Categories */}
           <div>
-            <h5 className="text-xs font-bold uppercase tracking-[0.18em] text-[#C5A880] mb-4">
+            <h5 className="text-xs font-extrabold uppercase tracking-[0.18em] text-[#E5C158] mb-4">
               {t('navCreations')}
             </h5>
-            <ul className="space-y-2.5 text-xs text-[#A69E96]">
+            <ul className="space-y-2.5 text-xs text-[#E5E0D8] font-medium">
               <li>
                 <button
                   type="button"

@@ -440,9 +440,6 @@ export const TikTokShowcase: React.FC<TikTokShowcaseProps> = ({ embedded = false
             <h2 className="font-serif text-2xl sm:text-3xl lg:text-4xl text-white font-semibold">
               Follow on TikTok
             </h2>
-            <p className="text-xs sm:text-sm text-neutral-300 mt-1 max-w-lg">
-              Watch real customer unboxings, slow-motion pearl bag shine tests, and wedding styling guides straight from our store in Kathmandu, Nepal.
-            </p>
           </div>
 
           <div className="flex items-center gap-2.5 self-start md:self-auto flex-wrap">

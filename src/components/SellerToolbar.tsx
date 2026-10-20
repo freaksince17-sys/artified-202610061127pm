@@ -64,6 +64,21 @@ export const SellerToolbar: React.FC = () => {
   const [isMasterclassCreationOpen, setIsMasterclassCreationOpen] = useState(false);
   const [isD3RevenueOpen, setIsD3RevenueOpen] = useState(false);
   const [isRechartsTrendsOpen, setIsRechartsTrendsOpen] = useState(false);
+  const [isSavingAndLocking, setIsSavingAndLocking] = useState(false);
+
+  const handleSaveExitAndLock = async () => {
+    setIsSavingAndLocking(true);
+    try {
+      if (triggerCloudSync) {
+        await triggerCloudSync();
+      }
+    } catch (e) {
+      console.warn('Save on exit notice:', e);
+    } finally {
+      setIsSavingAndLocking(false);
+      setIsSellerMode(false);
+    }
+  };
 
   const handleDownloadCurrentMonthReport = async () => {
     try {
@@ -188,16 +203,16 @@ export const SellerToolbar: React.FC = () => {
         <button
           type="button"
           onClick={() => setIsMinimized(false)}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1C1B1A] text-[#FAF8F5] border border-[#C5A880]/50 rounded-full shadow-xl hover:bg-[#2C2927] transition-all text-xs font-semibold"
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1C1B1A] text-[#FAF8F5] border border-[#C5A880]/50 rounded-full shadow-xl hover:bg-[#2C2927] transition-colors text-xs font-semibold cursor-pointer"
           title="Expand Seller Toolbar"
         >
-          <span className="w-2 h-2 rounded-full bg-[#D4AF37] animate-ping" />
+          <span className="w-2 h-2 rounded-full bg-[#D4AF37]" />
           <span>Seller Studio ({products.length})</span>
           <ChevronUp className="w-3.5 h-3.5 text-[#C5A880]" />
         </button>
       ) : (
         /* Compact Expanded Floating Toolbar */
-        <div className="bg-[#1C1B1A]/95 text-white border border-[#C5A880]/40 rounded-2xl shadow-2xl p-2.5 sm:p-3 backdrop-blur-md w-64 sm:w-72 flex flex-col gap-2 max-h-[88vh] overflow-y-auto">
+        <div className="bg-[#1C1B1A] text-white border border-[#C5A880]/40 rounded-2xl shadow-2xl p-2.5 sm:p-3 w-64 sm:w-72 flex flex-col gap-2 max-h-[88vh] overflow-y-auto overscroll-contain">
           {/* Header */}
           <div className="flex items-center justify-between pb-1.5 border-b border-white/10 gap-2">
             <div className="flex items-center gap-1.5">
@@ -218,7 +233,7 @@ export const SellerToolbar: React.FC = () => {
             <button
               type="button"
               onClick={() => setIsMinimized(true)}
-              className="p-1 text-[#A69E96] hover:text-white rounded-md transition-colors"
+              className="p-1 text-[#A69E96] hover:text-white rounded-md transition-colors cursor-pointer"
               title="Minimize toolbar"
             >
               <ChevronDown className="w-3.5 h-3.5" />
@@ -230,7 +245,7 @@ export const SellerToolbar: React.FC = () => {
             <button
               type="button"
               onClick={() => setIsCatalogListOpen(true)}
-              className="w-full py-1.5 px-2.5 bg-[#FAF8F5] text-[#1C1B1A] hover:bg-white text-[11px] font-semibold rounded-lg flex items-center justify-center gap-1.5 transition-colors shadow-2xs"
+              className="w-full py-1.5 px-2.5 bg-[#FAF8F5] text-[#1C1B1A] hover:bg-white text-[11px] font-semibold rounded-lg flex items-center justify-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
             >
               <Layers className="w-3.5 h-3.5 text-[#C5A880]" />
               <span>Manage All Products ({products.length})</span>
@@ -241,7 +256,7 @@ export const SellerToolbar: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setIsD3RevenueOpen(true)}
-                className="py-1.5 px-2 bg-gradient-to-r from-[#D4AF37]/20 to-[#C5A880]/20 hover:from-[#D4AF37]/30 hover:to-[#C5A880]/30 text-[#E6C687] border border-[#C5A880]/40 text-[10px] font-bold rounded-lg flex items-center justify-center gap-1 transition-all shadow-2xs"
+                className="py-1.5 px-2 bg-gradient-to-r from-[#D4AF37]/20 to-[#C5A880]/20 hover:from-[#D4AF37]/30 hover:to-[#C5A880]/30 text-[#E6C687] border border-[#C5A880]/40 text-[10px] font-bold rounded-lg flex items-center justify-center gap-1 transition-colors shadow-2xs cursor-pointer"
                 title="Visualize sales history revenue with D3.js area and bar charts"
               >
                 <TrendingUp className="w-3 h-3 text-[#D4AF37]" />
@@ -251,7 +266,7 @@ export const SellerToolbar: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setIsRechartsTrendsOpen(true)}
-                className="py-1.5 px-2 bg-gradient-to-r from-[#D4AF37]/20 to-[#C5A880]/20 hover:from-[#D4AF37]/30 hover:to-[#C5A880]/30 text-[#E6C687] border border-[#C5A880]/40 text-[10px] font-bold rounded-lg flex items-center justify-center gap-1 transition-all shadow-2xs"
+                className="py-1.5 px-2 bg-gradient-to-r from-[#D4AF37]/20 to-[#C5A880]/20 hover:from-[#D4AF37]/30 hover:to-[#C5A880]/30 text-[#E6C687] border border-[#C5A880]/40 text-[10px] font-bold rounded-lg flex items-center justify-center gap-1 transition-colors shadow-2xs cursor-pointer"
                 title="Visualize product sales trends with Recharts"
               >
                 <BarChart3 className="w-3 h-3 text-[#D4AF37]" />
@@ -275,41 +290,10 @@ export const SellerToolbar: React.FC = () => {
               </div>
             </div>
 
-
-
-            <button
-              type="button"
-              onClick={() => openReviewsManager(null)}
-              className="w-full py-1.5 px-2.5 bg-white/10 hover:bg-white/15 text-white text-[11px] font-medium rounded-lg flex items-center justify-center gap-1.5 transition-colors border border-white/10"
-            >
-              <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
-              <span>Manage Product Reviews</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setIsArtisanProfileOpen(true)}
-              className="w-full py-1.5 px-2.5 bg-white/10 hover:bg-white/15 text-white text-[11px] font-medium rounded-lg flex items-center justify-center gap-1.5 transition-colors border border-white/10"
-              title="Edit Sahina Shrestha's biography, quotes, and photos"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-[#D4AF37]" />
-              <span>Edit "Meet the Founder & Creator" Profile</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setIsWorkshopModalOpen(true)}
-              className="w-full py-1.5 px-2.5 bg-[#C5A880]/20 hover:bg-[#C5A880]/30 text-[#E6CA9E] text-[11px] font-semibold rounded-lg flex items-center justify-center gap-1.5 transition-colors border border-[#C5A880]/40"
-              title="Edit workshop details, syllabus, schedule, and media"
-            >
-              <Award className="w-3.5 h-3.5 text-[#C5A880]" />
-              <span>Manage Workshops & Media</span>
-            </button>
-
             <button
               type="button"
               onClick={() => setIsPaymentSettingsOpen(true)}
-              className="w-full py-1.5 px-2.5 bg-white/10 hover:bg-white/15 text-white text-[11px] font-medium rounded-lg flex items-center justify-center gap-1.5 transition-colors border border-white/10"
+              className="w-full py-1.5 px-2.5 bg-white/10 hover:bg-white/15 text-white text-[11px] font-medium rounded-lg flex items-center justify-center gap-1.5 transition-colors border border-white/10 cursor-pointer"
               title="Configure Sahina Shrestha's free QR codes & bank details"
             >
               <QrCode className="w-3.5 h-3.5 text-[#C5A880]" />
@@ -319,20 +303,10 @@ export const SellerToolbar: React.FC = () => {
             <button
               type="button"
               onClick={() => setIsWebsiteExportOpen(true)}
-              className="w-full py-1.5 px-2.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 text-[11px] font-semibold rounded-lg flex items-center justify-center gap-1.5 transition-colors border border-amber-500/40"
+              className="w-full py-1.5 px-2.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 text-[11px] font-semibold rounded-lg flex items-center justify-center gap-1.5 transition-colors border border-amber-500/40 cursor-pointer"
             >
               <Package className="w-3.5 h-3.5 text-amber-300" />
               <span>Export Complete Website & Products</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={handleClearMediaCache}
-              className="w-full py-1.5 px-2.5 bg-red-500/20 hover:bg-red-500/30 text-red-200 text-[11px] font-semibold rounded-lg flex items-center justify-center gap-1.5 transition-colors border border-red-500/40"
-              title="Explicitly clear artified-firebase-storage-assets, artified-video-assets, and artified-local-images caches"
-            >
-              <RefreshCw className="w-3.5 h-3.5 text-red-300 animate-spin" style={{ animationDuration: '6s' }} />
-              <span>Clear Media Cache</span>
             </button>
 
             {/* Refer a Friend Visibility Toggle for Seller */}
@@ -393,12 +367,22 @@ export const SellerToolbar: React.FC = () => {
 
             <button
               type="button"
-              onClick={() => setIsSellerMode(false)}
-              className="w-full py-1.5 px-2.5 bg-white/5 hover:bg-rose-950/40 text-[11px] text-rose-300 rounded-lg flex items-center justify-center gap-1.5 border border-rose-900/30 transition-colors"
-              title="Exit seller mode to view site as customer"
+              onClick={handleSaveExitAndLock}
+              disabled={isSavingAndLocking}
+              className="w-full py-2 px-2.5 bg-emerald-600 hover:bg-emerald-500 text-[11px] font-bold text-white rounded-lg flex items-center justify-center gap-1.5 border border-emerald-400/50 transition-all shadow-sm cursor-pointer disabled:opacity-70"
+              title="Save all updated sales, stock counts, products & orders to Repository & Cloud, then exit and lock Seller Mode"
             >
-              <Lock className="w-3 h-3 text-rose-400" />
-              <span>Exit & Lock</span>
+              {isSavingAndLocking ? (
+                <>
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin text-white" />
+                  <span>Saving All & Locking...</span>
+                </>
+              ) : (
+                <>
+                  <Lock className="w-3.5 h-3.5 text-[#D4AF37]" />
+                  <span>Save, Exit & Lock</span>
+                </>
+              )}
             </button>
           </div>
         </div>

@@ -18,7 +18,8 @@ import {
   normalizeOrderId, 
   sanitizeOrderItems, 
   getOrderDeliveryFee, 
-  getOrderItemsSubtotal 
+  getOrderItemsSubtotal,
+  getOrderManufactureDeliveryBreakdown
 } from '../data/trackingData';
 import { TrackedOrderData, OrderProductionPhase } from '../types';
 import { useCart } from '../context/CartContext';
@@ -124,6 +125,10 @@ export const OrderTrackerSection: React.FC = () => {
     performLookup(inputOrderId);
   };
 
+  const orderBreakdown = trackedOrder
+    ? getOrderManufactureDeliveryBreakdown(trackedOrder.items, trackedOrder.deliveryZoneName, trackedOrder.deliveryAddress)
+    : null;
+
   // 4 Exact Stages Requested by Seller
   const PHASES: Array<{
     key: OrderProductionPhase;
@@ -132,8 +137,8 @@ export const OrderTrackerSection: React.FC = () => {
     icon: React.ComponentType<{ className?: string }>;
   }> = [
     { key: 'confirmed', label: '1. Order Confirmed & Paid', sublabel: 'Materials reserved', icon: Package },
-    { key: 'handcrafting_and_packaging', label: '2. Handcrafting & Packaging', sublabel: 'By Sahina Shrestha', icon: Sparkles },
-    { key: 'out_for_delivery', label: '3. Dispatch & In-Transit', sublabel: 'Courier handover on route', icon: Truck },
+    { key: 'handcrafting_and_packaging', label: '2. Handcrafting & Packaging', sublabel: orderBreakdown ? `${orderBreakdown.manufactureDaysText} manufacture` : 'By Sahina Shrestha', icon: Sparkles },
+    { key: 'out_for_delivery', label: '3. Dispatch & In-Transit', sublabel: orderBreakdown ? `${orderBreakdown.deliveryDaysText} courier transit` : 'Courier handover on route', icon: Truck },
     { key: 'delivered', label: '4. Delivered', sublabel: 'Doorstep handover', icon: CheckCircle2 }
   ];
 
@@ -260,10 +265,17 @@ export const OrderTrackerSection: React.FC = () => {
               </div>
 
               <div className="text-left sm:text-right bg-[#FAF8F5] dark:bg-[#201F1D] sm:bg-transparent sm:dark:bg-transparent p-2 sm:p-0 rounded-xl">
-                <span className="text-[10px] text-[#736C65] dark:text-[#A69E96] uppercase tracking-wider block">Estimated Delivery</span>
-                <span className="font-serif text-base sm:text-lg font-bold text-[#C5A880]">
+                <span className="text-[10px] text-[#736C65] dark:text-[#A69E96] uppercase tracking-wider block">
+                  Estimated Delivery (Incl. Manufacture)
+                </span>
+                <span className="font-serif text-base sm:text-lg font-bold text-[#C5A880] block">
                   {trackedOrder.estimatedDeliveryDate}
                 </span>
+                {orderBreakdown && (
+                  <span className="text-[10px] text-[#5E5955] dark:text-[#A69E96] font-medium block mt-0.5">
+                    🛠 {orderBreakdown.manufactureDaysText} manufacture ({orderBreakdown.categoryLabel}) + 🚚 {orderBreakdown.deliveryDaysText} delivery
+                  </span>
+                )}
               </div>
             </div>
 
@@ -398,9 +410,6 @@ export const OrderTrackerSection: React.FC = () => {
                   <div>
                     <p className="font-semibold text-[#1C1B1A] dark:text-[#F5F2EB]">{trackedOrder.deliveryAddress}</p>
                     <p className="text-[11px] text-[#736C65] dark:text-[#A69E96] mt-0.5">Zone: {trackedOrder.deliveryZoneName}</p>
-                    <p className="text-[11px] font-semibold text-[#1C1B1A] dark:text-[#F5F2EB] mt-0.5">
-                      Delivery Charge: NPR {getOrderDeliveryFee(trackedOrder).toLocaleString()}
-                    </p>
                     {trackedOrder.courierPartner && (
                       <p className="text-[11px] text-[#736C65] dark:text-[#A69E96] mt-0.5">
                         Courier: {trackedOrder.courierPartner} {trackedOrder.consignmentCode ? `(${trackedOrder.consignmentCode})` : ''}

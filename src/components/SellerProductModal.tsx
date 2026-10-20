@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   X, 
   Upload, 
@@ -13,13 +13,157 @@ import {
   AlertCircle,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
+  ChevronDown,
+  Star,
   Layers
 } from 'lucide-react';
 import { Product } from '../types';
 import { useCart } from '../context/CartContext';
 import { compressImage } from '../utils/imageCompressor';
 import { CAVIAR_PEARL_BAG_IMAGE } from '../utils/productImages';
+import { getProductReviews } from '../utils/productStats';
 import { batchDeleteFirebaseStorageFiles } from '../services/firebaseWorkshopStorageService';
+
+interface ProductPhotoManagerSectionProps {
+  images: string[];
+  uploadError: string | null;
+  newImageUrl: string;
+  onNewImageUrlChange: (val: string) => void;
+  onFileUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onAddUrlImage: () => void;
+  onRemoveImage: (index: number) => void;
+  onMoveImage: (index: number, direction: 'left' | 'right') => void;
+}
+
+const ProductPhotoManagerSection: React.FC<ProductPhotoManagerSectionProps> = React.memo(({
+  images,
+  uploadError,
+  newImageUrl,
+  onNewImageUrlChange,
+  onFileUpload,
+  onAddUrlImage,
+  onRemoveImage,
+  onMoveImage,
+}) => (
+  <div className="bg-white p-4 sm:p-5 rounded-xl border border-[#E8DFD8] space-y-3.5">
+    <div className="flex items-center justify-between">
+      <div>
+        <h3 className="text-xs font-bold uppercase tracking-wider text-[#1C1B1A] flex items-center gap-1.5">
+          <ImageIcon className="w-3.5 h-3.5 text-[#C5A880]" />
+          <span>Product Photos ({images.length})</span>
+        </h3>
+        <p className="text-[11px] text-[#736C65]">
+          First photo is the main cover image shown on product cards and in search.
+        </p>
+      </div>
+    </div>
+
+    {/* Images Grid */}
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      {images.map((img, idx) => (
+        <div 
+          key={idx} 
+          className="relative group aspect-[4/5] rounded-lg overflow-hidden border border-[#E8DFD8] bg-[#FAF8F5] shadow-2xs"
+        >
+          <img 
+            src={img?.trim() || CAVIAR_PEARL_BAG_IMAGE} 
+            alt={`Product shot ${idx + 1}`} 
+            loading="lazy"
+            decoding="async"
+            onError={(e) => {
+              (e.currentTarget as HTMLImageElement).src = CAVIAR_PEARL_BAG_IMAGE;
+            }}
+            className="w-full h-full object-cover" 
+          />
+          
+          {/* Badge */}
+          {idx === 0 && (
+            <span className="absolute top-1.5 left-1.5 bg-[#1C1B1A]/85 text-[#FAF8F5] text-[9px] font-bold px-1.5 py-0.5 rounded shadow-2xs">
+              Cover
+            </span>
+          )}
+
+          {/* Hover Controls */}
+          <div className="absolute inset-0 bg-[#1C1B1A]/70 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-between p-2">
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => onRemoveImage(idx)}
+                className="p-1 bg-rose-600 text-white rounded hover:bg-rose-700 transition-colors cursor-pointer"
+                title="Delete photo"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            <div className="flex items-center justify-center gap-1.5">
+              {idx > 0 && (
+                <button
+                  type="button"
+                  onClick={() => onMoveImage(idx, 'left')}
+                  className="p-1 bg-white/90 text-[#1C1B1A] rounded hover:bg-white text-[10px] cursor-pointer"
+                  title="Move left (make primary)"
+                >
+                  <ArrowLeft className="w-3 h-3" />
+                </button>
+              )}
+              {idx < images.length - 1 && (
+                <button
+                  type="button"
+                  onClick={() => onMoveImage(idx, 'right')}
+                  className="p-1 bg-white/90 text-[#1C1B1A] rounded hover:bg-white text-[10px] cursor-pointer"
+                  title="Move right"
+                >
+                  <ArrowRight className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      ))}
+
+      {/* Upload New Box */}
+      <label className="relative aspect-[4/5] rounded-lg border-2 border-dashed border-[#C5A880]/60 bg-[#FAF8F5] hover:bg-[#F4EFEB] flex flex-col items-center justify-center cursor-pointer transition-colors p-2 text-center">
+        <Upload className="w-5 h-5 text-[#C5A880] mb-1" />
+        <span className="text-[11px] font-semibold text-[#1C1B1A]">Upload Photo</span>
+        <span className="text-[9px] text-[#736C65]">From computer or phone</span>
+        <input 
+          type="file" 
+          accept="image/*" 
+          onChange={onFileUpload}
+          className="hidden" 
+        />
+      </label>
+    </div>
+
+    {uploadError && (
+      <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-700 flex items-center gap-2">
+        <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
+        <span>{uploadError}</span>
+      </div>
+    )}
+
+    {/* URL input alternative */}
+    <div className="pt-2 flex flex-col sm:flex-row gap-2">
+      <input
+        type="text"
+        value={newImageUrl}
+        onChange={(e) => onNewImageUrlChange(e.target.value)}
+        placeholder="Or paste an image web URL (e.g. Unsplash or Cloudinary)..."
+        className="flex-1 text-xs px-3 py-2 border border-[#E8DFD8] rounded-lg bg-[#FAF8F5] focus:outline-none focus:border-[#C5A880]"
+      />
+      <button
+        type="button"
+        onClick={onAddUrlImage}
+        className="px-4 py-2 bg-[#FAF8F5] border border-[#C5A880] text-[#1C1B1A] text-xs font-semibold rounded-lg hover:bg-white transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+      >
+        <Plus className="w-3.5 h-3.5 text-[#C5A880]" />
+        <span>Add Image URL</span>
+      </button>
+    </div>
+  </div>
+));
 
 export const SellerProductModal: React.FC = () => {
   const { 
@@ -32,11 +176,13 @@ export const SellerProductModal: React.FC = () => {
     deleteProduct,
     products,
     setIsCatalogListOpen,
-    isCloudSynced,
-    syncStatusText,
+    isCatalogListOpen,
     bestsellerThreshold,
-    setBestsellerThreshold
+    setBestsellerThreshold,
+    openReviewsManager
   } = useCart();
+
+  const formScrollRef = useRef<HTMLFormElement>(null);
 
   const isEditing = Boolean(editingProduct);
 
@@ -62,7 +208,6 @@ export const SellerProductModal: React.FC = () => {
   const [title, setTitle] = useState('');
   const [subtitle, setSubtitle] = useState('');
   const [category, setCategory] = useState<'pearl-bags' | 'pearl-necklaces' | 'macrame' | 'accessories' | 'custom-beaded'>('pearl-bags');
-  const [sku, setSku] = useState('');
   const [price, setPrice] = useState<number>(3500);
   const [originalPrice, setOriginalPrice] = useState<number | undefined>(4000);
   const [inStock, setInStock] = useState<boolean>(true);
@@ -85,18 +230,33 @@ export const SellerProductModal: React.FC = () => {
 
   // Ratings, Reviews, and Units Sold State (Seller controllable)
   const [rating, setRating] = useState<number>(5.0);
-  const [reviewsCount, setReviewsCount] = useState<number>(24);
+  const [reviewsCount, setReviewsCount] = useState<number>(3);
   const [soldCount, setSoldCount] = useState<number>(64);
+
+  // Unified body scroll lock so switching between Catalog Manager and Edit Piece never causes scrollbar layout shift
+  useEffect(() => {
+    if (isSellerModalOpen || isCatalogListOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      if (!isSellerModalOpen && !isCatalogListOpen) {
+        document.body.style.overflow = '';
+      }
+    };
+  }, [isSellerModalOpen, isCatalogListOpen]);
 
   // Populate form when editingProduct changes
   useEffect(() => {
+    if (!isSellerModalOpen) return;
     setIsConfirmingDelete(false);
     setUploadError(null);
     if (editingProduct) {
+      const actualReviewsLen = getProductReviews(editingProduct).length;
       setTitle(editingProduct.title);
       setSubtitle(editingProduct.subtitle || '');
       setCategory(editingProduct.category);
-      setSku(editingProduct.sku || `ART-${editingProduct.category.slice(0, 3).toUpperCase()}-${editingProduct.id.slice(-4).toUpperCase()}`);
       setPrice(editingProduct.price);
       setOriginalPrice(editingProduct.originalPrice);
       setInStock(editingProduct.inStock);
@@ -105,8 +265,8 @@ export const SellerProductModal: React.FC = () => {
       setIsBestSeller(Boolean(editingProduct.isBestSeller));
       setIsNewArrival(Boolean(editingProduct.isNewArrival));
       setRating(editingProduct.rating ?? 5.0);
-      setReviewsCount(editingProduct.reviewsCount ?? 24);
-      setSoldCount(editingProduct.soldCount ?? (editingProduct.reviewsCount ? editingProduct.reviewsCount * 3 + 12 : 54));
+      setReviewsCount(actualReviewsLen);
+      setSoldCount(editingProduct.soldCount ?? 54);
       setLeadTime(editingProduct.leadTime || 'Handmade to order: 2–4 business days');
       setDescription(editingProduct.description || '');
       setMaterialsText(editingProduct.materials ? editingProduct.materials.join('\n') : '');
@@ -120,7 +280,6 @@ export const SellerProductModal: React.FC = () => {
       setTitle(`New Handcrafted Piece #${randomSuffix}`);
       setSubtitle('Custom hand-beaded pearl couture crafted in Kathmandu, Nepal');
       setCategory('pearl-bags');
-      setSku(`ART-BAG-${randomSuffix}`);
       setPrice(3950);
       setOriginalPrice(4500);
       setInStock(true);
@@ -129,7 +288,7 @@ export const SellerProductModal: React.FC = () => {
       setIsBestSeller(false);
       setIsNewArrival(true);
       setRating(4.8);
-      setReviewsCount(18);
+      setReviewsCount(3);
       setSoldCount(36);
       setLeadTime('Handmade to order: 2–4 business days');
       setDescription('Meticulously hand-woven using high-luster pearls and reinforced tensile core.');
@@ -139,12 +298,13 @@ export const SellerProductModal: React.FC = () => {
       setTagsText('Handcrafted, Nepal, New Arrival');
       setImages([]);
     }
-  }, [editingProduct, isSellerModalOpen]);
-
-  if (!isSellerModalOpen) return null;
+    if (formScrollRef.current) {
+      formScrollRef.current.scrollTop = 0;
+    }
+  }, [editingProduct?.id, isSellerModalOpen]);
 
   // Image Upload handler: compresses photo to web-optimized quality for instant cloud sync & fast mobile viewing
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -169,53 +329,47 @@ export const SellerProductModal: React.FC = () => {
       reader.readAsDataURL(file);
     }
     e.target.value = '';
-  };
+  }, []);
 
-  const handleAddUrlImage = () => {
-    if (newImageUrl.trim()) {
-      setImages((prev) => [...prev, newImageUrl.trim()]);
-      setNewImageUrl('');
-    }
-  };
-
-  const handleRemoveImage = async (index: number) => {
-    const targetUrl = images[index];
-    if (targetUrl) {
-      try {
-        await batchDeleteFirebaseStorageFiles([targetUrl]);
-      } catch (err) {
-        console.warn('Storage batch delete notice:', err);
+  const handleAddUrlImage = useCallback(() => {
+    setNewImageUrl((curr) => {
+      if (curr.trim()) {
+        setImages((prev) => [...prev, curr.trim()]);
       }
-    }
-    const updatedImages = images.filter((_, i) => i !== index);
-    setImages(updatedImages);
-    if (editingProduct) {
-      setEditingProduct({
-        ...editingProduct,
-        images: (editingProduct.images || []).filter((_, i) => i !== index)
-      });
-    }
-  };
+      return '';
+    });
+  }, []);
 
-  const handleMoveImage = (index: number, direction: 'left' | 'right') => {
-    if (direction === 'left' && index > 0) {
-      setImages((prev) => {
+  const handleRemoveImage = useCallback(async (index: number) => {
+    setImages((prev) => {
+      const targetUrl = prev[index];
+      if (targetUrl) {
+        batchDeleteFirebaseStorageFiles([targetUrl]).catch(() => {});
+      }
+      return prev.filter((_, i) => i !== index);
+    });
+  }, []);
+
+  const handleMoveImage = useCallback((index: number, direction: 'left' | 'right') => {
+    setImages((prev) => {
+      if (direction === 'left' && index > 0) {
         const copy = [...prev];
         const temp = copy[index - 1];
         copy[index - 1] = copy[index];
         copy[index] = temp;
         return copy;
-      });
-    } else if (direction === 'right' && index < images.length - 1) {
-      setImages((prev) => {
+      } else if (direction === 'right' && index < prev.length - 1) {
         const copy = [...prev];
         const temp = copy[index + 1];
         copy[index + 1] = copy[index];
         copy[index] = temp;
         return copy;
-      });
-    }
-  };
+      }
+      return prev;
+    });
+  }, []);
+
+  if (!isSellerModalOpen) return null;
 
   const executeSave = (actionAfter: 'close' | 'next' | 'list' = 'close') => {
     const materials = materialsText
@@ -256,7 +410,6 @@ export const SellerProductModal: React.FC = () => {
       inStock,
       stockCount: Number(stockCount) || 0,
       inventoryCount: Number(inventoryCount) >= 0 ? Number(inventoryCount) : Number(stockCount) || 0,
-      sku: sku.trim() || `ART-${category.slice(0, 3).toUpperCase()}-001`,
       leadTime: leadTime.trim(),
       materials: materials.length > 0 ? materials : ['High-luster handcrafted pearls', 'Reinforced nylon thread'],
       dimensions: dimensions.trim(),
@@ -277,33 +430,21 @@ export const SellerProductModal: React.FC = () => {
       addProduct(productPayload);
     }
 
-    setSavedNotice(true);
-    setTimeout(() => {
-      setSavedNotice(false);
-      if (actionAfter === 'next' && hasNext) {
-        setEditingProduct(products[currentIndex + 1]);
-      } else if (actionAfter === 'list') {
-        setIsSellerModalOpen(false);
-        setIsCatalogListOpen(true);
-      } else {
-        setIsSellerModalOpen(false);
-      }
-    }, 450);
+    if (actionAfter === 'next' && hasNext) {
+      setSavedNotice(true);
+      setEditingProduct(products[currentIndex + 1]);
+      setTimeout(() => setSavedNotice(false), 600);
+    } else if (actionAfter === 'list') {
+      setIsSellerModalOpen(false);
+      setIsCatalogListOpen(true);
+    } else {
+      setIsSellerModalOpen(false);
+    }
   };
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     executeSave('close');
-  };
-
-  const handleDelete = async () => {
-    if (editingProduct) {
-      if (editingProduct.images && editingProduct.images.length > 0) {
-        await batchDeleteFirebaseStorageFiles(editingProduct.images);
-      }
-      deleteProduct(editingProduct.id);
-      setIsSellerModalOpen(false);
-    }
   };
 
   const handleCopyJson = () => {
@@ -330,7 +471,7 @@ export const SellerProductModal: React.FC = () => {
   };
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center p-3 sm:p-4 md:p-6 bg-[#1C1B1A]/70 backdrop-blur-xs overflow-y-auto animate-fade-in">
+    <div className="fixed inset-0 z-[80] flex items-center justify-center p-2 sm:p-4 md:p-6 bg-[#1C1B1A]/80 overflow-hidden">
       <div 
         className="fixed inset-0"
         onClick={() => setIsSellerModalOpen(false)}
@@ -338,15 +479,15 @@ export const SellerProductModal: React.FC = () => {
 
       <div className="relative bg-[#FAF8F5] border border-[#E8DFD8] w-full max-w-3xl rounded-2xl shadow-2xl z-10 overflow-hidden flex flex-col max-h-[92vh]">
         {/* Header */}
-        <div className="flex items-center justify-between px-4 sm:px-6 py-4 bg-white border-b border-[#E8DFD8] sticky top-0 z-20">
-          <div className="flex items-center gap-2 sm:gap-3">
+        <div className="flex items-center justify-between gap-2 px-4 sm:px-6 py-3.5 bg-white border-b border-[#E8DFD8] shrink-0 z-20">
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             <button
               type="button"
               onClick={() => {
                 setIsSellerModalOpen(false);
                 setIsCatalogListOpen(true);
               }}
-              className="px-2.5 py-1.5 text-xs text-[#736C65] hover:text-[#1C1B1A] bg-[#FAF8F5] hover:bg-[#F4EFEB] border border-[#E8DFD8] rounded-xl flex items-center gap-1.5 transition-colors font-medium"
+              className="px-2.5 py-1.5 text-xs text-[#736C65] hover:text-[#1C1B1A] bg-[#FAF8F5] hover:bg-[#F4EFEB] border border-[#E8DFD8] rounded-xl flex items-center gap-1.5 transition-colors font-medium cursor-pointer shrink-0"
               title="Return to full catalog list view"
             >
               <Layers className="w-3.5 h-3.5 text-[#C5A880]" />
@@ -354,29 +495,29 @@ export const SellerProductModal: React.FC = () => {
               <span className="sm:hidden">List</span>
             </button>
 
-            <span className="w-2 h-2 rounded-full bg-[#D4AF37]" />
+            <span className="w-2 h-2 rounded-full bg-[#D4AF37] shrink-0" />
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="font-serif text-base sm:text-lg font-semibold text-[#1C1B1A] truncate max-w-[180px] sm:max-w-xs">
+                <h2 className="font-serif text-sm sm:text-base font-semibold text-[#1C1B1A] whitespace-nowrap">
                   {isEditing ? 'Edit Piece' : 'Add New Piece'}
                 </h2>
-                {inventoryCount < 5 && (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 flex items-center gap-1 animate-pulse">
-                    <AlertCircle className="w-3 h-3 text-amber-700" />
-                    <span>Low Stock ({inventoryCount} Left)</span>
-                  </span>
-                )}
               </div>
-              <p className="text-[10px] text-[#736C65] tracking-wide uppercase font-medium flex items-center gap-2">
+              <p className="text-[10px] text-[#736C65] tracking-wide uppercase font-medium hidden md:flex items-center gap-2">
                 <span>Product Catalog Studio</span>
-                <span className="text-[9px] font-mono font-bold bg-[#1C1B1A] text-[#D4AF37] px-1.5 py-0.2 rounded border border-[#C5A880]/40">
-                  SKU: {sku || 'ART-BAG-001'}
-                </span>
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          {/* Center: Prominent Product Title Display (Area shown by green arrow) */}
+          <div className="flex-1 flex items-center justify-center min-w-0 px-2">
+            <div className="px-3.5 py-1.5 rounded-xl bg-[#FAF8F5] border-2 border-[#C5A880] shadow-2xs max-w-md w-full text-center">
+              <span className="font-serif text-xs sm:text-base font-bold text-[#1C1B1A] tracking-tight truncate block" title={title || editingProduct?.title || 'New Piece'}>
+                {title.trim() || editingProduct?.title || 'New Handcrafted Piece'}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
             {/* Stepper for rapid sequential editing */}
             {isEditing && currentIndex !== -1 && (
               <div className="flex items-center gap-1 bg-[#FAF8F5] border border-[#E8DFD8] rounded-xl p-1 text-xs text-[#736C65]">
@@ -384,7 +525,7 @@ export const SellerProductModal: React.FC = () => {
                   type="button"
                   disabled={!hasPrev}
                   onClick={handlePrevProduct}
-                  className={`p-1 rounded-md transition-colors ${hasPrev ? 'hover:bg-white text-[#1C1B1A]' : 'opacity-30 cursor-not-allowed'}`}
+                  className={`p-1 rounded-md transition-colors ${hasPrev ? 'hover:bg-white text-[#1C1B1A] cursor-pointer' : 'opacity-30 cursor-not-allowed'}`}
                   title="Previous piece in catalog"
                 >
                   <ChevronLeft className="w-3.5 h-3.5" />
@@ -396,7 +537,7 @@ export const SellerProductModal: React.FC = () => {
                   type="button"
                   disabled={!hasNext}
                   onClick={handleNextProduct}
-                  className={`p-1 rounded-md transition-colors ${hasNext ? 'hover:bg-white text-[#1C1B1A]' : 'opacity-30 cursor-not-allowed'}`}
+                  className={`p-1 rounded-md transition-colors ${hasNext ? 'hover:bg-white text-[#1C1B1A] cursor-pointer' : 'opacity-30 cursor-not-allowed'}`}
                   title="Next piece in catalog"
                 >
                   <ChevronRight className="w-3.5 h-3.5" />
@@ -407,7 +548,7 @@ export const SellerProductModal: React.FC = () => {
             <button
               type="button"
               onClick={handleCopyJson}
-              className="hidden md:flex items-center gap-1.5 px-3 py-1.5 text-xs text-[#5E5955] border border-[#E8DFD8] rounded-lg hover:bg-[#FAF8F5] transition-colors"
+              className="hidden md:flex items-center gap-1.5 px-3 py-1.5 text-xs text-[#5E5955] border border-[#E8DFD8] rounded-lg hover:bg-[#FAF8F5] transition-colors cursor-pointer"
               title="Copy piece schema as JSON"
             >
               <Copy className="w-3.5 h-3.5 text-[#8C7A6B]" />
@@ -417,7 +558,7 @@ export const SellerProductModal: React.FC = () => {
             <button
               type="button"
               onClick={() => setIsSellerModalOpen(false)}
-              className="p-1.5 text-[#736C65] hover:text-[#1C1B1A] rounded-full hover:bg-[#FAF8F5] transition-colors"
+              className="p-1.5 text-[#736C65] hover:text-[#1C1B1A] rounded-full hover:bg-[#FAF8F5] transition-colors cursor-pointer"
               aria-label="Close editor"
             >
               <X className="w-5 h-5" />
@@ -426,133 +567,33 @@ export const SellerProductModal: React.FC = () => {
         </div>
 
         {/* Real-time live cloud sync notification bar */}
-        <div className="bg-[#FAF6F0] border-b border-[#E8DFD8] px-4 sm:px-6 py-2 flex items-center justify-between text-xs text-[#736C65]">
+        <div className="bg-[#FAF6F0] border-b border-[#E8DFD8] px-4 sm:px-6 py-2 flex items-center justify-between text-xs text-[#736C65] shrink-0">
           <span className="flex items-center gap-2 font-medium text-[#4A453F]">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-            <span>Live Cloud Sync: Saving here updates this piece instantly on your smartphone.</span>
+            <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+            <span>Live Cloud Sync: Saving here updates this piece instantly across all devices.</span>
           </span>
           <span className="text-[11px] text-stone-500 hidden sm:inline">Auto-compressed for fast mobile loading</span>
         </div>
 
-        {/* Scrollable Form Body */}
-        <form onSubmit={handleSave} className="overflow-y-auto p-4 sm:p-6 space-y-6 flex-1 text-[#1C1B1A]">
+        {/* Scrollable Form Body - Native Buttery Smooth Scrolling */}
+        <form
+          ref={formScrollRef}
+          onSubmit={handleSave}
+          className="overflow-y-auto overscroll-contain p-4 sm:p-6 space-y-6 flex-1 text-[#1C1B1A]"
+          style={{ WebkitOverflowScrolling: 'touch' }}
+        >
           
-          {/* SECTION 1: PHOTO MANAGEMENT */}
-          <div className="bg-white p-4 sm:p-5 rounded-xl border border-[#E8DFD8] space-y-3.5">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-xs font-bold uppercase tracking-wider text-[#1C1B1A] flex items-center gap-1.5">
-                  <ImageIcon className="w-3.5 h-3.5 text-[#C5A880]" />
-                  <span>Product Photos ({images.length})</span>
-                </h3>
-                <p className="text-[11px] text-[#736C65]">
-                  First photo is the main cover image shown on product cards and in search.
-                </p>
-              </div>
-            </div>
-
-            {/* Images Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {images.map((img, idx) => (
-                <div 
-                  key={idx} 
-                  className="relative group aspect-[4/5] rounded-lg overflow-hidden border border-[#E8DFD8] bg-[#FAF8F5] shadow-2xs"
-                >
-                  <img 
-                    src={img?.trim() || CAVIAR_PEARL_BAG_IMAGE} 
-                    alt={`Product shot ${idx + 1}`} 
-                    onError={(e) => {
-                      (e.currentTarget as HTMLImageElement).src = CAVIAR_PEARL_BAG_IMAGE;
-                    }}
-                    className="w-full h-full object-cover" 
-                  />
-                  
-                  {/* Badge */}
-                  {idx === 0 && (
-                    <span className="absolute top-1.5 left-1.5 bg-[#1C1B1A]/85 text-[#FAF8F5] text-[9px] font-bold px-1.5 py-0.5 rounded shadow-2xs">
-                      Cover
-                    </span>
-                  )}
-
-                  {/* Hover Controls */}
-                  <div className="absolute inset-0 bg-[#1C1B1A]/70 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-between p-2">
-                    <div className="flex justify-end">
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveImage(idx)}
-                        className="p-1 bg-rose-600 text-white rounded hover:bg-rose-700 transition-colors"
-                        title="Delete photo"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-
-                    <div className="flex items-center justify-center gap-1.5">
-                      {idx > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => handleMoveImage(idx, 'left')}
-                          className="p-1 bg-white/90 text-[#1C1B1A] rounded hover:bg-white text-[10px]"
-                          title="Move left (make primary)"
-                        >
-                          <ArrowLeft className="w-3 h-3" />
-                        </button>
-                      )}
-                      {idx < images.length - 1 && (
-                        <button
-                          type="button"
-                          onClick={() => handleMoveImage(idx, 'right')}
-                          className="p-1 bg-white/90 text-[#1C1B1A] rounded hover:bg-white text-[10px]"
-                          title="Move right"
-                        >
-                          <ArrowRight className="w-3 h-3" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-
-              {/* Upload New Box */}
-              <label className="relative aspect-[4/5] rounded-lg border-2 border-dashed border-[#C5A880]/60 bg-[#FAF8F5] hover:bg-[#F4EFEB] flex flex-col items-center justify-center cursor-pointer transition-colors p-2 text-center">
-                <Upload className="w-5 h-5 text-[#C5A880] mb-1" />
-                <span className="text-[11px] font-semibold text-[#1C1B1A]">Upload Photo</span>
-                <span className="text-[9px] text-[#736C65]">From computer or phone</span>
-                <input 
-                  type="file" 
-                  accept="image/*" 
-                  onChange={handleFileUpload}
-                  className="hidden" 
-                />
-              </label>
-            </div>
-
-            {uploadError && (
-              <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-700 flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
-                <span>{uploadError}</span>
-              </div>
-            )}
-
-            {/* URL input alternative */}
-            <div className="pt-2 flex flex-col sm:flex-row gap-2">
-              <input
-                type="text"
-                value={newImageUrl}
-                onChange={(e) => setNewImageUrl(e.target.value)}
-                placeholder="Or paste an image web URL (e.g. Unsplash or Cloudinary)..."
-                className="flex-1 text-xs px-3 py-2 border border-[#E8DFD8] rounded-lg bg-[#FAF8F5] focus:outline-none focus:border-[#C5A880]"
-              />
-              <button
-                type="button"
-                onClick={handleAddUrlImage}
-                className="px-4 py-2 bg-[#FAF8F5] border border-[#C5A880] text-[#1C1B1A] text-xs font-semibold rounded-lg hover:bg-white transition-colors flex items-center justify-center gap-1.5"
-              >
-                <Plus className="w-3.5 h-3.5 text-[#C5A880]" />
-                <span>Add Image URL</span>
-              </button>
-            </div>
-          </div>
+          {/* SECTION 1: MEMOIZED PHOTO MANAGEMENT */}
+          <ProductPhotoManagerSection
+            images={images}
+            uploadError={uploadError}
+            newImageUrl={newImageUrl}
+            onNewImageUrlChange={setNewImageUrl}
+            onFileUpload={handleFileUpload}
+            onAddUrlImage={handleAddUrlImage}
+            onRemoveImage={handleRemoveImage}
+            onMoveImage={handleMoveImage}
+          />
 
           {/* SECTION 2: BASIC PRODUCT INFO */}
           <div className="bg-white p-4 sm:p-5 rounded-xl border border-[#E8DFD8] space-y-4">
@@ -587,7 +628,7 @@ export const SellerProductModal: React.FC = () => {
               />
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-[#1C1B1A] mb-1">
                   Collection / Category *
@@ -603,19 +644,6 @@ export const SellerProductModal: React.FC = () => {
                   <option value="accessories">Accessories</option>
                   <option value="custom-beaded">Custom Beaded</option>
                 </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-[#1C1B1A] mb-1">
-                  Stock Keeping Unit (SKU)
-                </label>
-                <input
-                  type="text"
-                  value={sku}
-                  onChange={(e) => setSku(e.target.value.toUpperCase())}
-                  placeholder="e.g. ART-BAG-001"
-                  className="w-full text-xs font-mono font-bold px-3 py-2 border border-[#E8DFD8] rounded-lg bg-[#FAF8F5] uppercase tracking-wider focus:outline-none focus:border-[#C5A880]"
-                />
               </div>
 
               <div>
@@ -697,9 +725,9 @@ export const SellerProductModal: React.FC = () => {
 
               <div>
                 <label className="block text-xs font-semibold text-[#1C1B1A] mb-1">
-                  Inventory Units Left (Firestore Schema) *
+                  In Stock Count *
                 </label>
-                <div className="relative">
+                <div className="flex items-stretch border border-[#E8DFD8] rounded-lg overflow-hidden bg-[#FAF8F5] focus-within:border-[#C5A880]">
                   <input
                     type="number"
                     min={0}
@@ -710,35 +738,40 @@ export const SellerProductModal: React.FC = () => {
                       setStockCount(val);
                       setInStock(val > 0);
                     }}
-                    className={`w-full text-xs font-bold px-3 py-2 border rounded-lg focus:outline-none ${
-                      inventoryCount < 5
-                        ? 'bg-amber-50 border-amber-400 text-amber-950 focus:border-amber-600'
-                        : 'bg-[#FAF8F5] border-[#E8DFD8] focus:border-[#C5A880]'
-                    }`}
+                    className="w-full text-xs font-bold px-3 py-2 bg-transparent focus:outline-none text-[#1C1B1A]"
                   />
-                  {inventoryCount < 5 && (
-                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] font-bold text-amber-800 bg-amber-200/80 px-1.5 py-0.5 rounded">
-                      ⚠️ Low Inventory (&lt; 5)
-                    </span>
-                  )}
+                  <div className="flex flex-col border-l border-[#E8DFD8] bg-white shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = Math.max(0, inventoryCount + 1);
+                        setInventoryCount(next);
+                        setStockCount(next);
+                        setInStock(next > 0);
+                      }}
+                      className="px-2 flex-1 flex items-center justify-center text-[#1C1B1A] hover:bg-[#FAF8F5] active:bg-[#E8DFD8] transition-colors cursor-pointer"
+                      title="Increase in-stock count by 1"
+                    >
+                      <ChevronUp className="w-3 h-3 stroke-[2.5]" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = Math.max(0, inventoryCount - 1);
+                        setInventoryCount(next);
+                        setStockCount(next);
+                        setInStock(next > 0);
+                      }}
+                      disabled={inventoryCount <= 0}
+                      className="px-2 flex-1 flex items-center justify-center border-t border-[#E8DFD8] text-[#1C1B1A] hover:bg-[#FAF8F5] active:bg-[#E8DFD8] transition-colors cursor-pointer disabled:opacity-35 disabled:cursor-not-allowed"
+                      title="Decrease in-stock count by 1"
+                    >
+                      <ChevronDown className="w-3 h-3 stroke-[2.5]" />
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
-
-            {/* Low Inventory Visual Warning Banner */}
-            {inventoryCount < 5 && (
-              <div className="p-3 bg-amber-50 border border-amber-300 rounded-xl text-xs text-amber-900 flex items-start gap-2.5">
-                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                <div>
-                  <span className="font-bold text-amber-950 block">
-                    Low Inventory Warning (&lt; 5 units remaining in Firestore)
-                  </span>
-                  <p className="text-[11px] text-amber-800 mt-0.5">
-                    This piece has only <strong>{inventoryCount} unit{inventoryCount === 1 ? '' : 's'}</strong> available in Kathmandu workshop stock. Restock soon to avoid running out of stock!
-                  </p>
-                </div>
-              </div>
-            )}
 
             {/* Automated Bestseller & Badges */}
             <div className="pt-2 border-t border-[#F0EBE5] space-y-3">
@@ -789,15 +822,22 @@ export const SellerProductModal: React.FC = () => {
               </div>
             </div>
 
-            {/* Social Proof & Metrics: Stars, Reviews (30-50%), Units Sold + Live Tracking */}
+            {/* Social Proof & Metrics: Stars, Actual Customer Reviews Count, Units Sold */}
             <div className="pt-3 border-t border-[#F0EBE5]">
               <div className="flex items-center justify-between mb-2">
                 <h4 className="text-[11px] font-bold uppercase tracking-wider text-[#736C65]">
                   Public Proof & Sales Metrics
                 </h4>
-                <span className="text-[10px] text-[#C5A880] font-medium">
-                  Reviews automatically fluctuate between 30%–50% of sold count
-                </span>
+                {editingProduct && (
+                  <button
+                    type="button"
+                    onClick={() => openReviewsManager(editingProduct.id)}
+                    className="text-[10px] text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-md font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                  >
+                    <Star className="w-2.5 h-2.5 text-amber-500 fill-amber-500" />
+                    <span>Manage Reviews ({reviewsCount})</span>
+                  </button>
+                )}
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -827,9 +867,6 @@ export const SellerProductModal: React.FC = () => {
                     onChange={(e) => {
                       const newSold = Math.max(0, Number(e.target.value));
                       setSoldCount(newSold);
-                      // Auto-fluctuate reviews within 30-50%
-                      const calculatedReviews = Math.max(1, Math.round(newSold * 0.38));
-                      setReviewsCount(calculatedReviews);
                     }}
                     className="w-full text-xs px-3 py-2 border border-[#E8DFD8] rounded-lg bg-[#FAF8F5] focus:outline-none focus:border-[#C5A880]"
                   />
@@ -841,17 +878,17 @@ export const SellerProductModal: React.FC = () => {
 
                 <div>
                   <label className="block text-xs font-semibold text-[#1C1B1A] mb-1">
-                    Customer Reviews Count
+                    Verified Reviews in Piece
                   </label>
                   <input
                     type="number"
-                    min={0}
+                    readOnly
                     value={reviewsCount}
-                    onChange={(e) => setReviewsCount(Number(e.target.value))}
-                    className="w-full text-xs px-3 py-2 border border-[#E8DFD8] rounded-lg bg-[#FAF8F5] focus:outline-none focus:border-[#C5A880]"
+                    className="w-full text-xs font-bold px-3 py-2 border border-[#E8DFD8] rounded-lg bg-[#F3EFEA] text-[#1C1B1A] focus:outline-none cursor-default"
+                    title="Matches the exact number of customer reviews inside this product"
                   />
                   <p className="text-[10px] text-[#736C65] mt-1">
-                    {Math.round((reviewsCount / Math.max(1, (Number(soldCount) || 0) + (editingProduct?.onlineSalesCount || 0))) * 100)}% of total sold
+                    Matches exact {reviewsCount} review{reviewsCount === 1 ? '' : 's'} in product
                   </p>
                 </div>
               </div>

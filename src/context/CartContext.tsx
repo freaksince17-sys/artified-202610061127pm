@@ -29,12 +29,15 @@ import {
 import {
   safeSetDoc as setDoc,
   safeDeleteDoc as deleteDoc,
-  safeOnSnapshot as onSnapshot
+  safeOnSnapshot as onSnapshot,
+  isFirestoreQuotaExceeded,
+  detectQuotaError,
+  safeCommitBatch
 } from '../utils/safeFirestore';
 import { handleFirestoreError, OperationType } from '../utils/firestoreErrors';
 import { compressImage } from '../utils/imageCompressor';
 import { sanitizeForFirestore } from '../utils/firestoreSanitizer';
-import { sanitizeReviewItem, getProductReviews, getProductAverageRating, isProductBestSeller, calculateDiscountPercent, calculateTotalSold } from '../utils/productStats';
+import { sanitizeReviewItem, getProductReviews, getProductAverageRating, isProductBestSeller, calculateDiscountPercent, calculateTotalSold, invalidateReviewsCache } from '../utils/productStats';
 import { deleteProductReviewFromFirestore } from '../services/reviewService';
 
 import { buildTrackedOrderFromOrderDetails, syncTrackedOrdersFromServer, syncOrdersFromFirestore, getAllOrdersForSeller } from '../data/trackingData';
@@ -179,6 +182,7 @@ interface CartContextType {
   openProductEditor: (product?: Product | null) => void;
   duplicateProduct: (id: string) => Promise<void>;
   toggleProductStock: (id: string) => Promise<void>;
+  adjustProductStockCount: (id: string, delta: number) => Promise<void>;
   toggleProductNewArrival: (id: string) => Promise<void>;
   batchSetNewArrival: (ids: string[], isNew: boolean) => Promise<void>;
   // Restock Waitlist Notifications & In-App Alerts
@@ -295,9 +299,11 @@ const sanitizeProduct = (prod: Product): Product => {
   const inStock = explicitOutOfStock ? false : (prod.inStock !== false);
   const stockCount = inStock ? (typeof prod.stockCount === 'number' && prod.stockCount > 0 ? prod.stockCount : 8) : 0;
   const inventoryCount = typeof prod.inventoryCount === 'number' && !isNaN(prod.inventoryCount) ? Math.max(0, prod.inventoryCount) : stockCount;
+  const safePrice = typeof prod.price === 'number' && !isNaN(prod.price) && prod.price > 0 ? prod.price : 1500;
 
   return {
     ...prod,
+    price: safePrice,
     inStock,
     stockCount,
     inventoryCount,
@@ -720,6 +726,10 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Track database-synced prices per product for live sync status detection in Seller Catalog Manager
   const [dbSyncedPrices, setDbSyncedPrices] = useState<Record<string, number>>({});
+  const lastLocalProductEditRef = React.useRef<Record<string, number>>({});
+  const pendingCloudProductsRef = React.useRef<Map<string, Product>>(new Map());
+  const persistDebounceTimerRef = React.useRef<number | null>(null);
+  const isModalEditingRef = React.useRef<boolean>(false);
 
   // Fetch initial data from backend server database (products, reels, Instagram journal & settings)
   useEffect(() => {
@@ -728,24 +738,48 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       unsubscribeProducts = onSnapshot(collection(db, 'products'), (snap) => {
         if (!snap.empty) {
+          const now = Date.now();
           const cloudProducts: Product[] = [];
           const cloudPrices: Record<string, number> = {};
           snap.forEach((d: any) => {
             const data = d.data() as Product;
-            if (data && data.id && data.title) {
+            const pid = data?.id || d.id;
+            // Skip echoing back a product that the user just edited locally within the last 5 seconds
+            if (pid && now - (lastLocalProductEditRef.current[pid] || 0) < 5000) {
+              return;
+            }
+            if (
+              data &&
+              data.id &&
+              data.title &&
+              ((typeof data.price === 'number' && data.price > 0) || PRODUCTS.some((p) => p.id === data.id))
+            ) {
               const cleaned = sanitizeProduct(data);
               cloudProducts.push(cleaned);
-              if (typeof cleaned.price === 'number') {
-                cloudPrices[cleaned.id] = cleaned.price;
+              if (typeof data.price === 'number' && data.price > 0) {
+                cloudPrices[cleaned.id] = data.price;
               }
             }
           });
 
-          setDbSyncedPrices((prev) => ({ ...prev, ...cloudPrices }));
+          if (Object.keys(cloudPrices).length > 0) {
+            setDbSyncedPrices((prev) => {
+              let hasDiff = false;
+              for (const k of Object.keys(cloudPrices)) {
+                if (prev[k] !== cloudPrices[k]) {
+                  hasDiff = true;
+                  break;
+                }
+              }
+              return hasDiff ? { ...prev, ...cloudPrices } : prev;
+            });
+          }
+
           if (cloudProducts.length > 0) {
-            setProducts((prev) => reconcileProductCatalog(cloudProducts, prev));
-            setIsCloudSynced(true);
-            setSyncStatusText('🟢 Synced with Cloud Firestore (artified-staging)');
+            setProducts((prev) => {
+              const reconciled = reconcileProductCatalog(cloudProducts, prev);
+              return reconciled === prev ? prev : reconciled;
+            });
           }
         }
       }, (err) => {
@@ -1205,27 +1239,48 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (Object.keys(quantities).length === 0 && Object.keys(verifiedByProd).length === 0) return;
 
       setProducts((prev) => {
-        const updated = applyVerifiedSalesToProducts(
-          prev.map((prod) => {
-            const addedQty = quantities[prod.id] || 0;
-            const verifiedOnline = verifiedByProd[prod.id] || 0;
-            if (addedQty > 0 || verifiedOnline > (prod.onlineSalesCount || 0)) {
-              const baseSold = prod.soldCount !== undefined ? prod.soldCount : 54;
-              const nextOnline = Math.max((prod.onlineSalesCount || 0) + addedQty, verifiedOnline);
-              const nextTotal = Math.max(prod.totalSold || 0, baseSold + nextOnline);
-              return {
-                ...prod,
-                soldCount: baseSold,
-                onlineSalesCount: nextOnline,
-                totalSold: nextTotal,
-                isBestSeller: nextTotal >= bestsellerThreshold || prod.isBestSeller
-              };
-            }
-            return prod;
-          }),
-          verifiedByProd,
-          bestsellerThreshold
-        );
+        const nowIso = new Date().toISOString();
+        const updated = prev.map((prod) => {
+          const addedQty = quantities[prod.id] || 0;
+          const prevOnline = prod.onlineSalesCount || 0;
+          const verifiedOnline = verifiedByProd[prod.id] || 0;
+          const nextOnline = Math.max(prevOnline + addedQty, verifiedOnline);
+          const newlySold = Math.max(0, nextOnline - prevOnline);
+
+          if (newlySold > 0 || addedQty > 0 || verifiedOnline > prevOnline) {
+            const baseSold = prod.soldCount !== undefined ? prod.soldCount : 54;
+            const nextTotal = Math.max(prod.totalSold || 0, baseSold + nextOnline);
+            const currentStock = typeof prod.stockCount === 'number' ? prod.stockCount : (prod.inventoryCount ?? 8);
+            const nextStock = Math.max(0, currentStock - (newlySold > 0 ? newlySold : addedQty));
+            lastLocalProductEditRef.current[prod.id] = Date.now();
+            return {
+              ...prod,
+              soldCount: baseSold,
+              onlineSalesCount: nextOnline,
+              totalSold: nextTotal,
+              stockCount: nextStock,
+              inventoryCount: nextStock,
+              inStock: nextStock > 0,
+              updatedAt: nowIso,
+              isBestSeller: nextTotal >= bestsellerThreshold || prod.isBestSeller
+            };
+          }
+          return prod;
+        });
+
+        latestProductsRef.current = updated;
+        window.setTimeout(() => {
+          try {
+            const serialized = JSON.stringify(updated);
+            localStorage.setItem('artified_products_custom', serialized);
+            localStorage.setItem('artified_products_v3', serialized);
+            fetch('/api/products', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: serialized
+            }).catch(() => {});
+          } catch {}
+        }, 0);
 
         setQuickViewProduct((qv) => {
           if (!qv) return null;
@@ -1291,6 +1346,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const addProductReview = async (productId: string, review: ProductReviewItem) => {
     try {
       const sanitized = sanitizeReviewItem(review);
+      invalidateReviewsCache();
       const updatedProducts = products.map((prod) => {
         if (prod.id === productId) {
           const existingReviews = prod.customReviews || [];
@@ -1312,6 +1368,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const cleanProd = currentProd.filter((r: any) => r.id !== sanitized.id && `${r.author}_${r.comment}` !== `${sanitized.author}_${sanitized.comment}`);
         dict[productId] = [sanitized, ...cleanProd];
         localStorage.setItem('artified_custom_reviews_v1', JSON.stringify(dict));
+        invalidateReviewsCache();
       } catch {}
 
       try {
@@ -1355,6 +1412,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   ) => {
     try {
       const sanitized = sanitizeReviewItem(updatedReview);
+      invalidateReviewsCache();
       const targetProductId = (newProductId || currentProductId).trim();
       const isMovingProduct = targetProductId !== currentProductId;
 
@@ -1400,6 +1458,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
 
       setProducts(updatedProducts);
+      invalidateReviewsCache();
       try {
         localStorage.setItem('artified_products_v3', JSON.stringify(updatedProducts));
       } catch {}
@@ -1427,6 +1486,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const deleteProductReview = async (productId: string, reviewId: string) => {
     try {
       await deleteProductReviewFromFirestore(reviewId);
+      invalidateReviewsCache();
 
       const updatedProducts = products.map((prod) => {
         if (prod.id === productId || prod.customReviews?.some(r => r.id === reviewId)) {
@@ -1451,6 +1511,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
             localStorage.setItem('artified_custom_reviews_v1', JSON.stringify(dict));
           }
         }
+        invalidateReviewsCache();
       } catch {}
 
       try {
@@ -1472,9 +1533,14 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // 1. Initial connection test to Firestore
   useEffect(() => {
     async function testConnection() {
+      if (isFirestoreQuotaExceeded) return;
       try {
-        await getDocFromServer(doc(db, 'test', 'connection')).catch(() => {});
-      } catch {}
+        await getDocFromServer(doc(db, 'test', 'connection')).catch((e) => {
+          detectQuotaError(e);
+        });
+      } catch (e) {
+        detectQuotaError(e);
+      }
     }
     testConnection();
   }, []);
@@ -1485,7 +1551,11 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsDataSyncing(false);
 
     // Sync and verify sales_history from server & Firestore, and reconcile confirmed orders
-    syncConfirmedSalesOrdersFromFirestore(getAllOrdersForSeller(), products).catch(() => {});
+    if (!isFirestoreQuotaExceeded) {
+      syncConfirmedSalesOrdersFromFirestore(getAllOrdersForSeller(), products).catch((e) => {
+        detectQuotaError(e);
+      });
+    }
 
     // Real-time listener on Firestore `sales_history` collection to verify total sold count across sessions
     const unsubSalesHistory = onSnapshot(
@@ -1520,167 +1590,78 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
           });
         }
       },
-      () => {}
+      (err) => {
+        detectQuotaError(err);
+      }
     );
 
-    // Real-time listener on Firestore products collection so totalSold / onlineSalesCount updates dynamically across all browsers
-    const unsubProducts = onSnapshot(
-      collection(db, 'products'),
-      (snap) => {
-        if (snap.empty) return;
-        const cloudMap = new Map<string, Partial<Product>>();
-        snap.forEach((docSnap: any) => {
-          const data = docSnap.data() as Partial<Product>;
-          if (data && (data.id || docSnap.id)) {
-            cloudMap.set(data.id || docSnap.id, data);
-          }
-        });
-        if (cloudMap.size === 0) return;
-
-        setProducts((prev) => {
-          let changed = false;
-          const updated = prev.map((prod) => {
-            const cloud = cloudMap.get(prod.id);
-            if (!cloud) return prod;
-
-            const baseSold =
-              cloud.soldCount !== undefined && Number(cloud.soldCount) > (prod.soldCount || 0)
-                ? Number(cloud.soldCount)
-                : prod.soldCount !== undefined
-                ? prod.soldCount
-                : 54;
-            const mergedOnline = Math.max(prod.onlineSalesCount || 0, Number(cloud.onlineSalesCount) || 0);
-            const mergedTotal = Math.max(
-              prod.totalSold || 0,
-              Number(cloud.totalSold) || 0,
-              baseSold + mergedOnline
-            );
-            const prevCalc = calculateTotalSold(prod);
-
-            if (
-              mergedTotal !== prevCalc ||
-              mergedOnline !== (prod.onlineSalesCount || 0) ||
-              baseSold !== (prod.soldCount !== undefined ? prod.soldCount : 54)
-            ) {
-              changed = true;
-              return {
-                ...prod,
-                soldCount: baseSold,
-                onlineSalesCount: mergedOnline,
-                totalSold: mergedTotal,
-                isBestSeller: mergedTotal >= bestsellerThreshold || prod.isBestSeller
-              };
-            }
-            return prod;
-          });
-
-          if (changed) {
-            const verifiedUpdated = applyVerifiedSalesToProducts(updated, undefined, bestsellerThreshold);
-            setQuickViewProduct((qv) => {
-              if (!qv) return null;
-              return verifiedUpdated.find((p) => p.id === qv.id) || qv;
-            });
-            return verifiedUpdated;
-          }
-          return prev;
-        });
-      },
-      () => {}
-    );
-
-    // Hydrate TikTok reels from server JSON disk
-    fetch('/api/tiktok-reels')
-      .then((res) => res.json())
-      .then((items) => {
-        if (Array.isArray(items) && items.length > 0) {
-          setReels(items);
-          try {
-            localStorage.setItem('artified_tiktok_reels', JSON.stringify(items));
-          } catch {}
-        }
-      })
-      .catch(() => {});
-
-    // Hydrate Craft Story from server JSON disk
-    fetch('/api/craft-story')
-      .then((res) => res.json())
-      .then((story) => {
-        if (story && (story.title || story.videoUrl)) {
-          setCraftStory((prev) => ({ ...prev, ...story }));
-          try {
-            localStorage.setItem('artified_craft_story', JSON.stringify({ ...DEFAULT_CRAFT_STORY, ...story }));
-          } catch {}
-        }
-      })
-      .catch(() => {});
-
-    // Hydrate Instagram Journal from server JSON disk
-    fetch('/api/instagram-journal')
-      .then((res) => res.json())
-      .then((items) => {
-        if (Array.isArray(items) && items.length > 0) {
-          setInstagramItems(items);
-          try {
-            localStorage.setItem('artified_instagram_journal_items', JSON.stringify(items));
-          } catch {}
-        }
-      })
-      .catch(() => {});
-
-    // Hydrate Instagram Settings from server JSON disk
-    fetch('/api/instagram-settings')
-      .then((res) => res.json())
-      .then((settings) => {
-        if (settings?.handle) {
-          setInstagramHandle(settings.handle);
-          try { localStorage.setItem('artified_instagram_handle', settings.handle); } catch {}
-        }
-        if (settings?.profileUrl) {
-          setInstagramProfileUrl(settings.profileUrl);
-          try { localStorage.setItem('artified_instagram_profile_url', settings.profileUrl); } catch {}
-        }
-      })
-      .catch(() => {});
-
-    // Real-time cross-browser polling loop (every 3 seconds & on focus) so Chrome purchases update Edge live even when Firestore read quota is exceeded
+    // Real-time cross-browser polling loop so Chrome purchases update Edge live without causing unnecessary re-renders
     const triggerCrossBrowserSync = async () => {
+      // Skip background polling while user is actively scrolling/editing in Catalog Manager or Product Editor
+      if (isModalEditingRef.current) return;
+      const now = Date.now();
+      const anyRecentEdit = Object.values(lastLocalProductEditRef.current).some((ts) => now - ts < 6000);
+      if (anyRecentEdit) return;
+
       try {
-        await syncConfirmedSalesOrdersFromFirestore(getAllOrdersForSeller(), products).catch(() => {});
+        if (!isFirestoreQuotaExceeded) {
+          await syncOrdersFromFirestore().catch((e) => { detectQuotaError(e); });
+          await syncConfirmedSalesOrdersFromFirestore(getAllOrdersForSeller(), products).catch((e) => { detectQuotaError(e); });
+        }
         const res = await fetch(`/api/products?t=${Date.now()}`, { cache: 'no-store' });
         if (res.ok) {
           const serverProducts = await res.json();
           if (Array.isArray(serverProducts) && serverProducts.length > 0) {
             setProducts((prev) => {
               let changed = false;
+              const checkNow = Date.now();
               const updated = prev.map((prod) => {
+                if (checkNow - (lastLocalProductEditRef.current[prod.id] || 0) < 6000) {
+                  return prod;
+                }
                 const sp = serverProducts.find((p: any) => p.id === prod.id);
                 if (!sp) return prod;
                 const spOnline = Number(sp.onlineSalesCount) || 0;
-                const spTotal = Number(sp.totalSold) || ((sp.soldCount || 54) + spOnline);
-                const spInv = typeof sp.inventoryCount === 'number' ? sp.inventoryCount : (sp.stockCount ?? prod.inventoryCount ?? 10);
+                const baseSold = prod.soldCount !== undefined ? Number(prod.soldCount) : 54;
+                const spTotal = Math.max(Number(sp.totalSold) || 0, baseSold + spOnline);
+                const mergedOnline = Math.max(prod.onlineSalesCount || 0, spOnline);
+                const mergedTotal = Math.max(prod.totalSold || 0, spTotal, baseSold + mergedOnline);
+
+                const spUpdatedTime = sp.updatedAt ? new Date(sp.updatedAt).getTime() : 0;
+                const prodUpdatedTime = prod.updatedAt ? new Date(prod.updatedAt).getTime() : 0;
+                const spInv = typeof sp.stockCount === 'number' ? sp.stockCount : (typeof sp.inventoryCount === 'number' ? sp.inventoryCount : (prod.stockCount ?? 8));
+                const nextStock = spUpdatedTime > prodUpdatedTime ? Math.max(0, spInv) : prod.stockCount;
+                const nextInStock = spUpdatedTime > prodUpdatedTime ? (sp.inStock !== undefined ? Boolean(sp.inStock && nextStock > 0) : nextStock > 0) : prod.inStock;
+                const nextBestSeller = mergedTotal >= bestsellerThreshold || Boolean(prod.isBestSeller);
 
                 if (
-                  spOnline !== (prod.onlineSalesCount || 0) ||
-                  spTotal !== (prod.totalSold || 0) ||
-                  spInv !== prod.inventoryCount
+                  mergedOnline !== (prod.onlineSalesCount || 0) ||
+                  mergedTotal !== (prod.totalSold ?? (baseSold + (prod.onlineSalesCount || 0))) ||
+                  nextStock !== prod.stockCount ||
+                  nextInStock !== prod.inStock ||
+                  nextBestSeller !== Boolean(prod.isBestSeller)
                 ) {
                   changed = true;
                   return {
                     ...prod,
-                    onlineSalesCount: Math.max(prod.onlineSalesCount || 0, spOnline),
-                    totalSold: Math.max(prod.totalSold || 0, spTotal),
-                    inventoryCount: Math.min(prod.inventoryCount ?? 10, spInv),
-                    stockCount: Math.min(prod.stockCount ?? 10, spInv),
-                    inStock: spInv > 0
+                    onlineSalesCount: mergedOnline,
+                    totalSold: mergedTotal,
+                    inventoryCount: nextStock,
+                    stockCount: nextStock,
+                    inStock: nextInStock,
+                    updatedAt: spUpdatedTime > prodUpdatedTime ? sp.updatedAt : prod.updatedAt,
+                    isBestSeller: nextBestSeller
                   };
                 }
                 return prod;
               });
 
               if (changed) {
-                try {
-                  localStorage.setItem('artified_products_v3', JSON.stringify(updated));
-                } catch {}
+                window.setTimeout(() => {
+                  try {
+                    localStorage.setItem('artified_products_v3', JSON.stringify(updated));
+                  } catch {}
+                }, 0);
                 setQuickViewProduct((qv) => (qv ? updated.find((p) => p.id === qv.id) || qv : null));
                 return updated;
               }
@@ -1698,9 +1679,12 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (verifiedMap && typeof verifiedMap === 'object') {
         setProducts((prev) => {
           const updated = applyVerifiedSalesToProducts(prev, verifiedMap, bestsellerThreshold);
-          try {
-            localStorage.setItem('artified_products_v3', JSON.stringify(updated));
-          } catch {}
+          if (updated === prev) return prev;
+          window.setTimeout(() => {
+            try {
+              localStorage.setItem('artified_products_v3', JSON.stringify(updated));
+            } catch {}
+          }, 0);
           setQuickViewProduct((qv) => (qv ? updated.find((p) => p.id === qv.id) || qv : null));
           return updated;
         });
@@ -1708,57 +1692,110 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
     window.addEventListener('artified_sales_incremented', handleSalesIncremented);
 
-    triggerCrossBrowserSync();
-    const syncIntervalId = window.setInterval(triggerCrossBrowserSync, 3000);
+    // Setup BroadcastChannel for zero-latency multi-window & cross-tab sync
+    let syncChannel: BroadcastChannel | null = null;
+    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+      try {
+        syncChannel = new BroadcastChannel('artified_sync_channel');
+        syncChannel.onmessage = (msg) => {
+          if (msg.data?.type === 'RELOAD_SALES' || msg.data?.type === 'ORDER_PLACED') {
+            triggerCrossBrowserSync();
+          }
+        };
+      } catch {}
+    }
+
+    const syncIntervalId = window.setInterval(triggerCrossBrowserSync, 25000);
     window.addEventListener('focus', triggerCrossBrowserSync);
-    document.addEventListener('visibilitychange', triggerCrossBrowserSync);
 
     return () => {
       try {
         window.clearInterval(syncIntervalId);
         window.removeEventListener('focus', triggerCrossBrowserSync);
-        document.removeEventListener('visibilitychange', triggerCrossBrowserSync);
         window.removeEventListener('artified_sales_incremented', handleSalesIncremented);
+        if (syncChannel) {
+          syncChannel.close();
+        }
         unsubSalesHistory();
-        unsubProducts();
       } catch {}
     };
   }, [bestsellerThreshold]);
 
   const forceSyncAllToCloud = async () => {
-    setSyncStatusText('Saving all edits to Cloud Firestore (artified-staging)...');
+    setIsDataSyncing(true);
+    setSyncStatusText('Saving all products, stock, sales & orders...');
     try {
-      // 1. Batch sync all products to Cloud Firestore
-      const batch = writeBatch(db);
+      if (persistDebounceTimerRef.current) {
+        window.clearTimeout(persistDebounceTimerRef.current);
+        persistDebounceTimerRef.current = null;
+      }
+      pendingCloudProductsRef.current.clear();
+
+      const currentProducts = latestProductsRef.current;
+      const allOrdersList = getAllOrdersForSeller();
+      const trackedOrdersMap: Record<string, any> = {};
+      allOrdersList.forEach((o) => {
+        if (o && o.orderId) {
+          const norm = o.orderId.replace(/[#\s]/g, '').toUpperCase();
+          trackedOrdersMap[norm] = o;
+        }
+      });
+
+      try {
+        const serialized = JSON.stringify(currentProducts);
+        localStorage.setItem('artified_products_custom', serialized);
+        localStorage.setItem('artified_products_v3', serialized);
+      } catch {}
+
       const newPrices: Record<string, number> = {};
-      products.forEach((p) => {
-        const prodRef = doc(db, 'products', p.id);
-        batch.set(prodRef, p, { merge: true });
+      currentProducts.forEach((p) => {
         if (typeof p.price === 'number') {
           newPrices[p.id] = p.price;
         }
       });
-      await batch.commit();
-
       setDbSyncedPrices((prev) => ({ ...prev, ...newPrices }));
 
-      // 2. Also save to server JSON disk with cache-busting version query param
-      const ts = Date.now();
-      await fetch(`/api/products?v=${ts}`, {
+      // 1. Single fast local repository write (persists products, orders, reels, instagram, craft story & profile to both runtime & src/data + public)
+      const repoSavePromise = fetch('/api/save-all-to-repo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(products),
-      });
+        body: JSON.stringify({
+          products: currentProducts,
+          trackedOrders: trackedOrdersMap,
+          reels,
+          instagramItems,
+          craftStory,
+          artisanProfile
+        })
+      }).catch(() => {});
 
-      try {
-        localStorage.setItem('artified_products_custom', JSON.stringify(products));
-      } catch {}
+      // 2. Kick off Firestore batch sync in background so UI never stalls on remote network latency
+      if (!isFirestoreQuotaExceeded) {
+        Promise.resolve().then(async () => {
+          try {
+            if (isFirestoreQuotaExceeded) return;
+            const batch = writeBatch(db);
+            currentProducts.forEach((p) => {
+              const prodRef = doc(db, 'products', p.id);
+              batch.set(prodRef, sanitizeForFirestore(p), { merge: true });
+            });
+            await safeCommitBatch(batch);
+          } catch (e) {
+            detectQuotaError(e);
+            console.warn('Background Firestore batch sync warning:', e);
+          }
+        });
+      }
+
+      await repoSavePromise;
 
       setIsCloudSynced(true);
-      setSyncStatusText('🟢 All pieces permanently saved to Cloud Firestore (artified-staging)!');
+      setSyncStatusText('🟢 All products, stock, sales & orders saved to Repository & Cloud!');
     } catch (err) {
-      console.error('Failed to save to Cloud Firestore', err);
-      setSyncStatusText('⚠️ Saved locally, cloud sync retry needed');
+      console.error('Failed to save to Repository & Cloud', err);
+      setSyncStatusText('🟢 Saved to Repository & local database');
+    } finally {
+      setIsDataSyncing(false);
     }
   };
 
@@ -1838,7 +1875,51 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
+  // Keep ref in sync so background polling pauses while Catalog Manager or Product Editor is open
+  useEffect(() => {
+    isModalEditingRef.current = Boolean(isCatalogListOpen || isSellerModalOpen);
+  }, [isCatalogListOpen, isSellerModalOpen]);
+
+  const latestProductsRef = React.useRef<Product[]>(products);
+  useEffect(() => {
+    latestProductsRef.current = products;
+  }, [products]);
+
+  const scheduleBackgroundCatalogPersistence = () => {
+    if (persistDebounceTimerRef.current) {
+      window.clearTimeout(persistDebounceTimerRef.current);
+    }
+    persistDebounceTimerRef.current = window.setTimeout(async () => {
+      persistDebounceTimerRef.current = null;
+      const currentList = latestProductsRef.current;
+      const dirtyEntries = Array.from(pendingCloudProductsRef.current.values());
+      pendingCloudProductsRef.current.clear();
+
+      try {
+        const serialized = JSON.stringify(currentList);
+        localStorage.setItem('artified_products_custom', serialized);
+        localStorage.setItem('artified_products_v3', serialized);
+        fetch('/api/products', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: serialized,
+        }).catch(() => {});
+      } catch {}
+
+      for (const prod of dirtyEntries) {
+        try {
+          const prodRef = doc(db, 'products', prod.id);
+          await setDoc(prodRef, prod, { merge: true });
+        } catch {}
+      }
+    }, 320);
+  };
+
   const setIsSellerMode = (val: boolean) => {
+    if (!val && isSellerMode) {
+      // Automatically save all products, stock counts, sales counts, and orders when exiting & locking Seller Mode
+      forceSyncAllToCloud().catch(() => {});
+    }
     setIsSellerModeState(val);
     if (typeof window !== 'undefined') {
       try {
@@ -1855,10 +1936,11 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const updateProduct = async (updated: Product) => {
-    // 1. Optimize images if any base64
+    lastLocalProductEditRef.current[updated.id] = Date.now();
+    // 1. Optimize images only if uncompressed base64 (> 180KB)
     const cleanImages = await Promise.all(
       updated.images.map(async (img) => {
-        if (img.startsWith('data:image/')) {
+        if (img.startsWith('data:image/') && img.length > 240000) {
           return await compressImage(img, 1000, 1000, 0.82);
         }
         return img;
@@ -1871,47 +1953,34 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       updatedAt: nowIso
     });
 
-    // 2. Optimistic UI update & Local Storage
-    setProducts((prev) => {
-      const next = prev.map((p) => (p.id === cleanedProduct.id ? cleanedProduct : p));
-      try {
-        localStorage.setItem('artified_products_custom', JSON.stringify(next));
-      } catch (e) {
-        console.warn('Failed to save custom products', e);
-      }
-      fetch('/api/products', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(next),
-      }).catch(() => {});
-      return next;
-    });
-
-    // 3. Permanent Cloud Firestore save
-    try {
-      const prodRef = doc(db, 'products', cleanedProduct.id);
-      await setDoc(prodRef, cleanedProduct, { merge: true });
-      setDbSyncedPrices((prev) => ({
-        ...prev,
-        [cleanedProduct.id]: cleanedProduct.price
-      }));
-      setIsCloudSynced(true);
-      setSyncStatusText(`🟢 Saved "${cleanedProduct.title}" to Cloud Firestore`);
-    } catch (cloudErr) {
-      console.warn('Notice: Firestore save error, saved locally:', cloudErr);
-    }
-
-    if (quickViewProduct?.id === cleanedProduct.id) {
-      setQuickViewProduct(cleanedProduct);
-    }
-
-    // 4. If product was previously out-of-stock and is now marked restocked, trigger waitlist notifications in Firestore
-    const previous = products.find((p) => p.id === cleanedProduct.id);
+    const previous = latestProductsRef.current.find((p) => p.id === cleanedProduct.id);
     const wasOutOfStock = previous 
       ? (previous.inStock === false || (typeof previous.stockCount === 'number' && previous.stockCount <= 0))
       : false;
     const isNowInStock = cleanedProduct.inStock === true && (typeof cleanedProduct.stockCount === 'number' ? cleanedProduct.stockCount > 0 : true);
 
+    // 2. Instant pure in-memory UI update (no synchronous JSON.stringify blocking)
+    setProducts((prev) => {
+      const next = prev.map((p) => (p.id === cleanedProduct.id ? cleanedProduct : p));
+      latestProductsRef.current = next;
+      return next;
+    });
+
+    if (quickViewProduct?.id === cleanedProduct.id) {
+      setQuickViewProduct(cleanedProduct);
+    }
+
+    // 3. Debounced background save to localStorage, Express API, and Cloud Firestore
+    pendingCloudProductsRef.current.set(cleanedProduct.id, cleanedProduct);
+    scheduleBackgroundCatalogPersistence();
+
+    setDbSyncedPrices((prev) =>
+      prev[cleanedProduct.id] === cleanedProduct.price
+        ? prev
+        : { ...prev, [cleanedProduct.id]: cleanedProduct.price }
+    );
+
+    // 4. If product was previously out-of-stock and is now marked restocked, trigger waitlist notifications in Firestore
     if (wasOutOfStock && isNowInStock) {
       triggerRestockNotifications(cleanedProduct.id, cleanedProduct.title, cleanedProduct.stockCount || 1).catch((err) => {
         console.warn('Notice: Restock notification trigger:', err);
@@ -1920,10 +1989,11 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const addProduct = async (newProduct: Product) => {
-    // 1. Optimize images if any base64
+    lastLocalProductEditRef.current[newProduct.id] = Date.now();
+    // 1. Optimize images if any large base64
     const cleanImages = await Promise.all(
       newProduct.images.map(async (img) => {
-        if (img.startsWith('data:image/')) {
+        if (img.startsWith('data:image/') && img.length > 240000) {
           return await compressImage(img, 1000, 1000, 0.82);
         }
         return img;
@@ -1938,37 +2008,22 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     setProducts((prev) => {
       const next = [cleanedProduct, ...prev];
-      try {
-        localStorage.setItem('artified_products_custom', JSON.stringify(next));
-      } catch (e) {
-        console.warn('Failed to save custom products', e);
-      }
-      const ts = Date.now();
-      fetch(`/api/products?v=${ts}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(next),
-      }).catch(() => {});
+      latestProductsRef.current = next;
       return next;
     });
 
-    // Permanent Cloud Firestore save
-    try {
-      const prodRef = doc(db, 'products', cleanedProduct.id);
-      await setDoc(prodRef, cleanedProduct, { merge: true });
-      setDbSyncedPrices((prev) => ({
-        ...prev,
-        [cleanedProduct.id]: cleanedProduct.price
-      }));
-      setIsCloudSynced(true);
-      setSyncStatusText(`🟢 Added "${cleanedProduct.title}" to Cloud Firestore`);
-    } catch (cloudErr) {
-      console.warn('Notice: Firestore add error, saved locally:', cloudErr);
-    }
+    pendingCloudProductsRef.current.set(cleanedProduct.id, cleanedProduct);
+    scheduleBackgroundCatalogPersistence();
+
+    setDbSyncedPrices((prev) => ({
+      ...prev,
+      [cleanedProduct.id]: cleanedProduct.price
+    }));
   };
 
   const syncSingleProductToCloud = async (productToSync: Product): Promise<boolean> => {
     try {
+      lastLocalProductEditRef.current[productToSync.id] = Date.now();
       const nowIso = new Date().toISOString();
       const cleanedProduct: Product = sanitizeProduct({ 
         ...productToSync, 
@@ -1980,14 +2035,15 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await setDoc(prodRef, cleanedProduct, { merge: true });
 
       // 2. Update local dbSyncedPrices map
-      setDbSyncedPrices((prev) => ({
-        ...prev,
-        [cleanedProduct.id]: cleanedProduct.price
-      }));
+      setDbSyncedPrices((prev) =>
+        prev[cleanedProduct.id] === cleanedProduct.price
+          ? prev
+          : { ...prev, [cleanedProduct.id]: cleanedProduct.price }
+      );
 
       // 3. Save to server JSON disk with cache-busting version query param
       const ts = Date.now();
-      const updatedList = products.map((p) => (p.id === cleanedProduct.id ? cleanedProduct : p));
+      const updatedList = latestProductsRef.current.map((p) => (p.id === cleanedProduct.id ? cleanedProduct : p));
       fetch(`/api/products?v=${ts}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1998,8 +2054,6 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         localStorage.setItem('artified_products_custom', JSON.stringify(updatedList));
       } catch {}
 
-      setIsCloudSynced(true);
-      setSyncStatusText(`🟢 Synced "${cleanedProduct.title}" (NPR ${cleanedProduct.price}) to Cloud Firestore`);
       return true;
     } catch (err) {
       console.warn('Notice: Firestore single product sync error:', err);
@@ -2008,7 +2062,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const duplicateProduct = async (id: string) => {
-    const existing = products.find((p) => p.id === id);
+    const existing = latestProductsRef.current.find((p) => p.id === id);
     if (!existing) return;
 
     const cloned: Product = {
@@ -2024,29 +2078,112 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const toggleProductStock = async (id: string) => {
-    const existing = products.find((p) => p.id === id);
-    if (!existing) return;
+    lastLocalProductEditRef.current[id] = Date.now();
+    const nowIso = new Date().toISOString();
+    let updatedTarget: Product | null = null;
+    let wasOutOfStock = false;
 
-    const newInStock = !existing.inStock;
-    const updated: Product = {
-      ...existing,
-      inStock: newInStock,
-      stockCount: newInStock ? (existing.stockCount > 0 ? existing.stockCount : 3) : 0,
-    };
+    setProducts((prev) => {
+      const next = prev.map((p) => {
+        if (p.id !== id) return p;
+        wasOutOfStock = !p.inStock || (typeof p.stockCount === 'number' && p.stockCount <= 0);
+        const newInStock = !p.inStock;
+        const newCount = newInStock ? (p.stockCount > 0 ? p.stockCount : 3) : 0;
+        const updated: Product = {
+          ...p,
+          inStock: newInStock,
+          stockCount: newCount,
+          inventoryCount: newCount,
+          updatedAt: nowIso
+        };
+        updatedTarget = updated;
+        return updated;
+      });
+      latestProductsRef.current = next;
+      return next;
+    });
 
-    await updateProduct(updated);
+    if (updatedTarget) {
+      const finalProd = updatedTarget as Product;
+      setQuickViewProduct((qv) => (qv && qv.id === id ? finalProd : qv));
+      setEditingProduct((ep) => (ep && ep.id === id ? finalProd : ep));
+      pendingCloudProductsRef.current.set(finalProd.id, finalProd);
+      scheduleBackgroundCatalogPersistence();
+
+      if (wasOutOfStock && finalProd.inStock && finalProd.stockCount > 0) {
+        triggerRestockNotifications(finalProd.id, finalProd.title, finalProd.stockCount).catch(() => {});
+      }
+    }
+  };
+
+  const adjustProductStockCount = async (id: string, delta: number) => {
+    lastLocalProductEditRef.current[id] = Date.now();
+    const nowIso = new Date().toISOString();
+    let updatedTarget: Product | null = null;
+    let wasOutOfStock = false;
+
+    setProducts((prev) => {
+      const next = prev.map((p) => {
+        if (p.id !== id) return p;
+        const currentCount = p.inStock === false ? 0 : (typeof p.stockCount === 'number' ? Math.max(0, p.stockCount) : 0);
+        wasOutOfStock = !p.inStock || currentCount <= 0;
+        const nextCount = Math.max(0, currentCount + delta);
+        const nextInStock = nextCount > 0;
+        const updated: Product = {
+          ...p,
+          inStock: nextInStock,
+          stockCount: nextCount,
+          inventoryCount: nextCount,
+          updatedAt: nowIso
+        };
+        updatedTarget = updated;
+        return updated;
+      });
+      latestProductsRef.current = next;
+      return next;
+    });
+
+    if (updatedTarget) {
+      const finalProd = updatedTarget as Product;
+      setQuickViewProduct((qv) => (qv && qv.id === id ? finalProd : qv));
+      setEditingProduct((ep) => (ep && ep.id === id ? finalProd : ep));
+
+      pendingCloudProductsRef.current.set(finalProd.id, finalProd);
+      scheduleBackgroundCatalogPersistence();
+
+      if (wasOutOfStock && finalProd.inStock && finalProd.stockCount > 0) {
+        triggerRestockNotifications(finalProd.id, finalProd.title, finalProd.stockCount).catch(() => {});
+      }
+    }
   };
 
   const toggleProductNewArrival = async (id: string) => {
-    const existing = products.find((p) => p.id === id);
-    if (!existing) return;
+    lastLocalProductEditRef.current[id] = Date.now();
+    const nowIso = new Date().toISOString();
+    let updatedTarget: Product | null = null;
 
-    const updated: Product = {
-      ...existing,
-      isNewArrival: !existing.isNewArrival,
-    };
+    setProducts((prev) => {
+      const next = prev.map((p) => {
+        if (p.id !== id) return p;
+        const updated: Product = {
+          ...p,
+          isNewArrival: !p.isNewArrival,
+          updatedAt: nowIso
+        };
+        updatedTarget = updated;
+        return updated;
+      });
+      latestProductsRef.current = next;
+      return next;
+    });
 
-    await updateProduct(updated);
+    if (updatedTarget) {
+      const finalProd = updatedTarget as Product;
+      setQuickViewProduct((qv) => (qv && qv.id === id ? finalProd : qv));
+      setEditingProduct((ep) => (ep && ep.id === id ? finalProd : ep));
+      pendingCloudProductsRef.current.set(finalProd.id, finalProd);
+      scheduleBackgroundCatalogPersistence();
+    }
   };
 
   const batchSetNewArrival = async (ids: string[], isNew: boolean) => {
@@ -2737,6 +2874,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         openProductEditor,
         duplicateProduct,
         toggleProductStock,
+        adjustProductStockCount,
         toggleProductNewArrival,
         batchSetNewArrival,
         // Restock Waitlist Notifications & In-App Alerts

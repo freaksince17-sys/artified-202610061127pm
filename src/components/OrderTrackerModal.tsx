@@ -24,7 +24,8 @@ import {
   normalizeOrderId, 
   sanitizeOrderItems,
   getOrderDeliveryFee,
-  getOrderItemsSubtotal
+  getOrderItemsSubtotal,
+  getOrderManufactureDeliveryBreakdown
 } from '../data/trackingData';
 import { TrackedOrderData, OrderProductionPhase } from '../types';
 import { getStoredOrderNotifications, markNotificationsAsRead, OrderNotification } from '../utils/orderNotificationManager';
@@ -413,16 +414,25 @@ export const OrderTrackerModal: React.FC = () => {
 
                   <div className="sm:text-right">
                     <span className="text-[10px] uppercase tracking-[0.2em] font-bold text-[#8C7A6B]">
-                      Estimated Arrival
+                      Estimated Arrival (Incl. Manufacture)
                     </span>
-                    <p className="text-xs sm:text-sm font-semibold text-[#1C1B1A]">
+                    <p className="text-xs sm:text-sm font-bold text-[#C5A880]">
                       {trackedOrder.estimatedDeliveryDate}
                     </p>
+                    {(() => {
+                      const bd = getOrderManufactureDeliveryBreakdown(trackedOrder.items, trackedOrder.deliveryZoneName, trackedOrder.deliveryAddress);
+                      return (
+                        <p className="text-[10px] text-[#5E5955] font-medium mt-0.5">
+                          🛠 {bd.manufactureDaysText} manufacture ({bd.categoryLabel}) + 🚚 {bd.deliveryDaysText} delivery
+                        </p>
+                      );
+                    })()}
                   </div>
                 </div>
 
                 {/* Progress Bar with Phase Header (4 exact stages) */}
                 {(() => {
+                  const bd = getOrderManufactureDeliveryBreakdown(trackedOrder.items, trackedOrder.deliveryZoneName, trackedOrder.deliveryAddress);
                   const modalPhases: Array<{
                     key: OrderProductionPhase;
                     label: string;
@@ -430,8 +440,8 @@ export const OrderTrackerModal: React.FC = () => {
                     icon: React.ComponentType<{ className?: string }>;
                   }> = [
                     { key: 'confirmed', label: '1. Order Confirmed & Paid', sublabel: 'Materials reserved', icon: Package },
-                    { key: 'handcrafting_and_packaging', label: '2. Handcrafting & Packaging', sublabel: 'By Sahina Shrestha', icon: Sparkles },
-                    { key: 'out_for_delivery', label: '3. Dispatch & In-Transit', sublabel: 'Courier handover', icon: Truck },
+                    { key: 'handcrafting_and_packaging', label: '2. Handcrafting & Packaging', sublabel: `${bd.manufactureDaysText} manufacture`, icon: Sparkles },
+                    { key: 'out_for_delivery', label: '3. Dispatch & In-Transit', sublabel: `${bd.deliveryDaysText} transit`, icon: Truck },
                     { key: 'delivered', label: '4. Delivered', sublabel: 'Doorstep handover', icon: CheckCircle2 }
                   ];
                   const modalIdx =

@@ -692,9 +692,6 @@ export const ProductDetailModal: React.FC = () => {
                       ★ Bestseller
                     </span>
                   )}
-                  <span className="text-[10px] font-mono font-bold bg-[#1C1B1A] text-[#D4AF37] px-2 py-0.5 rounded border border-[#C5A880]/40">
-                    SKU: {product.sku || `ART-${product.category.slice(0, 3).toUpperCase()}-${product.id.slice(-4).toUpperCase()}`}
-                  </span>
                 </div>
 
                 <h2 className="font-serif text-2xl sm:text-3xl text-[#1C1B1A] font-semibold leading-tight">

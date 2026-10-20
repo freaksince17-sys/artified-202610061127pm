@@ -74,30 +74,12 @@ export function isLowInventory(
 }
 
 /**
- * Calculates review count dynamically fluctuating strictly between 30% and 50% of products sold.
- * Uses a deterministic hash based on product id so the percentage is stable and doesn't flicker.
+ * Calculates the exact number of customer reviews for a product so the displayed count
+ * always matches the actual reviews inside the product (e.g. 1 to 4 reviews).
  */
 export function calculateReviewsCount(product: Product): number {
-  const totalSold = calculateTotalSold(product);
-  if (totalSold <= 0) return 0;
-
-  // If seller explicitly saved a custom reviewsCount in Seller Studio within 30-50%, respect it
-  const minReviews = Math.max(1, Math.round(totalSold * 0.30));
-  const maxReviews = Math.max(1, Math.round(totalSold * 0.50));
-
-  if (product.reviewsCount !== undefined && product.reviewsCount > 0) {
-    if (product.reviewsCount >= minReviews && product.reviewsCount <= maxReviews) {
-      return product.reviewsCount;
-    }
-  }
-
-  // Deterministic fluctuation strictly between 30% and 50%
-  let hash = 0;
-  for (let i = 0; i < product.id.length; i++) {
-    hash = (hash * 31 + product.id.charCodeAt(i)) & 0xffffffff;
-  }
-  const percentage = 30 + (Math.abs(hash) % 21); // strictly 30% to 50%
-  return Math.max(1, Math.round(totalSold * (percentage / 100)));
+  if (!product) return 0;
+  return getProductReviews(product).length;
 }
 
 /**
@@ -867,11 +849,58 @@ export function sanitizeReviewItem<T extends { location?: string; comment?: stri
   };
 }
 
+interface CachedProductReviewsEntry {
+  customRef: ProductReviewItem[] | undefined;
+  customLen: number;
+  revVersion: number;
+  reviews: ProductReviewItem[];
+  avgRating: number;
+}
+
+let reviewsCacheVersion = 1;
+let cachedStoredReviewsDict: Record<string, ProductReviewItem[]> | null = null;
+let cachedStoredReviewsRaw: string | null = null;
+const productReviewsMemo = new Map<string, CachedProductReviewsEntry>();
+
+export function invalidateReviewsCache(): void {
+  reviewsCacheVersion++;
+  cachedStoredReviewsDict = null;
+  cachedStoredReviewsRaw = null;
+  productReviewsMemo.clear();
+}
+
+function getStoredReviewsDict(): Record<string, ProductReviewItem[]> {
+  try {
+    if (typeof localStorage === 'undefined') return {};
+    const raw = localStorage.getItem('artified_custom_reviews_v1');
+    if (raw === cachedStoredReviewsRaw && cachedStoredReviewsDict) {
+      return cachedStoredReviewsDict;
+    }
+    cachedStoredReviewsRaw = raw;
+    cachedStoredReviewsDict = raw ? JSON.parse(raw) : {};
+    return cachedStoredReviewsDict || {};
+  } catch {
+    return {};
+  }
+}
+
 /**
  * Calculates the exact average rating of a product from its reviews, strictly matching inside reviews and ranging between 4.5 and 5.0.
  */
 export function getProductAverageRating(product: Product): number {
+  if (!product) return 4.8;
+  const cached = productReviewsMemo.get(product.id);
+  if (
+    cached &&
+    cached.revVersion === reviewsCacheVersion &&
+    cached.customRef === product.customReviews &&
+    cached.customLen === (product.customReviews?.length || 0)
+  ) {
+    return cached.avgRating;
+  }
   const reviews = getProductReviews(product);
+  const afterEntry = productReviewsMemo.get(product.id);
+  if (afterEntry) return afterEntry.avgRating;
   if (reviews.length === 0) {
     return Number(product.rating || 4.8);
   }
@@ -885,6 +914,18 @@ export function getProductAverageRating(product: Product): number {
  * Guaranteed that customer names are never repeated across any product.
  */
 export function getProductReviews(product: Product): ProductReviewItem[] {
+  if (!product || !product.id) return [];
+
+  const cached = productReviewsMemo.get(product.id);
+  if (
+    cached &&
+    cached.revVersion === reviewsCacheVersion &&
+    cached.customRef === product.customReviews &&
+    cached.customLen === (product.customReviews?.length || 0)
+  ) {
+    return cached.reviews;
+  }
+
   const curated = PRODUCT_REVIEWS_MAP[product.id] || [];
   let baseReviews = curated;
 
@@ -928,37 +969,17 @@ export function getProductReviews(product: Product): ProductReviewItem[] {
 
   let custom = [...(product.customReviews || [])];
 
-  // Also load from persistent browser storage so reviews stick permanently across reloads
+  // Also load from cached persistent browser storage so reviews stick permanently across reloads
   try {
-    const rawStored = typeof localStorage !== 'undefined' ? localStorage.getItem('artified_custom_reviews_v1') : null;
-    if (rawStored) {
-      const parsed = JSON.parse(rawStored);
-      const prodStored = parsed[product.id];
-      if (Array.isArray(prodStored) && prodStored.length > 0) {
-        const idMap = new Map<string, ProductReviewItem>();
-        prodStored.forEach((r: ProductReviewItem) => idMap.set(r.id, r));
-        custom.forEach((r: ProductReviewItem) => {
-          if (!idMap.has(r.id)) idMap.set(r.id, r);
-        });
-        custom = Array.from(idMap.values());
-      }
-    }
-
-    const rawProdKey = typeof localStorage !== 'undefined' ? localStorage.getItem(`artified_reviews_${product.id}`) : null;
-    if (rawProdKey) {
-      const parsed = JSON.parse(rawProdKey);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        const idMap = new Map<string, ProductReviewItem>();
-        parsed.forEach((r: ProductReviewItem) => {
-          if (r && r.id && !r.id.includes('-rev-custom-') && !r.id.includes('apsara-layered') && !r.id.includes('chandra-baroque')) {
-            idMap.set(r.id, r);
-          }
-        });
-        custom.forEach((r: ProductReviewItem) => {
-          if (!idMap.has(r.id)) idMap.set(r.id, r);
-        });
-        custom = Array.from(idMap.values());
-      }
+    const parsedDict = getStoredReviewsDict();
+    const prodStored = parsedDict[product.id];
+    if (Array.isArray(prodStored) && prodStored.length > 0) {
+      const idMap = new Map<string, ProductReviewItem>();
+      prodStored.forEach((r: ProductReviewItem) => idMap.set(r.id, r));
+      custom.forEach((r: ProductReviewItem) => {
+        if (!idMap.has(r.id)) idMap.set(r.id, r);
+      });
+      custom = Array.from(idMap.values());
     }
   } catch {}
 
@@ -989,7 +1010,7 @@ export function getProductReviews(product: Product): ProductReviewItem[] {
     }
   }
 
-  // Deduplicate by ID and author+comment signature to prevent duplicates (e.g. Shyna comment recorded twice)
+  // Deduplicate by ID and author+comment signature to prevent duplicates
   const uniqueCombined: ProductReviewItem[] = [];
   const seenIds = new Set<string>();
   const seenSignatures = new Set<string>();
@@ -1005,5 +1026,20 @@ export function getProductReviews(product: Product): ProductReviewItem[] {
     }
   }
 
-  return uniqueCombined.map(sanitizeReviewItem);
+  const finalReviews = uniqueCombined.map(sanitizeReviewItem);
+  let avgRating = Number(product.rating || 4.8);
+  if (finalReviews.length > 0) {
+    const sum = finalReviews.reduce((acc, r) => acc + (Number(r.rating) || 4.7), 0);
+    avgRating = Math.max(4.5, Math.min(5.0, Math.round((sum / finalReviews.length) * 10) / 10));
+  }
+
+  productReviewsMemo.set(product.id, {
+    customRef: product.customReviews,
+    customLen: product.customReviews?.length || 0,
+    revVersion: reviewsCacheVersion,
+    reviews: finalReviews,
+    avgRating
+  });
+
+  return finalReviews;
 }

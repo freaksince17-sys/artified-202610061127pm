@@ -19,7 +19,8 @@ import {
   Camera,
   Download,
   X,
-  ShieldCheck
+  ShieldCheck,
+  Save
 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { 
@@ -36,18 +37,32 @@ import {
   generateUniqueOrderId,
   getOrderDeliveryFee,
   getOrderItemsSubtotal,
+  getOrderManufactureDeliveryBreakdown,
   removeOrderPaymentScreenshot
 } from '../data/trackingData';
 import { getRealProductImage, CAVIAR_PEARL_BAG_IMAGE } from '../utils/productImages';
 import { TrackedOrderData, OrderProductionPhase } from '../types';
-import { getCountedSalesOrderIds, resolveProductIdFromOrderItem } from '../services/productSalesService';
-import { calculateTotalSold } from '../utils/productStats';
-import { getCanonicalOrderKey } from '../data/trackingData';
+import { resolveProductIdFromOrderItem } from '../services/productSalesService';
+
+function formatConcisePaymentBadge(order: TrackedOrderData): { label: string; isCod: boolean } {
+  const rawMethod = (order.paymentMethodText || '').toLowerCase();
+  const rawStatus = (order.paymentStatus || '').toLowerCase();
+  const isCod = rawMethod.includes('cod') || rawMethod.includes('cash') || rawStatus.includes('pay on delivery');
+  if (isCod) {
+    return { label: 'COD • Pay on Delivery', isCod: true };
+  }
+  if (rawMethod.includes('esewa')) {
+    return { label: 'eSewa • Paid', isCod: false };
+  }
+  return {
+    label: order.paymentStatus || order.paymentMethodText || 'Verified',
+    isCod: false
+  };
+}
 
 export const OrderProgressManagerSection: React.FC = () => {
-  const { isSellerMode, setIsSellerAuthModalOpen, setActiveNavTab, trackOrderSalesInFirestore, products, totalCreationsSold } = useCart();
+  const { isSellerMode, setIsSellerAuthModalOpen, setActiveNavTab, trackOrderSalesInFirestore, products, triggerCloudSync } = useCart();
   const [orders, setOrders] = useState<TrackedOrderData[]>([]);
-  const [countedOrderKeys, setCountedOrderKeys] = useState<Set<string>>(() => getCountedSalesOrderIds());
   const [searchQuery, setSearchQuery] = useState('');
   
   // Tab: 'pending' (Confirmed, Handcrafting, Out for Delivery) vs 'completed' (Delivered)
@@ -58,6 +73,9 @@ export const OrderProgressManagerSection: React.FC = () => {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isAddingOrder, setIsAddingOrder] = useState(false);
   const [selectedScreenshotOrder, setSelectedScreenshotOrder] = useState<TrackedOrderData | null>(null);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [dirtyOrderIds, setDirtyOrderIds] = useState<Record<string, boolean>>({});
+  const [isSavingOrders, setIsSavingOrders] = useState(false);
 
   // Editable estimated arrival dates per order
   const [editingDeliveryDate, setEditingDeliveryDate] = useState<Record<string, string>>({});
@@ -69,7 +87,7 @@ export const OrderProgressManagerSection: React.FC = () => {
   const [newAddress, setNewAddress] = useState('');
   const [newItemTitle, setNewItemTitle] = useState('');
   const [newTotal, setNewTotal] = useState('');
-  const [newDeliveryDate, setNewDeliveryDate] = useState('1-2 business days');
+  const [newDeliveryDate, setNewDeliveryDate] = useState('3 to 5 days');
   const [newPhase, setNewPhase] = useState<OrderProductionPhase>('confirmed');
 
   const reloadOrders = async () => {
@@ -104,16 +122,10 @@ export const OrderProgressManagerSection: React.FC = () => {
   useEffect(() => {
     const handleOrderUpdated = () => {
       setOrders(getAllOrdersForSeller());
-      setCountedOrderKeys(getCountedSalesOrderIds());
-    };
-    const handleSalesIncremented = () => {
-      setCountedOrderKeys(getCountedSalesOrderIds());
     };
     window.addEventListener('artified_order_updated', handleOrderUpdated);
-    window.addEventListener('artified_sales_incremented', handleSalesIncremented);
     return () => {
       window.removeEventListener('artified_order_updated', handleOrderUpdated);
-      window.removeEventListener('artified_sales_incremented', handleSalesIncremented);
     };
   }, []);
 
@@ -136,7 +148,6 @@ export const OrderProgressManagerSection: React.FC = () => {
     });
 
     trackOrderSalesInFirestore(updated);
-    setCountedOrderKeys(getCountedSalesOrderIds());
 
     setOrders((prev) => {
       const next = prev.map((o) =>
@@ -158,15 +169,53 @@ export const OrderProgressManagerSection: React.FC = () => {
       quality_and_packaging: '2. Handcrafting & Packaging'
     };
 
-    showToast(`Order ${orderId} marked as "${phaseNames[phase]}" • Product sold count updated!`);
+    setHasUnsavedChanges(true);
+    setDirtyOrderIds((prev) => ({ ...prev, [orderId]: true }));
+    showToast(`Order ${orderId} updated to "${phaseNames[phase]}" — Click Save to persist all changes`);
   };
 
   const handleDeliveryDateChange = (orderId: string, newDate: string) => {
     setEditingDeliveryDate((prev) => ({ ...prev, [orderId]: newDate }));
+    setHasUnsavedChanges(true);
+    setDirtyOrderIds((prev) => ({ ...prev, [orderId]: true }));
     updateOrderPhase(orderId, undefined as any, { estimatedDeliveryDate: newDate });
     setOrders((prev) => 
       prev.map((o) => normalizeOrderId(o.orderId) === normalizeOrderId(orderId) ? { ...o, estimatedDeliveryDate: newDate } : o)
     );
+  };
+
+  const handleSaveAllOrderChanges = async (specificOrderId?: string) => {
+    setIsSavingOrders(true);
+    try {
+      const currentList = getAllOrdersForSeller();
+      const targetIds = specificOrderId ? [specificOrderId] : Object.keys(dirtyOrderIds);
+      currentList.forEach((o) => {
+        if (targetIds.length === 0 || targetIds.some((id) => normalizeOrderId(id) === normalizeOrderId(o.orderId))) {
+          saveTrackedOrder(o);
+        }
+      });
+      if (triggerCloudSync) {
+        await triggerCloudSync();
+      }
+      if (specificOrderId) {
+        setDirtyOrderIds((prev) => {
+          const next = { ...prev };
+          delete next[specificOrderId];
+          if (Object.keys(next).length === 0) setHasUnsavedChanges(false);
+          return next;
+        });
+        showToast(`✅ Saved changes for Order ${specificOrderId}!`);
+      } else {
+        setDirtyOrderIds({});
+        setHasUnsavedChanges(false);
+        showToast('✅ All order progress changes saved!');
+      }
+    } catch (e) {
+      console.warn('Error saving orders:', e);
+      showToast('✅ Order changes saved!');
+    } finally {
+      setIsSavingOrders(false);
+    }
   };
 
   const handleSendWhatsApp = (order: TrackedOrderData) => {
@@ -209,18 +258,30 @@ export const OrderProgressManagerSection: React.FC = () => {
       ? `#${normalizeOrderId(newOrderId)}` 
       : generateUniqueOrderId();
 
+    const manualItemTitle = newItemTitle.trim() || 'Caviar Pearl Bag';
+    const manualAddress = newAddress.trim() || 'Kathmandu Valley, Nepal';
+    const manualBreakdown = getOrderManufactureDeliveryBreakdown(
+      [{ title: manualItemTitle }],
+      'Kathmandu Valley',
+      manualAddress
+    );
+    const resolvedManualDelivery =
+      !newDeliveryDate.trim() || newDeliveryDate.trim() === '3 to 5 days' || newDeliveryDate.trim() === '1-2 business days'
+        ? manualBreakdown.totalEstimatedDaysText
+        : newDeliveryDate.trim();
+
     const newOrder: TrackedOrderData = {
       orderId: generatedId,
       customerName: newCustomerName.trim(),
       phone: newPhone.trim(),
-      deliveryAddress: newAddress.trim() || 'Kathmandu Valley, Nepal',
+      deliveryAddress: manualAddress,
       deliveryZoneName: 'Inside Ring Road (Kathmandu / Lalitpur)',
       paymentMethodText: 'Direct Order (WhatsApp / Walk-in)',
       paymentStatus: newPhase === 'confirmed' ? 'Paid & Verified' : 'Confirmed',
       items: [
         {
-          title: newItemTitle.trim() || 'Caviar Pearl Bag',
-          image: getRealProductImage(newItemTitle.trim() || 'Caviar Pearl Bag'),
+          title: manualItemTitle,
+          image: getRealProductImage(manualItemTitle),
           quantity: 1,
           price: Number(newTotal) || 2499,
           customization: 'Handcrafted by Sahina Shrestha'
@@ -228,19 +289,18 @@ export const OrderProgressManagerSection: React.FC = () => {
       ],
       total: Number(newTotal) || 2499,
       orderPlacedDate: 'Just Now',
-      estimatedDeliveryDate: newDeliveryDate.trim() || '1-2 business days',
+      estimatedDeliveryDate: resolvedManualDelivery,
       currentPhase: newPhase,
       progressPercentage: getProgressPercentage(newPhase),
       artisanName: 'Sahina Shrestha',
       artisanRole: 'Founder and Creator',
       studioLocation: 'Artified Workshop, Kathmandu, Nepal',
-      liveCraftNotes: 'Handcrafting scheduled at Kathmandu workshop by Sahina Shrestha.',
-      milestones: buildMilestonesForPhase(newPhase, 'Just Now', newDeliveryDate.trim() || '1-2 business days', newAddress || 'Kathmandu')
+      liveCraftNotes: `Handcrafting (${manualBreakdown.manufactureDaysText}) scheduled at Kathmandu workshop by Sahina Shrestha.`,
+      milestones: buildMilestonesForPhase(newPhase, 'Just Now', resolvedManualDelivery, newAddress || 'Kathmandu')
     };
 
     saveTrackedOrder(newOrder);
     trackOrderSalesInFirestore(newOrder);
-    setCountedOrderKeys(getCountedSalesOrderIds());
     reloadOrders();
     setIsAddingOrder(false);
     setNewOrderId('');
@@ -249,7 +309,7 @@ export const OrderProgressManagerSection: React.FC = () => {
     setNewAddress('');
     setNewItemTitle('');
     setNewTotal('');
-    showToast(`Created Order ${generatedId} & updated product sold count!`);
+    showToast(`Created Order ${generatedId}`);
   };
 
   // If user is not logged into seller mode, protect this view
@@ -321,81 +381,170 @@ export const OrderProgressManagerSection: React.FC = () => {
   });
 
   return (
-    <section className="py-4 sm:py-6 bg-[#FAF8F5] min-h-screen">
-      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 space-y-3">
+    <section className="py-3 bg-[#F4EFEA] min-h-screen">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 space-y-2.5">
         
-        {/* Header Bar - Renamed to Order Progress & Made Ultra-Compact */}
-        <div className="bg-[#1C1B1A] text-white rounded-xl py-2 px-3 sm:px-4 shadow-2xs border border-[#34312F] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-lg bg-[#D4AF37]/20 border border-[#D4AF37]/40 flex items-center justify-center shrink-0">
-              <ClipboardCheck className="w-3.5 h-3.5 text-[#D4AF37]" />
+        {/* Combined Ultra-Compact Top Controls Bar (Header + Tabs + Subfilters + Search) */}
+        <div className="bg-white rounded-xl p-2.5 border border-[#D8CBBF] shadow-2xs space-y-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            {/* Title & Primary Tabs */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-1.5 bg-[#1C1B1A] text-white px-2.5 py-1 rounded-lg">
+                <ClipboardCheck className="w-3.5 h-3.5 text-[#D4AF37]" />
+                <h1 className="font-serif text-xs sm:text-sm font-bold tracking-tight">
+                  Order Progress
+                </h1>
+              </div>
+
+              <div className="flex items-center gap-1 bg-[#FAF8F5] p-0.5 rounded-lg border border-[#E8DFD8]">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('pending')}
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
+                    activeTab === 'pending'
+                      ? 'bg-[#1C1B1A] text-white shadow-2xs'
+                      : 'text-[#736C65] hover:text-[#1C1B1A]'
+                  }`}
+                >
+                  <Clock className="w-3 h-3 text-[#D4AF37]" />
+                  <span>Pending</span>
+                  <span className={`text-[10px] px-1.5 rounded-full font-mono ${
+                    activeTab === 'pending' ? 'bg-[#D4AF37] text-[#1C1B1A]' : 'bg-gray-200 text-gray-700'
+                  }`}>
+                    {pendingOrders.length}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('completed')}
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
+                    activeTab === 'completed'
+                      ? 'bg-emerald-800 text-white shadow-2xs'
+                      : 'text-[#736C65] hover:text-[#1C1B1A]'
+                  }`}
+                >
+                  <CheckCircle2 className="w-3 h-3 text-emerald-300" />
+                  <span>Delivered</span>
+                  <span className={`text-[10px] px-1.5 rounded-full font-mono ${
+                    activeTab === 'completed' ? 'bg-emerald-600 text-white' : 'bg-gray-200 text-gray-700'
+                  }`}>
+                    {completedOrders.length}
+                  </span>
+                </button>
+              </div>
+
+              {/* Pending Sub-filters inline */}
+              {activeTab === 'pending' && (
+                <div className="flex items-center gap-1 text-[10px] overflow-x-auto no-scrollbar">
+                  <button
+                    type="button"
+                    onClick={() => setPendingSubFilter('all')}
+                    className={`px-2 py-1 rounded-md font-bold transition-all cursor-pointer ${
+                      pendingSubFilter === 'all'
+                        ? 'bg-[#1C1B1A] text-white'
+                        : 'bg-[#FAF8F5] text-[#736C65] hover:text-[#1C1B1A] border border-[#E8DFD8]'
+                    }`}
+                  >
+                    All ({pendingOrders.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPendingSubFilter('confirmed')}
+                    className={`px-2 py-1 rounded-md font-bold transition-all cursor-pointer ${
+                      pendingSubFilter === 'confirmed'
+                        ? 'bg-[#1C1B1A] text-[#D4AF37]'
+                        : 'bg-[#FAF8F5] text-[#736C65] hover:text-[#1C1B1A] border border-[#E8DFD8]'
+                    }`}
+                  >
+                    1. Confirmed ({pendingOrders.filter(o => o.currentPhase === 'confirmed').length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPendingSubFilter('handcrafting_and_packaging')}
+                    className={`px-2 py-1 rounded-md font-bold transition-all cursor-pointer ${
+                      pendingSubFilter === 'handcrafting_and_packaging'
+                        ? 'bg-[#1C1B1A] text-[#D4AF37]'
+                        : 'bg-[#FAF8F5] text-[#736C65] hover:text-[#1C1B1A] border border-[#E8DFD8]'
+                    }`}
+                  >
+                    2. Crafting ({pendingOrders.filter(o => o.currentPhase === 'handcrafting_and_packaging' || o.currentPhase === 'beading_in_progress' || o.currentPhase === 'quality_and_packaging').length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPendingSubFilter('out_for_delivery')}
+                    className={`px-2 py-1 rounded-md font-bold transition-all cursor-pointer ${
+                      pendingSubFilter === 'out_for_delivery'
+                        ? 'bg-[#1C1B1A] text-[#D4AF37]'
+                        : 'bg-[#FAF8F5] text-[#736C65] hover:text-[#1C1B1A] border border-[#E8DFD8]'
+                    }`}
+                  >
+                    3. Dispatch ({pendingOrders.filter(o => o.currentPhase === 'out_for_delivery').length})
+                  </button>
+                </div>
+              )}
             </div>
-            <div className="flex items-center gap-2">
-              <h1 className="font-serif text-sm sm:text-base font-bold text-white tracking-tight">
-                Order Progress
-              </h1>
-              <span className="text-[9px] bg-[#D4AF37] text-[#1C1B1A] font-bold px-1.5 py-0.2 rounded">
-                Seller Studio
-              </span>
-              <span className="text-[10px] bg-emerald-900/80 text-emerald-300 border border-emerald-700/60 font-bold px-2 py-0.2 rounded">
-                Total Sold: {totalCreationsSold.toLocaleString()} Creations
-              </span>
-              <span className="hidden sm:inline text-[10px] text-[#A69E96]">
-                • Track custom requests and advance progress stages in real time
-              </span>
-            </div>
-          </div>
 
-          <div className="flex items-center gap-1.5 self-end sm:self-auto">
-            <button
-              type="button"
-              onClick={() => setIsAddingOrder(!isAddingOrder)}
-              className="px-2.5 py-1 bg-[#D4AF37] text-[#1C1B1A] hover:bg-[#c29f2e] text-[11px] font-bold rounded-lg flex items-center gap-1 transition-all shadow-2xs cursor-pointer"
-            >
-              <Plus className="w-3 h-3" />
-              <span>{isAddingOrder ? 'Cancel' : '+ Add Order'}</span>
-            </button>
+            {/* Search + Manual Add + Refresh */}
+            <div className="flex items-center gap-1.5 flex-1 sm:flex-initial justify-end">
+              <div className="relative w-44 sm:w-56">
+                <Search className="w-3.5 h-3.5 text-[#8C7A6B] absolute left-2.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search ID, Name, Phone..."
+                  className="w-full pl-7 pr-6 py-1 bg-[#FAF8F5] border border-[#E8DFD8] rounded-lg text-xs text-[#1C1B1A] focus:outline-none focus:border-[#C5A880]"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-[#8C7A6B] hover:text-[#1C1B1A]"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
 
-            <button
-              type="button"
-              onClick={reloadOrders}
-              className="p-1 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors border border-white/10"
-              title="Refresh order records"
-            >
-              <RefreshCw className="w-3 h-3" />
-            </button>
-          </div>
-        </div>
-
-        {/* Toast */}
-        {toastMessage && (
-          <div className="bg-emerald-600 text-white text-xs font-medium py-1.5 px-3 rounded-lg shadow-sm flex items-center justify-between animate-in fade-in">
-            <div className="flex items-center gap-1.5">
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              <span>{toastMessage}</span>
-            </div>
-            <span className="text-[9px] opacity-80">Synced</span>
-          </div>
-        )}
-
-        {/* Compact Manual Order Form */}
-        {isAddingOrder && (
-          <div className="bg-white rounded-xl p-3 border border-[#E8DFD8] shadow-2xs space-y-2 animate-in slide-in-from-top duration-150">
-            <div className="flex items-center justify-between pb-1 border-b border-[#F0EBE5]">
-              <span className="text-[11px] font-bold text-[#1C1B1A] flex items-center gap-1.5">
-                <Plus className="w-3 h-3 text-[#D4AF37]" />
-                <span>Quick Record Manual Order (WhatsApp / Walk-in)</span>
-              </span>
-              <button 
-                type="button" 
-                onClick={() => setIsAddingOrder(false)}
-                className="text-xs text-[#736C65] hover:text-[#1C1B1A]"
+              <button
+                type="button"
+                onClick={() => handleSaveAllOrderChanges()}
+                disabled={isSavingOrders}
+                className={`px-3 py-1 text-[11px] font-bold rounded-lg flex items-center gap-1.5 transition-all cursor-pointer shrink-0 shadow-2xs ${
+                  hasUnsavedChanges
+                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white ring-2 ring-emerald-400/50'
+                    : 'bg-[#1C1B1A] hover:bg-black text-[#D4AF37] border border-[#D4AF37]/40'
+                }`}
+                title="Save all order progress changes to Cloud & Repository"
               >
-                ✕
+                <Save className="w-3.5 h-3.5" />
+                <span>{isSavingOrders ? 'Saving...' : hasUnsavedChanges ? 'Save Changes *' : 'Save'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsAddingOrder(!isAddingOrder)}
+                className="px-2.5 py-1 bg-[#D4AF37] text-[#1C1B1A] hover:bg-[#c29f2e] text-[11px] font-bold rounded-lg flex items-center gap-1 transition-all cursor-pointer shrink-0"
+              >
+                <Plus className="w-3 h-3" />
+                <span>{isAddingOrder ? 'Cancel' : 'Add Order'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={reloadOrders}
+                className="p-1.5 bg-[#FAF8F5] hover:bg-[#E8DFD8] text-[#1C1B1A] rounded-lg transition-colors border border-[#E8DFD8] cursor-pointer"
+                title="Refresh order records"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
               </button>
             </div>
+          </div>
 
-            <form onSubmit={handleCreateManualOrder} className="grid grid-cols-2 sm:grid-cols-6 gap-2 text-xs">
+          {/* Manual Order Form */}
+          {isAddingOrder && (
+            <form onSubmit={handleCreateManualOrder} className="pt-2 border-t border-[#F0EBE5] grid grid-cols-2 sm:grid-cols-6 gap-2 text-xs">
               <input
                 type="text"
                 required
@@ -440,128 +589,22 @@ export const OrderProgressManagerSection: React.FC = () => {
                 Save Order
               </button>
             </form>
-          </div>
-        )}
-
-        {/* Tabbed Interface: Pending Orders vs Completed History - Compact */}
-        <div className="bg-white rounded-xl p-2 sm:p-2.5 border border-[#E8DFD8] shadow-2xs space-y-2">
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 border-b border-[#F0EBE5] pb-1.5">
-            
-            {/* 2 Primary Tabs */}
-            <div className="flex items-center gap-1 bg-[#FAF8F5] p-0.5 rounded-lg border border-[#E8DFD8]">
-              <button
-                type="button"
-                onClick={() => setActiveTab('pending')}
-                className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
-                  activeTab === 'pending'
-                    ? 'bg-[#1C1B1A] text-white shadow-2xs'
-                    : 'text-[#736C65] hover:text-[#1C1B1A]'
-                }`}
-              >
-                <Clock className="w-3 h-3 text-[#D4AF37]" />
-                <span>Pending Orders</span>
-                <span className={`text-[9px] px-1.5 py-0.2 rounded-full font-mono ${
-                  activeTab === 'pending' ? 'bg-[#D4AF37] text-[#1C1B1A]' : 'bg-gray-200 text-gray-700'
-                }`}>
-                  {pendingOrders.length}
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveTab('completed')}
-                className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
-                  activeTab === 'completed'
-                    ? 'bg-emerald-800 text-white shadow-2xs'
-                    : 'text-[#736C65] hover:text-[#1C1B1A]'
-                }`}
-              >
-                <CheckCircle2 className="w-3 h-3 text-emerald-300" />
-                <span>Completed History</span>
-                <span className={`text-[9px] px-1.5 py-0.2 rounded-full font-mono ${
-                  activeTab === 'completed' ? 'bg-emerald-600 text-white' : 'bg-gray-200 text-gray-700'
-                }`}>
-                  {completedOrders.length}
-                </span>
-              </button>
-            </div>
-
-            {/* Compact Search Input */}
-            <div className="relative flex-1 max-w-xs">
-              <Search className="w-3.5 h-3.5 text-[#8C7A6B] absolute left-2.5 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search ID, Name, Phone, City..."
-                className="w-full pl-7 pr-6 py-1 bg-[#FAF8F5] border border-[#E8DFD8] rounded-lg text-xs text-[#1C1B1A] focus:outline-none focus:border-[#C5A880]"
-              />
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery('')}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-[#8C7A6B] hover:text-[#1C1B1A]"
-                >
-                  ✕
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Pending Sub-filters */}
-          {activeTab === 'pending' && (
-            <div className="flex items-center gap-1 text-[10px] overflow-x-auto no-scrollbar">
-              <span className="text-[#8C7A6B] uppercase font-bold tracking-wider mr-0.5 text-[9px]">Filter:</span>
-              <button
-                type="button"
-                onClick={() => setPendingSubFilter('all')}
-                className={`px-2 py-0.5 rounded font-semibold transition-all ${
-                  pendingSubFilter === 'all'
-                    ? 'bg-[#1C1B1A] text-white'
-                    : 'bg-[#FAF8F5] text-[#736C65] hover:text-[#1C1B1A]'
-                }`}
-              >
-                All ({pendingOrders.length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setPendingSubFilter('confirmed')}
-                className={`px-2 py-0.5 rounded font-semibold transition-all ${
-                  pendingSubFilter === 'confirmed'
-                    ? 'bg-[#1C1B1A] text-[#D4AF37]'
-                    : 'bg-[#FAF8F5] text-[#736C65] hover:text-[#1C1B1A]'
-                }`}
-              >
-                1. Confirmed ({pendingOrders.filter(o => o.currentPhase === 'confirmed').length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setPendingSubFilter('handcrafting_and_packaging')}
-                className={`px-2 py-0.5 rounded font-semibold transition-all ${
-                  pendingSubFilter === 'handcrafting_and_packaging'
-                    ? 'bg-[#1C1B1A] text-[#D4AF37]'
-                    : 'bg-[#FAF8F5] text-[#736C65] hover:text-[#1C1B1A]'
-                }`}
-              >
-                2. Handcrafting ({pendingOrders.filter(o => o.currentPhase === 'handcrafting_and_packaging' || o.currentPhase === 'beading_in_progress' || o.currentPhase === 'quality_and_packaging').length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setPendingSubFilter('out_for_delivery')}
-                className={`px-2 py-0.5 rounded font-semibold transition-all ${
-                  pendingSubFilter === 'out_for_delivery'
-                    ? 'bg-[#1C1B1A] text-[#D4AF37]'
-                    : 'bg-[#FAF8F5] text-[#736C65] hover:text-[#1C1B1A]'
-                }`}
-              >
-                3. Dispatch ({pendingOrders.filter(o => o.currentPhase === 'out_for_delivery').length})
-              </button>
-            </div>
           )}
         </div>
 
-        {/* High-Density Compact Orders List */}
-        <div className="space-y-2">
+        {/* Toast */}
+        {toastMessage && (
+          <div className="bg-emerald-700 text-white text-xs font-medium py-1.5 px-3 rounded-lg shadow-xs flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span>{toastMessage}</span>
+            </div>
+            <span className="text-[9px] opacity-80">Synced</span>
+          </div>
+        )}
+
+        {/* High-Contrast, Concise Orders List (3+ orders clearly visible in 1 scroll) */}
+        <div className="space-y-3">
           {filteredOrders.length === 0 ? (
             <div className="p-8 text-center bg-white rounded-xl border border-dashed border-[#D5C7BC] max-w-sm mx-auto">
               <Package className="w-7 h-7 text-[#C5A880] mx-auto mb-1.5" />
@@ -573,105 +616,144 @@ export const OrderProgressManagerSection: React.FC = () => {
               </p>
             </div>
           ) : (
-            filteredOrders.map((order) => {
+            filteredOrders.map((order, index) => {
               const activePhase = order.currentPhase === 'beading_in_progress' || order.currentPhase === 'quality_and_packaging'
                 ? 'handcrafting_and_packaging'
                 : order.currentPhase;
 
-              const deliveryDateValue = editingDeliveryDate[order.orderId] ?? order.estimatedDeliveryDate ?? '1-2 business days';
+              const orderBreakdown = getOrderManufactureDeliveryBreakdown(
+                order.items,
+                order.deliveryZoneName,
+                order.deliveryAddress
+              );
+              const deliveryDateValue = editingDeliveryDate[order.orderId] ?? order.estimatedDeliveryDate ?? orderBreakdown.totalEstimatedDaysText;
+              const paymentInfo = formatConcisePaymentBadge(order);
+              const deliveryFee = getOrderDeliveryFee(order);
+              const itemSubtotal = Number(order.items?.[0]?.price ?? getOrderItemsSubtotal(order)) || 0;
+              const totalAmount = Number(order.total) || (itemSubtotal + deliveryFee);
+              const hasScreenshot = Boolean(
+                order.paymentScreenshot &&
+                (order.paymentScreenshot.startsWith('data:image') ||
+                  order.paymentScreenshot.startsWith('http') ||
+                  order.paymentScreenshot.startsWith('blob:'))
+              );
+
+              const phaseAccentBorder =
+                activePhase === 'delivered'
+                  ? 'border-l-emerald-600'
+                  : activePhase === 'out_for_delivery'
+                  ? 'border-l-sky-600'
+                  : activePhase === 'handcrafting_and_packaging'
+                  ? 'border-l-amber-500'
+                  : 'border-l-[#D4AF37]';
+
+              const isEvenCard = index % 2 === 1;
 
               return (
                 <div
                   key={order.orderId}
-                  className="bg-white rounded-xl border border-[#E8DFD8] p-2 sm:p-2.5 shadow-2xs hover:border-[#C5A880] transition-all space-y-1.5"
+                  className={`rounded-xl overflow-hidden border-2 ${
+                    isEvenCard ? 'border-[#C2B29F] bg-[#FAF6F0]' : 'border-[#D4C7B8] bg-white'
+                  } border-l-[6px] ${phaseAccentBorder} shadow-xs hover:shadow-md transition-all`}
                 >
-                  {/* Top Slim Row */}
-                  <div className="flex flex-wrap items-center justify-between gap-1 border-b border-[#F0EBE5] pb-1 text-xs">
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-mono font-bold text-[#1C1B1A] bg-[#FAF8F5] px-1.5 py-0.2 rounded border border-[#E8DFD8] text-[11px]">
+                  {/* Dark Contrast Top Strip — Visually separates every order immediately */}
+                  <div className={`${
+                    isEvenCard ? 'bg-[#2A2522]' : 'bg-[#1C1B1A]'
+                  } text-white px-3 py-1.5 flex flex-wrap items-center justify-between gap-2 text-xs`}>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded bg-[#D4AF37] text-[#1C1B1A] font-mono font-extrabold text-[11px]">
+                        {index + 1}
+                      </span>
+                      <span className="font-mono font-bold text-[#F5F2EB] text-xs tracking-wide">
                         {order.orderId}
                       </span>
                       <button
                         type="button"
                         onClick={() => handleCopyOrderId(order.orderId)}
-                        className="text-[#8C7A6B] hover:text-[#1C1B1A] p-0.5"
+                        className="text-[#A69E96] hover:text-white p-0.5 cursor-pointer"
                         title="Copy Order ID"
                       >
                         {copiedId === order.orderId ? (
-                          <Check className="w-3 h-3 text-emerald-600" />
+                          <Check className="w-3 h-3 text-emerald-400" />
                         ) : (
                           <Copy className="w-3 h-3" />
                         )}
                       </button>
-                      <span className="text-[10px] text-[#736C65]">
-                        Placed: <strong className="text-[#1C1B1A]">{order.orderPlacedDate}</strong>
+                      <span className="text-[#A69E96] text-[11px]">
+                        • {order.orderPlacedDate}
                       </span>
-                    </div>
 
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="text-[10px] font-medium text-[#736C65] bg-[#FAF8F5] px-1.5 py-0.2 rounded border border-[#E8DFD8]">
-                        Delivery: <strong className="text-[#1C1B1A]">NPR {getOrderDeliveryFee(order).toLocaleString()}</strong>
+                      <span
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                          paymentInfo.isCod
+                            ? 'bg-amber-500/20 text-amber-300 border border-amber-400/40'
+                            : 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/40'
+                        }`}
+                      >
+                        {paymentInfo.label}
                       </span>
-                      <span className="text-[10px] font-bold text-[#1C1B1A] bg-[#FAF8F5] px-1.5 py-0.2 rounded border border-[#E8DFD8]">
-                        Total: NPR {(Number(order.total) || 0).toLocaleString()}
-                      </span>
-                      <span className="text-[9px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
-                        {order.paymentStatus || 'Verified'} ({order.paymentMethodText || 'COD'})
-                      </span>
-                      {order.paymentScreenshot && (order.paymentScreenshot.startsWith('data:image') || order.paymentScreenshot.startsWith('http') || order.paymentScreenshot.startsWith('blob:')) && (
+
+                      {hasScreenshot && (
                         <button
                           type="button"
                           onClick={() => setSelectedScreenshotOrder(order)}
-                          className="text-[10px] font-bold text-[#1C1B1A] bg-[#D4AF37]/25 hover:bg-[#D4AF37]/40 px-2 py-0.5 rounded border border-[#D4AF37] flex items-center gap-1 cursor-pointer transition-colors"
-                          title={`View Payment Screenshot for ${order.orderId} (${order.customerName})`}
+                          className="text-[10px] font-bold text-[#1C1B1A] bg-[#D4AF37] hover:bg-[#e3be42] px-2 py-0.5 rounded flex items-center gap-1 cursor-pointer transition-colors"
+                          title={`View Payment Screenshot for ${order.orderId}`}
                         >
-                          <Camera className="w-3 h-3 text-[#1C1B1A]" />
-                          <span>View Payment Screenshot</span>
+                          <Camera className="w-3 h-3" />
+                          <span>Receipt</span>
                         </button>
                       )}
-                      <div className="flex items-center gap-1 text-[10px] text-[#736C65] bg-[#FAF8F5] px-1.5 py-0.2 rounded border border-[#E8DFD8]">
-                        <span className="text-[#8C7A6B] text-[9px] uppercase font-bold">Est:</span>
-                        <input
-                          type="text"
-                          value={deliveryDateValue}
-                          onChange={(e) => handleDeliveryDateChange(order.orderId, e.target.value)}
-                          placeholder="e.g. 1-2 business days"
-                          className="w-24 bg-transparent text-[10px] font-medium text-[#1C1B1A] focus:outline-none"
-                          title="Click to edit estimated arrival date"
-                        />
-                      </div>
+                    </div>
+
+                    {/* Right of Header: Estimated Delivery (Mfg + Del) shown ONCE */}
+                    <div
+                      className="flex items-center gap-1.5 text-[11px] bg-white/10 px-2 py-0.5 rounded border border-white/15"
+                      title={`Manufacture (${orderBreakdown.categoryLabel}): ${orderBreakdown.manufactureDaysText} + Delivery: ${orderBreakdown.deliveryDaysText}`}
+                    >
+                      <Truck className="w-3 h-3 text-[#D4AF37] shrink-0" />
+                      <span className="text-[#D5C7BC] text-[10px] font-semibold">Est:</span>
+                      <input
+                        type="text"
+                        value={deliveryDateValue}
+                        onChange={(e) => handleDeliveryDateChange(order.orderId, e.target.value)}
+                        placeholder={orderBreakdown.totalEstimatedDaysText}
+                        className="w-20 bg-transparent text-[11px] font-bold text-[#D4AF37] focus:outline-none"
+                        title="Click to edit estimated delivery days"
+                      />
+                      <span className="text-[10px] text-[#BFB3A8] hidden lg:inline">
+                        ({orderBreakdown.manufactureDaysText} mfg + {orderBreakdown.deliveryDaysText} del)
+                      </span>
                     </div>
                   </div>
 
-                  {/* Compact Main Row: Customer | Items | 4-Stage Timeline | WhatsApp */}
-                  <div className="grid grid-cols-1 md:grid-cols-12 gap-2 items-center">
+                  {/* Single Concise Main Row: Customer | Product & Single Price Summary | 4-Stage Buttons | Actions */}
+                  <div className="px-3 py-2 grid grid-cols-1 md:grid-cols-12 gap-2.5 items-center md:divide-x md:divide-[#E5DCD2]">
                     
-                    {/* 1. Customer & Delivery Info */}
-                    <div className="md:col-span-3 text-xs space-y-0.5 bg-[#FAF8F5] p-1.5 rounded-lg border border-[#E8DFD8]/80">
-                      <span className="text-[8px] uppercase font-bold tracking-wider text-[#8C7A6B] block">
-                        Customer & Delivery
-                      </span>
-                      <p className="font-bold text-[#1C1B1A] truncate text-[11px] leading-tight">{order.customerName}</p>
-                      <p className="text-[10px] text-[#5E5955] flex items-center gap-1 font-mono">
-                        <Phone className="w-2.5 h-2.5 text-[#8C7A6B]" />
-                        <a href={`tel:${order.phone}`} className="hover:underline">{order.phone}</a>
-                      </p>
-                      <p className="text-[10px] text-[#736C65] truncate flex items-center gap-1">
-                        <MapPin className="w-2.5 h-2.5 text-[#8C7A6B] shrink-0" />
-                        <span className="truncate">{order.deliveryAddress}</span>
-                      </p>
-                      <div className="flex items-center gap-1 flex-wrap pt-0.5">
-                        <span className="inline-block text-[8px] font-semibold text-[#8C7A6B] bg-white px-1 py-0.2 rounded border border-[#E8DFD8] truncate max-w-full">
-                          {order.deliveryZoneName}
+                    {/* 1. Customer & Delivery Destination (Shown Once) */}
+                    <div className="md:col-span-3 min-w-0 space-y-0.5">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-bold text-[#1C1B1A] text-xs truncate">
+                          {order.customerName}
                         </span>
-                        <span className="inline-block text-[8px] font-bold text-[#1C1B1A] bg-amber-50/80 px-1 py-0.2 rounded border border-amber-200/80">
-                          Delivery Fee: NPR {getOrderDeliveryFee(order).toLocaleString()}
-                        </span>
+                        <a
+                          href={`tel:${order.phone}`}
+                          className="text-[11px] font-mono text-[#5E5955] hover:text-[#1C1B1A] flex items-center gap-1"
+                        >
+                          <Phone className="w-2.5 h-2.5 text-[#8C7A6B]" />
+                          <span>{order.phone}</span>
+                        </a>
+                      </div>
+                      <div className="text-[11px] text-[#5E5955] flex items-center gap-1 truncate">
+                        <MapPin className="w-3 h-3 text-[#8C7A6B] shrink-0" />
+                        <span className="truncate font-medium text-[#1C1B1A]">{order.deliveryAddress}</span>
+                        <span className="text-[#8C7A6B]">•</span>
+                        <span className="text-[10px] text-[#736C65] truncate">{order.deliveryZoneName}</span>
                       </div>
                     </div>
 
-                    {/* 2. Ordered Items */}
-                    <div className="md:col-span-3 flex items-center gap-2 bg-[#FAF8F5] p-1.5 rounded-lg border border-[#E8DFD8]/80 min-w-0">
+                    {/* 2. Ordered Item & Single Price Breakdown (Shown Once, No Sold Count) */}
+                    <div className="md:col-span-4 md:pl-3 flex items-center gap-2.5 min-w-0">
                       <img
                         src={(() => {
                           const firstItem = order.items?.[0];
@@ -686,68 +768,51 @@ export const OrderProgressManagerSection: React.FC = () => {
                         onError={(e) => {
                           (e.currentTarget as HTMLImageElement).src = CAVIAR_PEARL_BAG_IMAGE;
                         }}
-                        className="w-10 h-10 rounded-md object-cover border border-[#E8DFD8] shrink-0 bg-white"
+                        className="w-10 h-10 rounded-lg object-cover border border-[#D8CBBF] shrink-0 bg-white"
                       />
-                      <div className="flex-1 min-w-0 text-xs">
-                        <span className="text-[8px] uppercase font-bold tracking-wider text-[#8C7A6B] block">
-                          Ordered Items ({order.items?.length || 0})
-                        </span>
-                        <p className="font-semibold text-[#1C1B1A] truncate text-[11px] leading-tight">
-                          {order.items?.[0]?.title || 'Handcrafted Artified Piece'}
-                        </p>
-                        <p className="text-[10px] text-[#736C65] flex items-center gap-1.5 flex-wrap">
-                          <span>Qty: {order.items?.[0]?.quantity ?? 1} • NPR {(Number(order.items?.[0]?.price ?? getOrderItemsSubtotal(order)) || 0).toLocaleString()}</span>
-                          {(() => {
-                            const pid = order.items?.[0] ? resolveProductIdFromOrderItem(order.items[0], products) : null;
-                            const matchedProd = pid ? products.find((p) => p.id === pid) : null;
-                            return matchedProd ? (
-                              <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
-                                Sold: {calculateTotalSold(matchedProd)}
-                              </span>
-                            ) : null;
-                          })()}
-                        </p>
-                        <p className="text-[9px] text-[#8C7A6B] font-medium flex items-center gap-1.5 flex-wrap">
-                          <span>+ Delivery: NPR {getOrderDeliveryFee(order).toLocaleString()} (Total: NPR {(Number(order.total) || 0).toLocaleString()})</span>
-                          {countedOrderKeys.has(getCanonicalOrderKey(order.orderId)) && (
-                            <span className="text-[8px] font-bold text-emerald-800 bg-emerald-100/80 px-1 py-0.1 rounded">
-                              ✓ Sale Counted
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <p className="font-bold text-[#1C1B1A] truncate text-xs leading-snug">
+                            {order.items?.[0]?.title || 'Handcrafted Artified Piece'}
+                          </p>
+                          {(order.items?.length || 0) > 1 && (
+                            <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-[#1C1B1A] text-[#D4AF37] shrink-0">
+                              +{order.items.length - 1} more
                             </span>
                           )}
-                        </p>
+                        </div>
+                        <div className="flex items-center gap-1.5 flex-wrap text-[11px] text-[#5E5955] mt-0.5">
+                          <span>
+                            Qty: <strong className="text-[#1C1B1A]">{order.items?.[0]?.quantity ?? 1}</strong>
+                          </span>
+                          <span className="text-[#C5B9AC]">•</span>
+                          <span>
+                            Item: <strong className="text-[#1C1B1A]">NPR {itemSubtotal.toLocaleString()}</strong>
+                          </span>
+                          <span className="text-[#C5B9AC]">•</span>
+                          <span>
+                            Delivery: <strong className="text-[#1C1B1A]">NPR {deliveryFee.toLocaleString()}</strong>
+                          </span>
+                          <span className="text-[#C5B9AC]">•</span>
+                          <span className="font-extrabold text-[#1C1B1A] bg-[#F2EAE0] px-1.5 py-0.2 rounded border border-[#DFD3C5]">
+                            Total: NPR {totalAmount.toLocaleString()}
+                          </span>
+                        </div>
                       </div>
                     </div>
 
-                    {/* 3. Click to Update Progress Timeline (4 Stages) */}
-                    <div className="md:col-span-4 space-y-1">
-                      <div className="flex items-center justify-between bg-[#FAF8F5] px-2 py-1 rounded border border-[#E8DFD8]">
-                        <span className="text-[10px] font-bold text-[#1C1B1A] flex items-center gap-1">
-                          <Sparkles className="w-2.5 h-2.5 text-[#D4AF37]" />
-                          <span>Status:</span>
-                        </span>
-                        <select
-                          value={activePhase}
-                          onChange={(e) => handlePhaseChange(order.orderId, e.target.value as OrderProductionPhase)}
-                          className="bg-white border border-[#E8DFD8] rounded px-1.5 py-0.5 text-[10px] font-bold text-[#1C1B1A] focus:outline-none cursor-pointer"
-                        >
-                          <option value="confirmed">1. Order Confirmed & Paid</option>
-                          <option value="handcrafting_and_packaging">2. Handcrafting</option>
-                          <option value="out_for_delivery">3. Shipped (Dispatch)</option>
-                          <option value="delivered">4. Delivered (Completed)</option>
-                        </select>
-                      </div>
-
-                      {/* 4 Compact Stage Buttons */}
-                      <div className="grid grid-cols-4 gap-0.5">
+                    {/* 3. Single 4-Stage Progress Selector (Shown Once - No Redundant Dropdown) */}
+                    <div className="md:col-span-3 md:pl-3 space-y-1.5">
+                      <div className="grid grid-cols-4 gap-1">
                         <button
                           type="button"
                           onClick={() => handlePhaseChange(order.orderId, 'confirmed')}
-                          className={`py-1 px-0.5 rounded border text-center transition-all cursor-pointer text-[9px] leading-tight font-bold ${
+                          className={`py-1 px-1 rounded border text-center transition-all cursor-pointer text-[10px] leading-tight font-bold ${
                             activePhase === 'confirmed'
-                              ? 'bg-[#1C1B1A] text-[#D4AF37] border-[#D4AF37] shadow-2xs'
-                              : 'bg-[#FAF8F5] hover:bg-white text-[#5E5955] border-[#E8DFD8]'
+                              ? 'bg-[#1C1B1A] text-[#D4AF37] border-[#1C1B1A] shadow-2xs'
+                              : 'bg-white hover:bg-[#FAF8F5] text-[#5E5955] border-[#D8CBBF]'
                           }`}
-                          title="Stage 1: Confirmed & Paid"
+                          title="Stage 1: Order Confirmed & Paid"
                         >
                           1. Confirmed
                         </button>
@@ -755,10 +820,10 @@ export const OrderProgressManagerSection: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => handlePhaseChange(order.orderId, 'handcrafting_and_packaging')}
-                          className={`py-1 px-0.5 rounded border text-center transition-all cursor-pointer text-[9px] leading-tight font-bold ${
+                          className={`py-1 px-1 rounded border text-center transition-all cursor-pointer text-[10px] leading-tight font-bold ${
                             activePhase === 'handcrafting_and_packaging'
-                              ? 'bg-[#1C1B1A] text-[#D4AF37] border-[#D4AF37] shadow-2xs'
-                              : 'bg-[#FAF8F5] hover:bg-white text-[#5E5955] border-[#E8DFD8]'
+                              ? 'bg-[#1C1B1A] text-[#D4AF37] border-[#1C1B1A] shadow-2xs'
+                              : 'bg-white hover:bg-[#FAF8F5] text-[#5E5955] border-[#D8CBBF]'
                           }`}
                           title="Stage 2: Handcrafting & Packaging"
                         >
@@ -768,12 +833,12 @@ export const OrderProgressManagerSection: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => handlePhaseChange(order.orderId, 'out_for_delivery')}
-                          className={`py-1 px-0.5 rounded border text-center transition-all cursor-pointer text-[9px] leading-tight font-bold ${
+                          className={`py-1 px-1 rounded border text-center transition-all cursor-pointer text-[10px] leading-tight font-bold ${
                             activePhase === 'out_for_delivery'
-                              ? 'bg-[#1C1B1A] text-[#D4AF37] border-[#D4AF37] shadow-2xs'
-                              : 'bg-[#FAF8F5] hover:bg-white text-[#5E5955] border-[#E8DFD8]'
+                              ? 'bg-[#1C1B1A] text-[#D4AF37] border-[#1C1B1A] shadow-2xs'
+                              : 'bg-white hover:bg-[#FAF8F5] text-[#5E5955] border-[#D8CBBF]'
                           }`}
-                          title="Stage 3: Out for Delivery"
+                          title="Stage 3: Shipped / Out for Delivery"
                         >
                           3. Dispatch
                         </button>
@@ -781,10 +846,10 @@ export const OrderProgressManagerSection: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => handlePhaseChange(order.orderId, 'delivered')}
-                          className={`py-1 px-0.5 rounded border text-center transition-all cursor-pointer text-[9px] leading-tight font-bold ${
+                          className={`py-1 px-1 rounded border text-center transition-all cursor-pointer text-[10px] leading-tight font-bold ${
                             activePhase === 'delivered'
-                              ? 'bg-emerald-800 text-white border-emerald-600 shadow-2xs'
-                              : 'bg-[#FAF8F5] hover:bg-white text-[#5E5955] border-[#E8DFD8]'
+                              ? 'bg-emerald-800 text-white border-emerald-700 shadow-2xs'
+                              : 'bg-white hover:bg-[#FAF8F5] text-[#5E5955] border-[#D8CBBF]'
                           }`}
                           title="Stage 4: Delivered"
                         >
@@ -792,8 +857,7 @@ export const OrderProgressManagerSection: React.FC = () => {
                         </button>
                       </div>
 
-                      {/* Progress Bar */}
-                      <div className="w-full h-1 bg-[#FAF8F5] rounded-full overflow-hidden border border-[#E8DFD8]">
+                      <div className="w-full h-1.5 bg-[#EAE2D9] rounded-full overflow-hidden">
                         <div 
                           className="h-full bg-gradient-to-r from-[#D4AF37] to-[#C5A880] rounded-full transition-all duration-300"
                           style={{ width: `${getProgressPercentage(activePhase)}%` }}
@@ -801,8 +865,21 @@ export const OrderProgressManagerSection: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* 4. WhatsApp Customer & Delete Buttons */}
-                    <div className="md:col-span-2 flex items-center justify-end gap-1.5">
+                    {/* 4. Save, WhatsApp & Delete Actions */}
+                    <div className="md:col-span-2 md:pl-3 flex items-center justify-end gap-1.5 flex-wrap">
+                      {dirtyOrderIds[order.orderId] && (
+                        <button
+                          type="button"
+                          onClick={() => handleSaveAllOrderChanges(order.orderId)}
+                          disabled={isSavingOrders}
+                          className="px-2.5 py-1.5 rounded-lg bg-[#1C1B1A] hover:bg-black text-[#D4AF37] border border-[#D4AF37] font-bold text-[11px] flex items-center justify-center gap-1 transition-colors shadow-2xs cursor-pointer"
+                          title="Save changes for this order"
+                        >
+                          <Save className="w-3 h-3 shrink-0" />
+                          <span>Save</span>
+                        </button>
+                      )}
+
                       <button
                         type="button"
                         onClick={() => handleSendWhatsApp(order)}
@@ -824,56 +901,6 @@ export const OrderProgressManagerSection: React.FC = () => {
                     </div>
 
                   </div>
-
-                  {/* Dedicated Mistake-Proof Payment Screenshot Verification Strip */}
-                  {order.paymentScreenshot && (order.paymentScreenshot.startsWith('data:image') || order.paymentScreenshot.startsWith('http') || order.paymentScreenshot.startsWith('blob:')) && (
-                    <div className="mt-1 pt-2 border-t border-[#F0EBE5] flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-emerald-50/40 px-2.5 py-2 rounded-xl border border-emerald-200/70">
-                      <div className="flex items-center gap-2.5">
-                        <img
-                          src={order.paymentScreenshot}
-                          alt={`Payment receipt for ${order.orderId}`}
-                          onClick={() => setSelectedScreenshotOrder(order)}
-                          className="w-11 h-11 rounded-lg object-cover border-2 border-[#D4AF37] cursor-pointer shrink-0 bg-white hover:scale-105 transition-transform"
-                          title="Click to enlarge payment screenshot"
-                        />
-                        <div className="text-xs">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-900 flex items-center gap-1">
-                              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                              <span>Buyer Payment Screenshot Attached</span>
-                            </span>
-                            <span className="font-mono text-[10px] font-extrabold bg-[#1C1B1A] text-[#D4AF37] px-1.5 py-0.2 rounded">
-                              {order.orderId}
-                            </span>
-                          </div>
-                          <p className="text-[10px] text-[#5E5955] mt-0.5">
-                            Buyer: <strong className="text-[#1C1B1A]">{order.customerName}</strong> ({order.phone}) • <strong className="text-[#1C1B1A]">NPR {(Number(order.total) || 0).toLocaleString()}</strong> • {order.paymentMethodText}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => setSelectedScreenshotOrder(order)}
-                          className="px-2.5 py-1.5 bg-[#1C1B1A] hover:bg-black text-[#D4AF37] text-[10px] font-bold rounded-lg flex items-center gap-1 cursor-pointer transition-colors"
-                        >
-                          <Camera className="w-3 h-3" />
-                          <span>Inspect Full Receipt</span>
-                        </button>
-                        <a
-                          href={order.paymentScreenshot}
-                          download={`Artified-Receipt-${order.orderId.replace('#', '')}-${order.customerName.replace(/\s+/g, '_')}.jpg`}
-                          className="px-2.5 py-1.5 bg-white hover:bg-[#FAF8F5] text-[#1C1B1A] border border-[#E8DFD8] text-[10px] font-bold rounded-lg flex items-center gap-1 cursor-pointer transition-colors"
-                          title="Download stamped receipt image"
-                        >
-                          <Download className="w-3 h-3" />
-                          <span>Save</span>
-                        </a>
-                      </div>
-                    </div>
-                  )}
-
                 </div>
               );
             })

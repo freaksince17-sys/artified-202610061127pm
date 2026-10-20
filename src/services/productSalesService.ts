@@ -175,9 +175,6 @@ export const SEED_SALES_HISTORY: SalesHistoryRecord[] = [
 ];
 
 const PURGED_ORDER_IDS = new Set([
-  'ART20261861',
-  'ART20261862',
-  'ART20261864',
   'ART20264846',
   'ART20265526',
   'ART20268842',
@@ -359,8 +356,11 @@ export function applyVerifiedSalesToProducts(
   extraVerifiedByProduct?: Record<string, number>,
   bestsellerThreshold: number = 50
 ): Product[] {
+  if (!productList || productList.length === 0) return productList;
   const localLedger = getLocalProductSalesLedger();
-  return (productList || []).map((prod) => {
+  let anyChanged = false;
+
+  const updatedList = productList.map((prod) => {
     if (!prod || !prod.id) return prod;
     const baseSold = prod.soldCount !== undefined ? Number(prod.soldCount) : 54;
     const verifiedOnline = Math.max(
@@ -374,9 +374,24 @@ export function applyVerifiedSalesToProducts(
     );
     const previousOnline = Number(prod.onlineSalesCount) || 0;
     const newlySold = Math.max(0, verifiedOnline - previousOnline);
-    const currentStock = typeof prod.inventoryCount === 'number' ? prod.inventoryCount : (prod.stockCount ?? 10);
-    const updatedInventory = Math.max(0, currentStock - newlySold);
+    const currentStock = typeof prod.stockCount === 'number' ? prod.stockCount : (prod.inventoryCount ?? 8);
+    const updatedInventory = newlySold > 0 ? Math.max(0, currentStock - newlySold) : currentStock;
+    const updatedInStock = newlySold > 0 ? updatedInventory > 0 : prod.inStock;
+    const updatedBestSeller = verifiedTotal >= bestsellerThreshold || Boolean(prod.isBestSeller);
 
+    if (
+      prod.soldCount === baseSold &&
+      (prod.onlineSalesCount || 0) === verifiedOnline &&
+      prod.totalSold === verifiedTotal &&
+      prod.stockCount === updatedInventory &&
+      prod.inventoryCount === updatedInventory &&
+      prod.inStock === updatedInStock &&
+      Boolean(prod.isBestSeller) === updatedBestSeller
+    ) {
+      return prod;
+    }
+
+    anyChanged = true;
     return {
       ...prod,
       soldCount: baseSold,
@@ -384,10 +399,12 @@ export function applyVerifiedSalesToProducts(
       totalSold: verifiedTotal,
       inventoryCount: updatedInventory,
       stockCount: updatedInventory,
-      inStock: updatedInventory > 0,
-      isBestSeller: verifiedTotal >= bestsellerThreshold || prod.isBestSeller
+      inStock: updatedInStock,
+      isBestSeller: updatedBestSeller
     };
   });
+
+  return anyChanged ? updatedList : productList;
 }
 
 /**
@@ -437,9 +454,13 @@ export function resolveProductIdFromOrderItem(
   catalog: Product[] = PRODUCTS
 ): string | null {
   if (item.productId && item.productId.trim()) {
-    const exact = catalog.find((p) => p.id === item.productId);
+    const cleanId = item.productId.trim();
+    const exact = catalog.find((p) => p.id === cleanId) || PRODUCTS.find((p) => p.id === cleanId);
     if (exact) return exact.id;
-    return item.productId.trim();
+    if (cleanId === 'kumari-pearl-choker') {
+      const choker = catalog.find((p) => p.title.toLowerCase().includes('choker')) || PRODUCTS.find((p) => p.title.toLowerCase().includes('choker'));
+      if (choker) return choker.id;
+    }
   }
 
   const cleanTitle = (item.title || '').trim().toLowerCase();
@@ -549,6 +570,13 @@ export async function trackConfirmedOrderSalesInFirestore(
         }
       })
     );
+    if ('BroadcastChannel' in window) {
+      try {
+        const bc = new BroadcastChannel('artified_sync_channel');
+        bc.postMessage({ type: 'ORDER_PLACED', orderId: formattedOrderId });
+        bc.close();
+      } catch {}
+    }
   }
 
   // 1. Invoke Server-Side Cloud Function endpoint (/api/sales/increment) for atomic persistence & cross-browser sync
@@ -808,21 +836,25 @@ export async function executeProductPurchaseTransaction(
           newTotalSold
         };
 
-        // 3. Write atomic updates back to Firestore product doc inside transaction
-        transaction.set(
-          prodRef,
-          {
-            id: pid,
-            title: catalogProd?.title || item.productTitle || pid,
-            inventoryCount: newInventory,
-            stockCount: newInventory,
-            inStock: newInStock,
-            onlineSalesCount: newOnlineSales,
-            totalSold: newTotalSold,
-            updatedAt: nowIso
-          },
-          { merge: true }
-        );
+        // 3. Write atomic updates back to Firestore product doc inside transaction only if valid product exists
+        if (catalogProd || (prodSnap.exists() && typeof prodSnap.data()?.price === 'number')) {
+          transaction.set(
+            prodRef,
+            {
+              id: pid,
+              title: catalogProd?.title || item.productTitle || pid,
+              ...(catalogProd?.price ? { price: catalogProd.price } : {}),
+              ...(catalogProd?.category ? { category: catalogProd.category } : {}),
+              inventoryCount: newInventory,
+              stockCount: newInventory,
+              inStock: newInStock,
+              onlineSalesCount: newOnlineSales,
+              totalSold: newTotalSold,
+              updatedAt: nowIso
+            },
+            { merge: true }
+          );
+        }
 
         // 4. Record sales_history entry inside the transaction
         const canonical = getCanonicalOrderKey(orderId);
@@ -859,7 +891,6 @@ export async function executeProductPurchaseTransaction(
           body: JSON.stringify({
             productId: pid,
             productTitle: prod?.title || pid,
-            sku: prod?.sku || `ART-${pid.slice(-4).toUpperCase()}`,
             remainingInventory: res.newInventory,
             sellerEmail: 'freaksince17@gmail.com'
           })

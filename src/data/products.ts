@@ -48,12 +48,23 @@ export const CATALOG_BUILD_TIMESTAMP = '2026-10-19T10:00:00.000Z';
 export function reconcileProductCatalog(candidateProducts?: Product[] | null, bundled: Product[] = PRODUCTS): Product[] {
   const map = new Map<string, Product>();
 
-  // 1. Initialize with authoritative bundled products
+  // 1. Initialize with authoritative bundled products (keep original reference initially)
   for (const item of bundled) {
     if (item && item.id) {
-      map.set(item.id, { ...item });
+      map.set(item.id, item);
     }
   }
+
+  // Parse custom reviews dictionary once outside the loop
+  let storedReviewsDict: Record<string, any[]> = {};
+  try {
+    const dictRaw = typeof localStorage !== 'undefined' ? localStorage.getItem('artified_custom_reviews_v1') : null;
+    if (dictRaw) {
+      storedReviewsDict = JSON.parse(dictRaw) || {};
+    }
+  } catch {}
+
+  const buildTimestampMs = new Date(CATALOG_BUILD_TIMESTAMP).getTime();
 
   // 2. Process candidate products
   if (Array.isArray(candidateProducts) && candidateProducts.length > 0) {
@@ -61,26 +72,24 @@ export function reconcileProductCatalog(candidateProducts?: Product[] | null, bu
       if (!candidate || !candidate.id) continue;
 
       if (!map.has(candidate.id)) {
-        // New custom product created by seller that isn't in bundled list
-        map.set(candidate.id, candidate);
+        // Only add a non-bundled custom product if it is a complete product with a valid price and category
+        if (
+          typeof candidate.price === 'number' &&
+          !isNaN(candidate.price) &&
+          candidate.price > 0 &&
+          candidate.title &&
+          candidate.category
+        ) {
+          map.set(candidate.id, candidate);
+        }
       } else {
         const bundledItem = map.get(candidate.id)!;
         const candidateTime = candidate.updatedAt ? new Date(candidate.updatedAt).getTime() : 0;
-        const bundledTime = bundledItem.updatedAt 
-          ? new Date(bundledItem.updatedAt).getTime() 
-          : new Date(CATALOG_BUILD_TIMESTAMP).getTime();
+        const bundledTime = bundledItem.updatedAt
+          ? new Date(bundledItem.updatedAt).getTime()
+          : buildTimestampMs;
 
-        // Always attach live customer reviews and online sales from Firestore / localStorage
-        let extraReviews: any[] = [];
-        try {
-          const dictRaw = typeof localStorage !== 'undefined' ? localStorage.getItem('artified_custom_reviews_v1') : null;
-          if (dictRaw) {
-            const parsed = JSON.parse(dictRaw);
-            if (Array.isArray(parsed[candidate.id])) {
-              extraReviews = parsed[candidate.id];
-            }
-          }
-        } catch {}
+        const extraReviews = Array.isArray(storedReviewsDict[candidate.id]) ? storedReviewsDict[candidate.id] : [];
 
         const seenRevIds = new Set<string>();
         const seenRevSigs = new Set<string>();
@@ -115,32 +124,83 @@ export function reconcileProductCatalog(candidateProducts?: Product[] | null, bu
           (mergedSoldCount !== undefined ? mergedSoldCount : 54) + mergedOnlineSales
         );
 
-        // Authoritative bundled product price & definition always take precedence unless explicitly edited after build timestamp
-        if (candidateTime > bundledTime && candidate.price !== undefined && candidate.price > 0 && candidateTime > new Date(CATALOG_BUILD_TIMESTAMP).getTime()) {
-          map.set(candidate.id, {
+        const hasMoreSales = (candidate.onlineSalesCount || 0) > (bundledItem.onlineSalesCount || 0);
+        const isNewerThanBundled = (candidateTime > bundledTime && candidateTime > buildTimestampMs) || hasMoreSales;
+        const nextStockCount = isNewerThanBundled && typeof candidate.stockCount === 'number'
+          ? Math.max(0, candidate.stockCount)
+          : bundledItem.stockCount;
+        const nextInventoryCount = isNewerThanBundled && typeof candidate.inventoryCount === 'number'
+          ? Math.max(0, candidate.inventoryCount)
+          : (bundledItem.inventoryCount ?? nextStockCount);
+        const nextInStock = isNewerThanBundled && typeof candidate.inStock === 'boolean'
+          ? candidate.inStock
+          : (nextStockCount > 0 && bundledItem.inStock !== false);
+        const nextIsNewArrival = isNewerThanBundled && typeof candidate.isNewArrival === 'boolean'
+          ? candidate.isNewArrival
+          : bundledItem.isNewArrival;
+
+        let nextProd: Product;
+        if (isNewerThanBundled && typeof candidate.price === 'number' && candidate.price > 0) {
+          nextProd = {
             ...bundledItem,
             ...candidate,
+            stockCount: nextStockCount,
+            inventoryCount: nextInventoryCount,
+            inStock: nextInStock,
+            isNewArrival: nextIsNewArrival,
             customReviews: mergedReviews,
             soldCount: candidate.soldCount !== undefined ? candidate.soldCount : mergedSoldCount,
             onlineSalesCount: mergedOnlineSales,
             totalSold: mergedTotalSold,
-          });
+          };
         } else {
-          // Force authoritative bundled code definition (price, title, photography, description)
-          map.set(candidate.id, {
+          nextProd = {
             ...bundledItem,
+            stockCount: nextStockCount,
+            inventoryCount: nextInventoryCount,
+            inStock: nextInStock,
+            isNewArrival: nextIsNewArrival,
+            updatedAt: isNewerThanBundled ? candidate.updatedAt : bundledItem.updatedAt,
             customReviews: mergedReviews,
             soldCount: mergedSoldCount,
             onlineSalesCount: mergedOnlineSales,
             totalSold: mergedTotalSold,
             ...(candidate.rating !== undefined ? { rating: candidate.rating } : {})
-          });
+          };
         }
+
+        // Preserve exact object reference if nothing meaningful changed to prevent unnecessary React re-renders
+        const isUnchanged =
+          nextProd.price === bundledItem.price &&
+          nextProd.originalPrice === bundledItem.originalPrice &&
+          nextProd.title === bundledItem.title &&
+          nextProd.subtitle === bundledItem.subtitle &&
+          nextProd.inStock === bundledItem.inStock &&
+          nextProd.stockCount === bundledItem.stockCount &&
+          nextProd.inventoryCount === bundledItem.inventoryCount &&
+          nextProd.isNewArrival === bundledItem.isNewArrival &&
+          nextProd.isBestSeller === bundledItem.isBestSeller &&
+          nextProd.soldCount === bundledItem.soldCount &&
+          nextProd.onlineSalesCount === bundledItem.onlineSalesCount &&
+          nextProd.totalSold === bundledItem.totalSold &&
+          nextProd.updatedAt === bundledItem.updatedAt &&
+          (nextProd.images?.length || 0) === (bundledItem.images?.length || 0) &&
+          (nextProd. images?.[0] || '') === (bundledItem.images?.[0] || '') &&
+          mergedReviews.length === (bundledItem.customReviews?.length || 0);
+
+        map.set(candidate.id, isUnchanged ? bundledItem : nextProd);
       }
     }
   }
 
-  return Array.from(map.values());
+  const result = Array.from(map.values());
+  if (
+    result.length === bundled.length &&
+    result.every((item, idx) => item === bundled[idx])
+  ) {
+    return bundled;
+  }
+  return result;
 }
 
 export const TESTIMONIALS: Testimonial[] = [

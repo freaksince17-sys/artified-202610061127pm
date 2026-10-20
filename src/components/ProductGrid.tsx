@@ -83,7 +83,7 @@ export const ProductGrid: React.FC = () => {
   return (
     <section id="shop-section" className="pt-0 sm:pt-1 pb-4 sm:pb-6 px-2 sm:px-3 lg:px-4 max-w-[1440px] mx-auto">
       {/* Category Dropdown (All Creations), Centered Search Bar, & Custom Sort Bar */}
-      <div className="relative z-40 py-1.5 px-2 mb-2 flex items-center justify-between gap-1.5 sm:gap-2 w-full flex-wrap sm:flex-nowrap">
+      <div className="relative z-40 py-2 px-2.5 mb-3 bg-[#EFE9E0] dark:bg-[#181715] border border-[#C8B9A6] dark:border-[#2E2C29] rounded-xl shadow-xs flex items-center justify-between gap-1.5 sm:gap-2 w-full flex-wrap sm:flex-nowrap">
         {/* Left: Category Dropdown */}
         <div ref={categoryDropdownRef} className="relative z-[60] shrink-0 order-1">
           <button
@@ -92,30 +92,30 @@ export const ProductGrid: React.FC = () => {
               setIsCategoryOpen(!isCategoryOpen);
               setIsSortOpen(false);
             }}
-            className="flex items-center justify-between gap-1.5 bg-white border border-[#D1D5DB] rounded-lg px-2.5 py-1 text-xs text-[#111827] min-w-[110px] sm:min-w-[145px] shadow-2xs hover:border-[#9CA3AF] focus:outline-none transition-colors cursor-pointer"
+            className="flex items-center justify-between gap-1.5 bg-white dark:bg-[#22201E] border-2 border-[#9E8C78] dark:border-[#3E3A35] rounded-lg px-3 py-1.5 text-xs text-[#111111] dark:text-[#F5F2EB] min-w-[115px] sm:min-w-[150px] shadow-xs hover:border-[#1C1B1A] dark:hover:border-[#D4AF37] focus:outline-none transition-colors cursor-pointer"
           >
-            <span className="font-normal flex items-center gap-1.5 truncate">
-              {selectedCategory === 'new-arrivals' && <Sparkles className="w-3 h-3 text-[#C5A880] fill-[#C5A880] shrink-0" />}
-              {selectedCategory === 'best-sellers' && <Star className="w-3 h-3 text-[#D4AF37] fill-[#D4AF37] shrink-0" />}
+            <span className="font-bold flex items-center gap-1.5 truncate">
+              {selectedCategory === 'new-arrivals' && <Sparkles className="w-3.5 h-3.5 text-[#9A6F28] dark:text-[#C5A880] fill-[#C5A880] shrink-0" />}
+              {selectedCategory === 'best-sellers' && <Star className="w-3.5 h-3.5 text-[#B8860B] dark:text-[#D4AF37] fill-[#D4AF37] shrink-0" />}
               <span>{currentCategoryLabel}</span>
             </span>
             {isCategoryOpen ? (
-              <ChevronUp className="w-3 h-3 text-[#374151] shrink-0" />
+              <ChevronUp className="w-3.5 h-3.5 text-[#111111] dark:text-[#F5F2EB] shrink-0 stroke-[2.5]" />
             ) : (
-              <ChevronDown className="w-3 h-3 text-[#374151] shrink-0" />
+              <ChevronDown className="w-3.5 h-3.5 text-[#111111] dark:text-[#F5F2EB] shrink-0 stroke-[2.5]" />
             )}
           </button>
 
           {isCategoryOpen && (
-            <div className="absolute left-0 mt-1 w-full min-w-[200px] bg-white border border-[#D1D5DB] rounded-xl shadow-2xl py-1 z-[100] animate-fade-in">
+            <div className="absolute left-0 mt-1.5 w-full min-w-[205px] bg-white dark:bg-[#1E1D1B] border-2 border-[#8C7A6B] dark:border-[#3E3A35] rounded-xl shadow-2xl py-1.5 z-[100] animate-fade-in">
               {categories.map((cat) => {
                 const isSelected = selectedCategory === cat.id;
                 const isDividerBefore = cat.id === 'new-arrivals';
                 return (
                   <React.Fragment key={cat.id}>
                     {isDividerBefore && (
-                      <div className="my-1 border-t border-[#E5E7EB]">
-                        <span className="block px-3 pt-1 pb-0.5 text-[9px] font-bold uppercase tracking-wider text-[#9CA3AF]">
+                      <div className="my-1 border-t border-[#D5C7B8] dark:border-[#33302C]">
+                        <span className="block px-3 pt-1.5 pb-0.5 text-[9px] font-extrabold uppercase tracking-wider text-[#5C534B] dark:text-[#A69E96]">
                           Featured Collections
                         </span>
                       </div>
@@ -128,10 +128,10 @@ export const ProductGrid: React.FC = () => {
                       }}
                       className={`w-full text-left px-3 py-1.5 text-xs transition-colors flex items-center justify-between cursor-pointer ${
                         isSelected
-                          ? 'bg-[#E5E5E5] text-[#111827] font-semibold'
+                          ? 'bg-[#1C1B1A] text-white dark:bg-[#D4AF37] dark:text-[#1C1B1A] font-bold'
                           : cat.isSpecial
-                          ? 'text-[#8A6224] hover:bg-[#FAF3E8] font-medium'
-                          : 'text-[#374151] hover:bg-[#F3F4F6]'
+                          ? 'text-[#7A5216] dark:text-[#E6CA9E] hover:bg-[#F5ECE0] dark:hover:bg-[#2A2724] font-bold'
+                          : 'text-[#111111] dark:text-[#E5E0D8] hover:bg-[#F2ECE4] dark:hover:bg-[#2A2724] font-semibold'
                       }`}
                     >
                       <span className="flex items-center gap-1.5">
@@ -140,7 +140,7 @@ export const ProductGrid: React.FC = () => {
                         <span>{cat.label}</span>
                       </span>
                       {isSelected && (
-                        <span className="text-[10px] text-[#111827] font-bold">✓</span>
+                        <span className="text-[10px] font-extrabold">✓</span>
                       )}
                     </button>
                   </React.Fragment>
@@ -153,19 +153,19 @@ export const ProductGrid: React.FC = () => {
         {/* Center: Search Bar */}
         <div className="flex-1 min-w-[120px] sm:min-w-[180px] max-w-md mx-1 order-3 sm:order-2">
           <div className="relative w-full">
-            <Search className="w-3.5 h-3.5 text-[#6B7280] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <Search className="w-3.5 h-3.5 text-[#2C2825] dark:text-[#A69E96] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none stroke-[2.2]" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search creations..."
-              className="w-full pl-8 pr-7 py-1 text-xs bg-white border border-[#D1D5DB] rounded-lg text-[#111827] placeholder:text-[#9CA3AF] focus:outline-none focus:border-[#4B5563] shadow-2xs transition-colors"
+              className="w-full pl-8 pr-7 py-1.5 text-xs font-semibold bg-white dark:bg-[#22201E] border-2 border-[#9E8C78] dark:border-[#3E3A35] rounded-lg text-[#111111] dark:text-[#F5F2EB] placeholder:text-[#57504A] dark:placeholder:text-[#9CA3AF] focus:outline-none focus:border-[#1C1B1A] dark:focus:border-[#D4AF37] shadow-xs transition-colors"
             />
             {searchQuery && (
               <button
                 type="button"
                 onClick={() => setSearchQuery('')}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-[#6B7280] hover:text-[#111827] font-bold p-0.5 cursor-pointer"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-[#111111] dark:text-[#F5F2EB] hover:text-rose-600 font-extrabold p-0.5 cursor-pointer"
                 aria-label="Clear search"
               >
                 ✕
@@ -182,18 +182,18 @@ export const ProductGrid: React.FC = () => {
               setIsSortOpen(!isSortOpen);
               setIsCategoryOpen(false);
             }}
-            className="flex items-center justify-between gap-1.5 bg-white border border-[#D1D5DB] rounded-lg px-2.5 py-1 text-xs text-[#111827] min-w-[105px] sm:min-w-[135px] shadow-2xs hover:border-[#9CA3AF] focus:outline-none transition-colors cursor-pointer"
+            className="flex items-center justify-between gap-1.5 bg-white dark:bg-[#22201E] border-2 border-[#9E8C78] dark:border-[#3E3A35] rounded-lg px-3 py-1.5 text-xs text-[#111111] dark:text-[#F5F2EB] min-w-[110px] sm:min-w-[140px] shadow-xs hover:border-[#1C1B1A] dark:hover:border-[#D4AF37] focus:outline-none transition-colors cursor-pointer"
           >
-            <span className="font-normal">{currentSortLabel}</span>
+            <span className="font-bold">{currentSortLabel}</span>
             {isSortOpen ? (
-              <ChevronUp className="w-3 h-3 text-[#374151] shrink-0" />
+              <ChevronUp className="w-3.5 h-3.5 text-[#111111] dark:text-[#F5F2EB] shrink-0 stroke-[2.5]" />
             ) : (
-              <ChevronDown className="w-3 h-3 text-[#374151] shrink-0" />
+              <ChevronDown className="w-3.5 h-3.5 text-[#111111] dark:text-[#F5F2EB] shrink-0 stroke-[2.5]" />
             )}
           </button>
 
           {isSortOpen && (
-            <div className="absolute right-0 mt-1 w-full min-w-[185px] bg-white border border-[#D1D5DB] rounded-md shadow-2xl py-1 z-[100] animate-fade-in">
+            <div className="absolute right-0 mt-1.5 w-full min-w-[190px] bg-white dark:bg-[#1E1D1B] border-2 border-[#8C7A6B] dark:border-[#3E3A35] rounded-xl shadow-2xl py-1.5 z-[100] animate-fade-in">
               {SORT_OPTIONS.map((option) => {
                 const isSelected = sortBy === option.id;
                 return (
@@ -204,10 +204,10 @@ export const ProductGrid: React.FC = () => {
                       setSortBy(option.id);
                       setIsSortOpen(false);
                     }}
-                    className={`w-full text-left px-3.5 py-2 text-xs sm:text-sm transition-colors block ${
+                    className={`w-full text-left px-3.5 py-2 text-xs transition-colors block cursor-pointer ${
                       isSelected
-                        ? 'bg-[#E5E5E5] text-[#111827] font-medium'
-                        : 'text-[#374151] hover:bg-[#F3F4F6]'
+                        ? 'bg-[#1C1B1A] text-white dark:bg-[#D4AF37] dark:text-[#1C1B1A] font-bold'
+                        : 'text-[#111111] dark:text-[#E5E0D8] hover:bg-[#F2ECE4] dark:hover:bg-[#2A2724] font-semibold'
                     }`}
                   >
                     {option.label}
