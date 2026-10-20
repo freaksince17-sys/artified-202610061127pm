@@ -294,11 +294,13 @@ const sanitizeProduct = (prod: Product): Product => {
   const explicitOutOfStock = prod.inStock === false && prod.stockCount === 0;
   const inStock = explicitOutOfStock ? false : (prod.inStock !== false);
   const stockCount = inStock ? (typeof prod.stockCount === 'number' && prod.stockCount > 0 ? prod.stockCount : 8) : 0;
+  const inventoryCount = typeof prod.inventoryCount === 'number' && !isNaN(prod.inventoryCount) ? Math.max(0, prod.inventoryCount) : stockCount;
 
   return {
     ...prod,
     inStock,
     stockCount,
+    inventoryCount,
     images: cleanImages.length > 0 ? cleanImages : [fallback]
   };
 };
@@ -1640,8 +1642,20 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       })
       .catch(() => {});
 
+    // Real-time cross-browser polling loop (every 3 seconds & on focus) so Chrome purchases update Edge live even when Firestore read quota is exceeded
+    const triggerCrossBrowserSync = () => {
+      syncConfirmedSalesOrdersFromFirestore(getAllOrdersForSeller(), products).catch(() => {});
+    };
+
+    const syncIntervalId = window.setInterval(triggerCrossBrowserSync, 3000);
+    window.addEventListener('focus', triggerCrossBrowserSync);
+    document.addEventListener('visibilitychange', triggerCrossBrowserSync);
+
     return () => {
       try {
+        window.clearInterval(syncIntervalId);
+        window.removeEventListener('focus', triggerCrossBrowserSync);
+        document.removeEventListener('visibilitychange', triggerCrossBrowserSync);
         unsubSalesHistory();
         unsubProducts();
       } catch {}

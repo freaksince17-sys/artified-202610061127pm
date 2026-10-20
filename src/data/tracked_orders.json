@@ -576,5 +576,78 @@
     "generation": 6,
     "purgeEpochId": "artified_clean_slate_v6",
     "statusRevision": 1
+  },
+  "ART-2026-1866": {
+    "orderId": "#ART-2026-1866",
+    "customerName": "asha",
+    "phone": "9803980781",
+    "deliveryAddress": "04",
+    "deliveryZoneName": "Kathmandu Valley",
+    "paymentMethodText": "Cash on Delivery (COD)",
+    "paymentStatus": "Pay on Delivery",
+    "paymentScreenshot": "",
+    "items": [
+      {
+        "productId": "tara-micro-pearl-clutch",
+        "title": "Three Layer Pearl Necklace with Earrings",
+        "image": "",
+        "quantity": 1,
+        "price": 650,
+        "customization": ""
+      }
+    ],
+    "subtotal": 650,
+    "deliveryFee": 120,
+    "total": 770,
+    "orderPlacedDate": "Oct 19, 2026, 11:51 PM",
+    "estimatedDeliveryDate": "1 to 2 days",
+    "currentPhase": "confirmed",
+    "progressPercentage": 25,
+    "artisanName": "Sahina Shrestha",
+    "artisanRole": "Founder and Creator",
+    "studioLocation": "Artified Workshop, Kathmandu, Nepal",
+    "liveCraftNotes": "Your order was received and confirmed! Sahina Shrestha has reserved the required luster pearls and high-strength threads. Handcrafting is scheduled at our Kathmandu workshop.",
+    "milestones": [
+      {
+        "stage": "confirmed",
+        "label": "Order Confirmed & Paid",
+        "description": "Order confirmed and verified. Materials and pearls reserved at Kathmandu workshop.",
+        "timestamp": "Oct 19, 2026, 11:51 PM",
+        "location": "Artified Workshop, Kathmandu",
+        "completed": false,
+        "current": true
+      },
+      {
+        "stage": "handcrafting_and_packaging",
+        "label": "Handcrafting & Packaging",
+        "description": "Handcrafted with precision by Sahina Shrestha & team, inspected for quality, and packaged in luxury dust pouch.",
+        "timestamp": "Upcoming",
+        "location": "Craft Bench, Kathmandu, Nepal",
+        "completed": false,
+        "current": false
+      },
+      {
+        "stage": "out_for_delivery",
+        "label": "Out for Delivery",
+        "description": "Handed over to express courier rider for safe doorstep transit.",
+        "timestamp": "Estimated: 1 to 2 days",
+        "location": "Kathmandu Valley Logistics Hub",
+        "completed": false,
+        "current": false
+      },
+      {
+        "stage": "delivered",
+        "label": "Delivered",
+        "description": "Safely delivered to customer with happiness, care card, and 48-hour check guarantee.",
+        "timestamp": "Expected 1 to 2 days",
+        "location": "Kathmandu Valley",
+        "completed": false,
+        "current": false
+      }
+    ],
+    "updatedAt": "2026-10-19T18:06:19.073Z",
+    "generation": 6,
+    "purgeEpochId": "artified_clean_slate_v6",
+    "statusRevision": 1
   }
 }

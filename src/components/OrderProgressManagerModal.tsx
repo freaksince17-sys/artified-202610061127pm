@@ -608,7 +608,15 @@ export const OrderProgressManagerModal: React.FC<OrderProgressManagerModalProps>
                     {/* 2. Ordered Items */}
                     <div className="md:col-span-3 flex items-center gap-2 bg-[#FAF8F5] p-2 rounded-lg border border-[#E8DFD8]/80 min-w-0">
                       <img
-                        src={getRealProductImage(order.items?.[0]?.title, order.items?.[0]?.image)}
+                        src={(() => {
+                          const firstItem = order.items?.[0];
+                          const pid = firstItem ? resolveProductIdFromOrderItem(firstItem, products) : null;
+                          const matchedProd = pid ? products.find((p) => p.id === pid) : null;
+                          return (
+                            matchedProd?.images?.[0] ||
+                            getRealProductImage(firstItem?.title, firstItem?.image, firstItem?.productId || pid || undefined)
+                          );
+                        })()}
                         alt={order.items?.[0]?.title || 'Handcrafted Item'}
                         onError={(e) => {
                           (e.currentTarget as HTMLImageElement).src = CAVIAR_PEARL_BAG_IMAGE;

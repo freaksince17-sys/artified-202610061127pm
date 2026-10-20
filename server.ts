@@ -153,6 +153,21 @@ async function startServer() {
     return partialMatch ? partialMatch.id : null;
   };
 
+  const seedTrackedOrdersJsonPath = path.resolve(seedDataDir, 'tracked_orders.json');
+  const purgedOrderKeys = new Set([
+    'ART20261861',
+    'ART20261862',
+    'ART20261864',
+    'ART20264846',
+    'ART20265526',
+    'ART20268842',
+    'ART20265521',
+    'ART20263190',
+    'ART20263829',
+    'ART20265157',
+    'ART20264729'
+  ]);
+
   // Helper to load and reconcile sales_history records from disk and confirmed orders
   const loadStoredSalesHistory = (): any[] => {
     const recordsMap = new Map<string, any>();
@@ -161,9 +176,21 @@ async function startServer() {
       if (!Array.isArray(list)) return;
       for (const rec of list) {
         if (rec && rec.id && rec.productId) {
+          const orderCanon = String(rec.orderId || rec.id.split('_')[0] || '')
+            .replace(/[^A-Z0-9]/gi, '')
+            .toUpperCase();
+          if (purgedOrderKeys.has(orderCanon)) continue;
+          const prod = PRODUCTS.find((p) => p.id === rec.productId);
+          const qty = Math.max(1, Number(rec.quantity) || 1);
+          const unitPrice = Number(rec.unitPrice) > 0 ? Number(rec.unitPrice) : prod?.price || 1500;
+          const revenue = Number(rec.revenue) > 0 ? Number(rec.revenue) : qty * unitPrice;
           recordsMap.set(String(rec.id).trim(), {
             ...rec,
-            quantity: Math.max(1, Number(rec.quantity) || 1),
+            productTitle: rec.productTitle || prod?.title || '',
+            category: rec.category || prod?.category || 'pearl-bags',
+            quantity: qty,
+            unitPrice,
+            revenue,
             timestamp: rec.timestamp || rec.createdAt || new Date().toISOString(),
             createdAt: rec.createdAt || rec.timestamp || new Date().toISOString(),
             status: 'completed'
@@ -203,17 +230,20 @@ async function startServer() {
           const canonicalOrderId = String(order.orderId || key)
             .replace(/[^A-Z0-9]/gi, '')
             .toUpperCase();
-          if (!canonicalOrderId) continue;
+          if (!canonicalOrderId || purgedOrderKeys.has(canonicalOrderId)) continue;
 
-          const grouped: Record<string, { qty: number; title: string }> = {};
+          const grouped: Record<string, { qty: number; title: string; unitPrice: number; category: string }> = {};
           for (const item of order.items || []) {
             const pid = resolveServerProductId(item);
             if (pid) {
               const prod = PRODUCTS.find((p) => p.id === pid);
               const qty = Math.max(1, Number(item.quantity) || 1);
+              const unitPrice = Number(item.price) > 0 ? Number(item.price) : prod?.price || 1500;
               grouped[pid] = {
                 qty: (grouped[pid]?.qty || 0) + qty,
-                title: prod?.title || item.title || ''
+                title: prod?.title || item.title || '',
+                unitPrice,
+                category: prod?.category || 'pearl-bags'
               };
             }
           }
@@ -227,7 +257,10 @@ async function startServer() {
                 orderId: order.orderId || `#${key}`,
                 productId: pid,
                 productTitle: info.title,
+                category: info.category,
                 quantity: info.qty,
+                unitPrice: info.unitPrice,
+                revenue: info.qty * info.unitPrice,
                 timestamp: ts,
                 createdAt: ts,
                 status: 'completed'
@@ -369,24 +402,31 @@ async function startServer() {
       }
 
       // Group quantities by productId for this order
-      const groupedByProd: Record<string, { qty: number; title: string }> = {};
+      const groupedByProd: Record<string, { qty: number; title: string; unitPrice: number; category: string }> = {};
       for (const it of resolvedItems) {
+        const prod = PRODUCTS.find((p) => p.id === it.productId);
+        const unitPrice = prod?.price || 1500;
         groupedByProd[it.productId] = {
           qty: (groupedByProd[it.productId]?.qty || 0) + it.quantity,
-          title: it.productTitle
+          title: it.productTitle,
+          unitPrice,
+          category: prod?.category || 'pearl-bags'
         };
       }
 
       const newlyAddedItemsForCloudFunction: Array<{ productId: string; productTitle: string; quantity: number }> = [];
       for (const [pid, info] of Object.entries(groupedByProd)) {
         const recId = `${canonicalOrderId}_${pid}`;
-        if (!historyMap.has(recId)) {
+        if (!historyMap.has(recId) && !purgedOrderKeys.has(canonicalOrderId)) {
           historyMap.set(recId, {
             id: recId,
             orderId: rawOrderId.startsWith('#') ? rawOrderId : `#${rawOrderId}`,
             productId: pid,
             productTitle: info.title,
+            category: info.category,
             quantity: info.qty,
+            unitPrice: info.unitPrice,
+            revenue: info.qty * info.unitPrice,
             timestamp: nowIso,
             createdAt: nowIso,
             status: 'completed'
@@ -841,6 +881,9 @@ async function startServer() {
       };
 
       fs.writeFileSync(trackedOrdersJsonPath, JSON.stringify(map, null, 2), 'utf-8');
+      try {
+        fs.writeFileSync(seedTrackedOrdersJsonPath, JSON.stringify(map, null, 2), 'utf-8');
+      } catch {}
 
       // Automatically reconcile sales_history & trigger atomic Firestore increment(1) when order is confirmed/completed
       try {

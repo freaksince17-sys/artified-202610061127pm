@@ -1,7 +1,6 @@
 import { db } from '../firebase';
 import {
   doc,
-  getDoc,
   setDoc,
   collection,
   getDocs,
@@ -11,8 +10,9 @@ import {
 } from 'firebase/firestore';
 import { Product, TrackedOrderData } from '../types';
 import { PRODUCTS } from '../data/products';
-import { normalizeOrderId, getCanonicalOrderKey } from '../data/trackingData';
+import { normalizeOrderId, getCanonicalOrderKey, syncTrackedOrdersFromServer, getAllOrdersForSeller } from '../data/trackingData';
 import { calculateTotalSold } from '../utils/productStats';
+import { isFirestoreQuotaExceeded, detectQuotaError } from '../utils/safeFirestore';
 
 const CONFIRMED_SALES_ORDERS_STORAGE_KEY = 'artified_confirmed_sales_order_ids_v1';
 const SALES_HISTORY_STORAGE_KEY = 'artified_sales_history_v1';
@@ -22,8 +22,11 @@ export interface SalesHistoryRecord {
   id: string;
   productId: string;
   productTitle?: string;
+  category?: string;
   orderId: string;
   quantity: number;
+  unitPrice?: number;
+  revenue?: number;
   timestamp: string;
   createdAt: string;
   status: 'completed';
@@ -50,13 +53,16 @@ export function isOrderConfirmedOrCompleted(order: TrackedOrderData): boolean {
   return paymentLower.includes('confirmed') || paymentLower.includes('paid') || paymentLower.includes('verified');
 }
 
-const SEED_SALES_HISTORY: SalesHistoryRecord[] = [
+export const SEED_SALES_HISTORY: SalesHistoryRecord[] = [
   {
     id: 'ART20261852_apsara-layered-pearl-collar',
     orderId: '#ART-2026-1852',
     productId: 'apsara-layered-pearl-collar',
     productTitle: 'Caviar Pearl Bag',
+    category: 'pearl-bags',
     quantity: 1,
+    unitPrice: 3000,
+    revenue: 3000,
     timestamp: '2026-10-18T11:29:34.277Z',
     createdAt: '2026-10-18T11:29:34.277Z',
     status: 'completed'
@@ -66,7 +72,10 @@ const SEED_SALES_HISTORY: SalesHistoryRecord[] = [
     orderId: '#ART-2026-1853',
     productId: 'lalitpur-bloom-pearl-tote',
     productTitle: 'Pearl Beaded Bag',
+    category: 'pearl-bags',
     quantity: 1,
+    unitPrice: 2800,
+    revenue: 2800,
     timestamp: '2026-10-18T11:32:45.558Z',
     createdAt: '2026-10-18T11:32:45.558Z',
     status: 'completed'
@@ -76,7 +85,10 @@ const SEED_SALES_HISTORY: SalesHistoryRecord[] = [
     orderId: '#ART-2026-1854',
     productId: 'art-1790323549756-24tl6',
     productTitle: 'Beaded Pearl Layer Necklace with Earrings',
+    category: 'pearl-necklaces',
     quantity: 1,
+    unitPrice: 800,
+    revenue: 800,
     timestamp: '2026-10-18T12:05:38.714Z',
     createdAt: '2026-10-18T12:05:38.714Z',
     status: 'completed'
@@ -86,7 +98,10 @@ const SEED_SALES_HISTORY: SalesHistoryRecord[] = [
     orderId: '#ART-2026-1855',
     productId: 'art-1790323202380-nw0zi',
     productTitle: 'Handmade Macrame Plant Hanger without pot',
+    category: 'macrame',
     quantity: 1,
+    unitPrice: 850,
+    revenue: 850,
     timestamp: '2026-10-18T11:42:48.894Z',
     createdAt: '2026-10-18T11:42:48.894Z',
     status: 'completed'
@@ -96,7 +111,10 @@ const SEED_SALES_HISTORY: SalesHistoryRecord[] = [
     orderId: '#ART-2026-1856',
     productId: 'art-1790321559072-ym8ui',
     productTitle: 'Marble Bead Hand Bag',
+    category: 'pearl-bags',
     quantity: 1,
+    unitPrice: 2800,
+    revenue: 2800,
     timestamp: '2026-10-18T12:08:36.748Z',
     createdAt: '2026-10-18T12:08:36.748Z',
     status: 'completed'
@@ -106,7 +124,10 @@ const SEED_SALES_HISTORY: SalesHistoryRecord[] = [
     orderId: '#ART-2026-1858',
     productId: 'art-1790334939460-sj7ss',
     productTitle: 'Pearl Beaded Keyring Set of 4',
+    category: 'accessories',
     quantity: 1,
+    unitPrice: 600,
+    revenue: 600,
     timestamp: '2026-10-18T12:31:09.962Z',
     createdAt: '2026-10-18T12:31:09.962Z',
     status: 'completed'
@@ -116,7 +137,10 @@ const SEED_SALES_HISTORY: SalesHistoryRecord[] = [
     orderId: '#ART-2026-1859',
     productId: 'art-1790339748217-gx4df',
     productTitle: 'Silk Scrunchies Set of 4',
+    category: 'accessories',
     quantity: 1,
+    unitPrice: 300,
+    revenue: 300,
     timestamp: '2026-10-18T12:57:55.453Z',
     createdAt: '2026-10-18T12:57:55.453Z',
     status: 'completed'
@@ -126,20 +150,94 @@ const SEED_SALES_HISTORY: SalesHistoryRecord[] = [
     orderId: '#ART-2026-1865',
     productId: 'lalitpur-bloom-pearl-tote',
     productTitle: 'Pearl Beaded Bag',
+    category: 'pearl-bags',
     quantity: 1,
+    unitPrice: 2800,
+    revenue: 2800,
     timestamp: '2026-10-19T17:33:55.488Z',
     createdAt: '2026-10-19T17:33:55.488Z',
+    status: 'completed'
+  },
+  {
+    id: 'ART20261866_tara-micro-pearl-clutch',
+    orderId: '#ART-2026-1866',
+    productId: 'tara-micro-pearl-clutch',
+    productTitle: 'Three Layer Pearl Necklace with Earrings',
+    category: 'pearl-necklaces',
+    quantity: 1,
+    unitPrice: 650,
+    revenue: 650,
+    timestamp: '2026-10-19T18:06:19.073Z',
+    createdAt: '2026-10-19T18:06:19.073Z',
     status: 'completed'
   }
 ];
 
+const PURGED_ORDER_IDS = new Set([
+  'ART20261861',
+  'ART20261862',
+  'ART20261864',
+  'ART20264846',
+  'ART20265526',
+  'ART20268842',
+  'ART20265521',
+  'ART20263190',
+  'ART20263829',
+  'ART20265157',
+  'ART20264729'
+]);
+
+function isSaleRecordPurged(rec: Partial<SalesHistoryRecord>): boolean {
+  if (!rec) return true;
+  const orderKey = getCanonicalOrderKey(rec.orderId || '');
+  if (orderKey && PURGED_ORDER_IDS.has(orderKey)) return true;
+  const idPrefix = String(rec.id || '').split('_')[0].toUpperCase();
+  if (idPrefix && PURGED_ORDER_IDS.has(idPrefix)) return true;
+  return false;
+}
+
+/**
+ * Enriches a SalesHistoryRecord with productTitle, category, unitPrice, and revenue from the product catalog
+ */
+export function enrichSalesHistoryRecord(
+  rec: SalesHistoryRecord,
+  catalog: Product[] = PRODUCTS
+): Required<SalesHistoryRecord> {
+  const prod = catalog.find((p) => p.id === rec.productId) || PRODUCTS.find((p) => p.id === rec.productId);
+  const qty = Math.max(1, Number(rec.quantity) || 1);
+  const unitPrice = Number(rec.unitPrice) > 0 ? Number(rec.unitPrice) : prod?.price || 1500;
+  const revenue = Number(rec.revenue) > 0 ? Number(rec.revenue) : qty * unitPrice;
+  const ts =
+    typeof rec.timestamp === 'string' && rec.timestamp
+      ? rec.timestamp
+      : typeof rec.createdAt === 'string' && rec.createdAt
+      ? rec.createdAt
+      : new Date().toISOString();
+
+  return {
+    id: String(rec.id).trim(),
+    productId: String(rec.productId).trim(),
+    productTitle: rec.productTitle || prod?.title || 'Handcrafted Piece',
+    category: rec.category || prod?.category || 'pearl-bags',
+    orderId: rec.orderId || '',
+    quantity: qty,
+    unitPrice,
+    revenue,
+    timestamp: ts,
+    createdAt: rec.createdAt || ts,
+    status: 'completed'
+  };
+}
+
 /**
  * Reads local sales_history records from localStorage merged with baseline confirmed order history
  */
-export function getLocalSalesHistory(): SalesHistoryRecord[] {
-  const map = new Map<string, SalesHistoryRecord>();
+export function getLocalSalesHistory(catalog: Product[] = PRODUCTS): Required<SalesHistoryRecord>[] {
+  const map = new Map<string, Required<SalesHistoryRecord>>();
   for (const r of SEED_SALES_HISTORY) {
-    map.set(r.id, r);
+    if (!isSaleRecordPurged(r)) {
+      map.set(r.id, enrichSalesHistoryRecord(r, catalog));
+    }
   }
   try {
     if (typeof localStorage !== 'undefined') {
@@ -148,41 +246,36 @@ export function getLocalSalesHistory(): SalesHistoryRecord[] {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed)) {
           for (const r of parsed) {
-            if (r && r.id && r.productId) {
-              map.set(String(r.id).trim(), r);
+            if (r && r.id && r.productId && !isSaleRecordPurged(r)) {
+              map.set(String(r.id).trim(), enrichSalesHistoryRecord(r, catalog));
             }
           }
         }
       }
     }
   } catch {}
-  return Array.from(map.values());
+  return Array.from(map.values()).sort(
+    (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+  );
 }
 
 /**
  * Saves deduplicated sales_history records to localStorage and updates the lightweight product sales ledger
  */
-export function saveLocalSalesHistory(records: SalesHistoryRecord[]): Map<string, SalesHistoryRecord> {
-  const map = new Map<string, SalesHistoryRecord>();
+export function saveLocalSalesHistory(
+  records: SalesHistoryRecord[],
+  catalog: Product[] = PRODUCTS
+): Map<string, Required<SalesHistoryRecord>> {
+  const map = new Map<string, Required<SalesHistoryRecord>>();
+  for (const r of SEED_SALES_HISTORY) {
+    if (!isSaleRecordPurged(r)) {
+      map.set(r.id, enrichSalesHistoryRecord(r, catalog));
+    }
+  }
   for (const r of records || []) {
-    if (r && r.id && r.productId) {
+    if (r && r.id && r.productId && !isSaleRecordPurged(r)) {
       const cleanId = String(r.id).trim();
-      const ts =
-        typeof r.timestamp === 'string'
-          ? r.timestamp
-          : typeof r.createdAt === 'string'
-          ? r.createdAt
-          : new Date().toISOString();
-      map.set(cleanId, {
-        id: cleanId,
-        productId: String(r.productId).trim(),
-        productTitle: r.productTitle || '',
-        orderId: r.orderId || '',
-        quantity: Math.max(1, Number(r.quantity) || 1),
-        timestamp: ts,
-        createdAt: r.createdAt || ts,
-        status: 'completed'
-      });
+      map.set(cleanId, enrichSalesHistoryRecord(r, catalog));
     }
   }
 
@@ -193,7 +286,7 @@ export function saveLocalSalesHistory(records: SalesHistoryRecord[]): Map<string
 
       // Also compute and persist the lightweight product sales ledger (< 2KB)
       const byProduct: Record<string, number> = {};
-      const orderIds = new Set<string>(getCountedSalesOrderIds());
+      const orderIds = new Set<string>();
       for (const rec of deduped) {
         byProduct[rec.productId] = (byProduct[rec.productId] || 0) + rec.quantity;
         if (rec.orderId) {
@@ -201,11 +294,7 @@ export function saveLocalSalesHistory(records: SalesHistoryRecord[]): Map<string
           if (c) orderIds.add(c);
         }
       }
-      const existingLedger = getLocalProductSalesLedger();
-      for (const [pid, qty] of Object.entries(byProduct)) {
-        existingLedger[pid] = Math.max(existingLedger[pid] || 0, qty);
-      }
-      localStorage.setItem(PRODUCT_SALES_LEDGER_STORAGE_KEY, JSON.stringify(existingLedger));
+      localStorage.setItem(PRODUCT_SALES_LEDGER_STORAGE_KEY, JSON.stringify(byProduct));
       localStorage.setItem(CONFIRMED_SALES_ORDERS_STORAGE_KEY, JSON.stringify(Array.from(orderIds)));
     }
   } catch {}
@@ -216,12 +305,15 @@ export function saveLocalSalesHistory(records: SalesHistoryRecord[]): Map<string
 /**
  * Merges incoming sales_history records with local sales_history records
  */
-export function mergeSalesHistoryRecords(incoming: SalesHistoryRecord[]): {
-  salesHistory: SalesHistoryRecord[];
+export function mergeSalesHistoryRecords(
+  incoming: SalesHistoryRecord[],
+  catalog: Product[] = PRODUCTS
+): {
+  salesHistory: Required<SalesHistoryRecord>[];
   verifiedSalesByProduct: Record<string, number>;
 } {
-  const current = getLocalSalesHistory();
-  const map = saveLocalSalesHistory([...current, ...(incoming || [])]);
+  const current = getLocalSalesHistory(catalog);
+  const map = saveLocalSalesHistory([...current, ...(incoming || [])], catalog);
   const salesHistory = Array.from(map.values());
   const verifiedSalesByProduct: Record<string, number> = {};
   for (const rec of salesHistory) {
@@ -236,6 +328,10 @@ export function mergeSalesHistoryRecords(incoming: SalesHistoryRecord[]): {
 export function getLocalProductSalesLedger(): Record<string, number> {
   const ledger: Record<string, number> = {};
   try {
+    const history = getLocalSalesHistory();
+    for (const rec of history) {
+      ledger[rec.productId] = (ledger[rec.productId] || 0) + rec.quantity;
+    }
     if (typeof localStorage !== 'undefined') {
       const raw = localStorage.getItem(PRODUCT_SALES_LEDGER_STORAGE_KEY);
       if (raw) {
@@ -243,20 +339,11 @@ export function getLocalProductSalesLedger(): Record<string, number> {
         if (parsed && typeof parsed === 'object') {
           for (const [k, v] of Object.entries(parsed)) {
             const num = Number(v);
-            if (!isNaN(num) && num > 0) {
+            if (!isNaN(num) && num > (ledger[k] || 0)) {
               ledger[k] = num;
             }
           }
         }
-      }
-      // Also verify against local sales_history records
-      const history = getLocalSalesHistory();
-      const historyTotals: Record<string, number> = {};
-      for (const rec of history) {
-        historyTotals[rec.productId] = (historyTotals[rec.productId] || 0) + rec.quantity;
-      }
-      for (const [pid, total] of Object.entries(historyTotals)) {
-        ledger[pid] = Math.max(ledger[pid] || 0, total);
       }
     }
   } catch {}
@@ -284,11 +371,14 @@ export function applyVerifiedSalesToProducts(
       Number(prod.totalSold) || 0,
       baseSold + verifiedOnline
     );
+    const stockCount = typeof prod.stockCount === 'number' ? prod.stockCount : 8;
+    const inventoryCount = typeof prod.inventoryCount === 'number' ? prod.inventoryCount : stockCount;
     return {
       ...prod,
       soldCount: baseSold,
       onlineSalesCount: verifiedOnline,
       totalSold: verifiedTotal,
+      inventoryCount,
       isBestSeller: verifiedTotal >= bestsellerThreshold || prod.isBestSeller
     };
   });
@@ -300,6 +390,13 @@ export function applyVerifiedSalesToProducts(
 export function getCountedSalesOrderIds(): Set<string> {
   const set = new Set<string>();
   try {
+    const history = getLocalSalesHistory();
+    history.forEach((rec) => {
+      if (rec.orderId) {
+        const c = getCanonicalOrderKey(rec.orderId);
+        if (c && !PURGED_ORDER_IDS.has(c)) set.add(c);
+      }
+    });
     if (typeof localStorage !== 'undefined') {
       const raw = localStorage.getItem(CONFIRMED_SALES_ORDERS_STORAGE_KEY);
       if (raw) {
@@ -307,26 +404,17 @@ export function getCountedSalesOrderIds(): Set<string> {
         if (Array.isArray(parsed)) {
           parsed.forEach((id) => {
             if (typeof id === 'string' && id.trim()) {
-              set.add(getCanonicalOrderKey(id));
+              const c = getCanonicalOrderKey(id);
+              if (c && !PURGED_ORDER_IDS.has(c)) set.add(c);
             }
           });
         }
       }
-      const history = getLocalSalesHistory();
-      history.forEach((rec) => {
-        if (rec.orderId) {
-          const c = getCanonicalOrderKey(rec.orderId);
-          if (c) set.add(c);
-        }
-      });
     }
   } catch {}
   return set;
 }
 
-/**
- * Saves the set of canonical order IDs whose sales have been counted
- */
 function saveCountedSalesOrderIds(ids: Set<string>): void {
   try {
     if (typeof localStorage !== 'undefined') {
@@ -354,6 +442,9 @@ export function resolveProductIdFromOrderItem(
   if (cleanTitle.includes('beaded pearl layer necklace')) return 'art-1790323549756-24tl6';
   if (cleanTitle.includes('macrame plant hanger')) return 'art-1790323202380-nw0zi';
   if (cleanTitle.includes('marble bead')) return 'art-1790321559072-ym8ui';
+  if (cleanTitle.includes('three layer pearl necklace')) return 'tara-micro-pearl-clutch';
+  if (cleanTitle.includes('pearl beaded keyring')) return 'art-1790334939460-sj7ss';
+  if (cleanTitle.includes('silk scrunchies')) return 'art-1790339748217-gx4df';
 
   // 1. Exact title match
   const exactMatch = catalog.find((p) => p.title.trim().toLowerCase() === cleanTitle);
@@ -379,17 +470,21 @@ export async function trackConfirmedOrderSalesInFirestore(
   currentProducts: Product[] = PRODUCTS
 ): Promise<{ updatedProductQuantities: Record<string, number>; wasNewlyCounted: boolean }> {
   const canonicalOrderId = getCanonicalOrderKey(order?.orderId || '');
-  if (!canonicalOrderId || !isOrderConfirmedOrCompleted(order)) {
+  if (!canonicalOrderId || PURGED_ORDER_IDS.has(canonicalOrderId) || !isOrderConfirmedOrCompleted(order)) {
     return { updatedProductQuantities: {}, wasNewlyCounted: false };
   }
 
-  // Calculate quantities per product from order items
+  // Calculate quantities and prices per product from order items
   const productQuantities: Record<string, number> = {};
+  const productPrices: Record<string, number> = {};
   for (const item of order.items || []) {
     const pid = resolveProductIdFromOrderItem(item, currentProducts);
     if (pid) {
       const qty = Math.max(1, Number(item.quantity) || 1);
       productQuantities[pid] = (productQuantities[pid] || 0) + qty;
+      if (Number(item.price) > 0) {
+        productPrices[pid] = Number(item.price);
+      }
     }
   }
 
@@ -397,8 +492,7 @@ export async function trackConfirmedOrderSalesInFirestore(
     return { updatedProductQuantities: {}, wasNewlyCounted: false };
   }
 
-  // Check if all (orderId, productId) records already exist in local sales_history
-  const existingHistory = getLocalSalesHistory();
+  const existingHistory = getLocalSalesHistory(currentProducts);
   const existingIds = new Set(existingHistory.map((r) => r.id));
   const nowIso = order.updatedAt || new Date().toISOString();
   const normOrderId = normalizeOrderId(order.orderId);
@@ -410,13 +504,18 @@ export async function trackConfirmedOrderSalesInFirestore(
   for (const [productId, qtyToAdd] of Object.entries(productQuantities)) {
     const recId = `${canonicalOrderId}_${productId}`;
     if (!existingIds.has(recId)) {
-      const existingProd = currentProducts.find((p) => p.id === productId);
+      const existingProd =
+        currentProducts.find((p) => p.id === productId) || PRODUCTS.find((p) => p.id === productId);
+      const unitPrice = productPrices[productId] || existingProd?.price || 1500;
       newRecords.push({
         id: recId,
         productId,
         productTitle: existingProd?.title || '',
+        category: existingProd?.category || 'pearl-bags',
         orderId: formattedOrderId,
         quantity: qtyToAdd,
+        unitPrice,
+        revenue: qtyToAdd * unitPrice,
         timestamp: nowIso,
         createdAt: nowIso,
         status: 'completed'
@@ -425,16 +524,16 @@ export async function trackConfirmedOrderSalesInFirestore(
     }
   }
 
-  // Mark order ID in counted set
   const countedSet = getCountedSalesOrderIds();
   countedSet.add(canonicalOrderId);
   saveCountedSalesOrderIds(countedSet);
 
-  // Save new records to local sales_history & lightweight ledger immediately (< 2KB, never fails quota)
-  const { verifiedSalesByProduct } = mergeSalesHistoryRecords(newRecords);
+  const { verifiedSalesByProduct } = mergeSalesHistoryRecords(newRecords, currentProducts);
 
-  // Dispatch global browser event immediately so CartContext and all UI components update with 0ms latency
-  if (typeof window !== 'undefined' && (Object.keys(newlyAddedQuantities).length > 0 || Object.keys(verifiedSalesByProduct).length > 0)) {
+  if (
+    typeof window !== 'undefined' &&
+    (Object.keys(newlyAddedQuantities).length > 0 || Object.keys(verifiedSalesByProduct).length > 0)
+  ) {
     window.dispatchEvent(
       new CustomEvent('artified_sales_incremented', {
         detail: {
@@ -446,7 +545,7 @@ export async function trackConfirmedOrderSalesInFirestore(
     );
   }
 
-  // 1. Invoke Server-Side Cloud Function endpoint (/api/sales/increment) for atomic persistence & sales_history verification
+  // 1. Invoke Server-Side Cloud Function endpoint (/api/sales/increment) for atomic persistence & cross-browser sync
   try {
     const res = await fetch('/api/sales/increment', {
       method: 'POST',
@@ -455,11 +554,15 @@ export async function trackConfirmedOrderSalesInFirestore(
         orderId: formattedOrderId,
         timestamp: nowIso,
         items: Object.entries(productQuantities).map(([pid, qty]) => {
-          const prod = currentProducts.find((p) => p.id === pid);
+          const prod = currentProducts.find((p) => p.id === pid) || PRODUCTS.find((p) => p.id === pid);
+          const unitPrice = productPrices[pid] || prod?.price || 1500;
           return {
             productId: pid,
             productTitle: prod?.title || '',
-            quantity: qty
+            category: prod?.category || 'pearl-bags',
+            quantity: qty,
+            unitPrice,
+            revenue: qty * unitPrice
           };
         })
       })
@@ -467,7 +570,7 @@ export async function trackConfirmedOrderSalesInFirestore(
     if (res.ok) {
       const serverData = await res.json();
       if (Array.isArray(serverData?.salesHistory)) {
-        const merged = mergeSalesHistoryRecords(serverData.salesHistory);
+        const merged = mergeSalesHistoryRecords(serverData.salesHistory, currentProducts);
         if (typeof window !== 'undefined') {
           window.dispatchEvent(
             new CustomEvent('artified_sales_incremented', {
@@ -484,7 +587,7 @@ export async function trackConfirmedOrderSalesInFirestore(
   } catch {}
 
   // 2. Direct Firestore atomic increment(1) + sales_history collection write (if newly counted)
-  if (newRecords.length > 0) {
+  if (newRecords.length > 0 && !isFirestoreQuotaExceeded) {
     try {
       const batch = writeBatch(db);
       for (const rec of newRecords) {
@@ -512,7 +615,6 @@ export async function trackConfirmedOrderSalesInFirestore(
 
       await batch.commit();
 
-      // Use Firestore's atomic increment(1) operator per unit sold on products/{productId}
       for (const [productId, qtyToAdd] of Object.entries(newlyAddedQuantities)) {
         const prodRef = doc(db, 'products', productId);
         for (let i = 0; i < qtyToAdd; i++) {
@@ -529,7 +631,7 @@ export async function trackConfirmedOrderSalesInFirestore(
         }
       }
     } catch (err) {
-      console.warn('Notice: Firestore sales_history & increment(1) sync:', err);
+      detectQuotaError(err);
     }
   }
 
@@ -540,20 +642,31 @@ export async function trackConfirmedOrderSalesInFirestore(
 }
 
 /**
- * Syncs and verifies total sold counts from the server-side & Firestore `sales_history` collection,
- * and reconciles any confirmed/completed orders so sales never revert on refresh.
+ * Syncs and verifies total sold counts across browsers (Chrome, Edge, Safari) from `/api/sales/history`
+ * and `/api/tracked-orders` (as well as Firestore `sales_history` when read quota is available).
  */
 export async function syncConfirmedSalesOrdersFromFirestore(
   ordersToReconcile?: TrackedOrderData[],
   currentProducts: Product[] = PRODUCTS
 ): Promise<Set<string>> {
-  // 1. Fetch verified sales_history from server endpoint
+  // 1. Fetch latest tracked orders from server so orders placed in Chrome are immediately known in Edge
+  try {
+    const ordersRes = await fetch(`/api/tracked-orders?t=${Date.now()}`, { cache: 'no-store' });
+    if (ordersRes.ok) {
+      const serverOrdersMap = await ordersRes.json();
+      if (serverOrdersMap && typeof serverOrdersMap === 'object') {
+        syncTrackedOrdersFromServer(serverOrdersMap);
+      }
+    }
+  } catch {}
+
+  // 2. Fetch verified sales_history from server endpoint
   try {
     const res = await fetch(`/api/sales/history?t=${Date.now()}`, { cache: 'no-store' });
     if (res.ok) {
       const data = await res.json();
       if (Array.isArray(data?.salesHistory)) {
-        const { verifiedSalesByProduct } = mergeSalesHistoryRecords(data.salesHistory);
+        const { verifiedSalesByProduct } = mergeSalesHistoryRecords(data.salesHistory, currentProducts);
         if (typeof window !== 'undefined') {
           window.dispatchEvent(
             new CustomEvent('artified_sales_incremented', {
@@ -568,49 +681,61 @@ export async function syncConfirmedSalesOrdersFromFirestore(
     }
   } catch {}
 
-  // 2. Also query Firestore `sales_history` collection directly when quota allows
-  try {
-    const snap = await getDocs(collection(db, 'sales_history'));
-    if (!snap.empty) {
-      const cloudRecords: SalesHistoryRecord[] = [];
-      snap.forEach((docSnap: any) => {
-        const d = docSnap.data();
-        if (d && (d.productId || docSnap.id)) {
-          cloudRecords.push({
-            id: d.id || docSnap.id,
-            productId: d.productId,
-            productTitle: d.productTitle || '',
-            orderId: d.orderId || '',
-            quantity: Math.max(1, Number(d.quantity) || 1),
-            timestamp: typeof d.createdAt === 'string' ? d.createdAt : new Date().toISOString(),
-            createdAt: typeof d.createdAt === 'string' ? d.createdAt : new Date().toISOString(),
-            status: 'completed'
-          });
-        }
-      });
-      if (cloudRecords.length > 0) {
-        const { verifiedSalesByProduct } = mergeSalesHistoryRecords(cloudRecords);
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(
-            new CustomEvent('artified_sales_incremented', {
-              detail: {
-                productQuantities: {},
-                verifiedSalesByProduct
-              }
-            })
-          );
+  // 3. Query Firestore `sales_history` collection directly ONLY if Firestore read quota is not exceeded
+  if (!isFirestoreQuotaExceeded) {
+    try {
+      const snap = await getDocs(collection(db, 'sales_history'));
+      if (!snap.empty) {
+        const cloudRecords: SalesHistoryRecord[] = [];
+        snap.forEach((docSnap: any) => {
+          const d = docSnap.data();
+          if (d && (d.productId || docSnap.id) && !isSaleRecordPurged(d)) {
+            cloudRecords.push({
+              id: d.id || docSnap.id,
+              productId: d.productId,
+              productTitle: d.productTitle || '',
+              category: d.category || '',
+              orderId: d.orderId || '',
+              quantity: Math.max(1, Number(d.quantity) || 1),
+              unitPrice: Number(d.unitPrice) || undefined,
+              revenue: Number(d.revenue) || undefined,
+              timestamp: typeof d.createdAt === 'string' ? d.createdAt : new Date().toISOString(),
+              createdAt: typeof d.createdAt === 'string' ? d.createdAt : new Date().toISOString(),
+              status: 'completed'
+            });
+          }
+        });
+        if (cloudRecords.length > 0) {
+          const { verifiedSalesByProduct } = mergeSalesHistoryRecords(cloudRecords, currentProducts);
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(
+              new CustomEvent('artified_sales_incremented', {
+                detail: {
+                  productQuantities: {},
+                  verifiedSalesByProduct
+                }
+              })
+            );
+          }
         }
       }
+    } catch (err) {
+      detectQuotaError(err);
     }
-  } catch {}
+  }
 
-  // 3. Reconcile any confirmed/completed orders from ordersToReconcile that are missing from sales_history
-  if (Array.isArray(ordersToReconcile) && ordersToReconcile.length > 0) {
-    const existingIds = new Set(getLocalSalesHistory().map((r) => r.id));
-    for (const order of ordersToReconcile) {
+  // 4. Reconcile any confirmed/completed orders from server + local orders that are missing from sales_history
+  const effectiveOrders =
+    Array.isArray(ordersToReconcile) && ordersToReconcile.length > 0
+      ? ordersToReconcile
+      : getAllOrdersForSeller();
+
+  if (effectiveOrders.length > 0) {
+    const existingIds = new Set(getLocalSalesHistory(currentProducts).map((r) => r.id));
+    for (const order of effectiveOrders) {
       if (!order || !isOrderConfirmedOrCompleted(order)) continue;
       const canonicalOrderId = getCanonicalOrderKey(order.orderId || '');
-      if (!canonicalOrderId) continue;
+      if (!canonicalOrderId || PURGED_ORDER_IDS.has(canonicalOrderId)) continue;
 
       let missingAnyItem = false;
       for (const item of order.items || []) {

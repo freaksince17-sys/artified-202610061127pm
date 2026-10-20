@@ -4,7 +4,10 @@
     "orderId": "#ART-2026-1852",
     "productId": "apsara-layered-pearl-collar",
     "productTitle": "Caviar Pearl Bag",
+    "category": "pearl-bags",
     "quantity": 1,
+    "unitPrice": 3000,
+    "revenue": 3000,
     "timestamp": "2026-10-18T11:29:34.277Z",
     "createdAt": "2026-10-18T11:29:34.277Z",
     "status": "completed"
@@ -14,7 +17,10 @@
     "orderId": "#ART-2026-1853",
     "productId": "lalitpur-bloom-pearl-tote",
     "productTitle": "Pearl Beaded Bag",
+    "category": "pearl-bags",
     "quantity": 1,
+    "unitPrice": 2800,
+    "revenue": 2800,
     "timestamp": "2026-10-18T11:32:45.558Z",
     "createdAt": "2026-10-18T11:32:45.558Z",
     "status": "completed"
@@ -24,7 +30,10 @@
     "orderId": "#ART-2026-1854",
     "productId": "art-1790323549756-24tl6",
     "productTitle": "Beaded Pearl Layer Necklace with Earrings",
+    "category": "pearl-necklaces",
     "quantity": 1,
+    "unitPrice": 800,
+    "revenue": 800,
     "timestamp": "2026-10-18T12:05:38.714Z",
     "createdAt": "2026-10-18T12:05:38.714Z",
     "status": "completed"
@@ -34,7 +43,10 @@
     "orderId": "#ART-2026-1855",
     "productId": "art-1790323202380-nw0zi",
     "productTitle": "Handmade Macrame Plant Hanger without pot",
+    "category": "macrame",
     "quantity": 1,
+    "unitPrice": 850,
+    "revenue": 850,
     "timestamp": "2026-10-18T11:42:48.894Z",
     "createdAt": "2026-10-18T11:42:48.894Z",
     "status": "completed"
@@ -44,7 +56,10 @@
     "orderId": "#ART-2026-1856",
     "productId": "art-1790321559072-ym8ui",
     "productTitle": "Marble Bead Hand Bag",
+    "category": "pearl-bags",
     "quantity": 1,
+    "unitPrice": 2800,
+    "revenue": 2800,
     "timestamp": "2026-10-18T12:08:36.748Z",
     "createdAt": "2026-10-18T12:08:36.748Z",
     "status": "completed"
@@ -54,7 +69,10 @@
     "orderId": "#ART-2026-1858",
     "productId": "art-1790334939460-sj7ss",
     "productTitle": "Pearl Beaded Keyring Set of 4",
+    "category": "accessories",
     "quantity": 1,
+    "unitPrice": 600,
+    "revenue": 600,
     "timestamp": "2026-10-18T12:31:09.962Z",
     "createdAt": "2026-10-18T12:31:09.962Z",
     "status": "completed"
@@ -64,7 +82,10 @@
     "orderId": "#ART-2026-1859",
     "productId": "art-1790339748217-gx4df",
     "productTitle": "Silk Scrunchies Set of 4",
+    "category": "accessories",
     "quantity": 1,
+    "unitPrice": 300,
+    "revenue": 300,
     "timestamp": "2026-10-18T12:57:55.453Z",
     "createdAt": "2026-10-18T12:57:55.453Z",
     "status": "completed"
@@ -74,9 +95,25 @@
     "orderId": "#ART-2026-1865",
     "productId": "lalitpur-bloom-pearl-tote",
     "productTitle": "Pearl Beaded Bag",
+    "category": "pearl-bags",
     "quantity": 1,
+    "unitPrice": 2800,
+    "revenue": 2800,
     "timestamp": "2026-10-19T17:33:55.488Z",
     "createdAt": "2026-10-19T17:33:55.488Z",
+    "status": "completed"
+  },
+  {
+    "id": "ART20261866_tara-micro-pearl-clutch",
+    "orderId": "#ART-2026-1866",
+    "productId": "tara-micro-pearl-clutch",
+    "productTitle": "Three Layer Pearl Necklace with Earrings",
+    "category": "pearl-necklaces",
+    "quantity": 1,
+    "unitPrice": 650,
+    "revenue": 650,
+    "timestamp": "2026-10-19T18:06:19.073Z",
+    "createdAt": "2026-10-19T18:06:19.073Z",
     "status": "completed"
   }
 ]

@@ -42,6 +42,38 @@ export function isProductBestSeller(product: Product, bestsellerThreshold: numbe
 }
 
 /**
+ * Default low inventory threshold (< 5 units triggers visual warning badge for seller)
+ */
+export const LOW_INVENTORY_THRESHOLD = 5;
+
+/**
+ * Returns the effective inventoryCount for a product (preferring inventoryCount, falling back to stockCount)
+ */
+export function getProductInventoryCount(product?: Partial<Product> | null, fallbackCount: number = 0): number {
+  if (product && typeof product.inventoryCount === 'number' && !isNaN(product.inventoryCount)) {
+    return Math.max(0, product.inventoryCount);
+  }
+  if (product && typeof product.stockCount === 'number' && !isNaN(product.stockCount)) {
+    return Math.max(0, product.stockCount);
+  }
+  return Math.max(0, fallbackCount);
+}
+
+/**
+ * Helper function to check if a product's inventoryCount is low (e.g. < 5)
+ */
+export function isLowInventory(
+  inventoryCountOrProduct: number | Partial<Product> | null | undefined,
+  threshold: number = LOW_INVENTORY_THRESHOLD
+): boolean {
+  const count =
+    typeof inventoryCountOrProduct === 'number'
+      ? Math.max(0, inventoryCountOrProduct)
+      : getProductInventoryCount(inventoryCountOrProduct);
+  return count < threshold;
+}
+
+/**
  * Calculates review count dynamically fluctuating strictly between 30% and 50% of products sold.
  * Uses a deterministic hash based on product id so the percentage is stable and doesn't flicker.
  */

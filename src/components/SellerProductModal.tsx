@@ -66,6 +66,7 @@ export const SellerProductModal: React.FC = () => {
   const [originalPrice, setOriginalPrice] = useState<number | undefined>(4000);
   const [inStock, setInStock] = useState<boolean>(true);
   const [stockCount, setStockCount] = useState<number>(5);
+  const [inventoryCount, setInventoryCount] = useState<number>(5);
   const [isBestSeller, setIsBestSeller] = useState<boolean>(false);
   const [isNewArrival, setIsNewArrival] = useState<boolean>(true);
   const [leadTime, setLeadTime] = useState('Handmade to order: 2–4 business days');
@@ -98,6 +99,7 @@ export const SellerProductModal: React.FC = () => {
       setOriginalPrice(editingProduct.originalPrice);
       setInStock(editingProduct.inStock);
       setStockCount(editingProduct.stockCount);
+      setInventoryCount(editingProduct.inventoryCount ?? editingProduct.stockCount ?? 5);
       setIsBestSeller(Boolean(editingProduct.isBestSeller));
       setIsNewArrival(Boolean(editingProduct.isNewArrival));
       setRating(editingProduct.rating ?? 5.0);
@@ -120,6 +122,7 @@ export const SellerProductModal: React.FC = () => {
       setOriginalPrice(4500);
       setInStock(true);
       setStockCount(4);
+      setInventoryCount(4);
       setIsBestSeller(false);
       setIsNewArrival(true);
       setRating(4.8);
@@ -248,7 +251,8 @@ export const SellerProductModal: React.FC = () => {
       isBestSeller: ((Number(soldCount) || 0) + (editingProduct?.onlineSalesCount || 0)) >= bestsellerThreshold,
       isNewArrival,
       inStock,
-      stockCount: Number(stockCount) || 1,
+      stockCount: Number(stockCount) || 0,
+      inventoryCount: Number(inventoryCount) >= 0 ? Number(inventoryCount) : Number(stockCount) || 0,
       leadTime: leadTime.trim(),
       materials: materials.length > 0 ? materials : ['High-luster handcrafted pearls', 'Reinforced nylon thread'],
       dimensions: dimensions.trim(),
@@ -348,9 +352,17 @@ export const SellerProductModal: React.FC = () => {
 
             <span className="w-2 h-2 rounded-full bg-[#D4AF37]" />
             <div>
-              <h2 className="font-serif text-base sm:text-lg font-semibold text-[#1C1B1A] truncate max-w-[180px] sm:max-w-xs">
-                {isEditing ? 'Edit Piece' : 'Add New Piece'}
-              </h2>
+              <div className="flex items-center gap-2">
+                <h2 className="font-serif text-base sm:text-lg font-semibold text-[#1C1B1A] truncate max-w-[180px] sm:max-w-xs">
+                  {isEditing ? 'Edit Piece' : 'Add New Piece'}
+                </h2>
+                {inventoryCount < 5 && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 flex items-center gap-1 animate-pulse">
+                    <AlertCircle className="w-3 h-3 text-amber-700" />
+                    <span>Low Stock ({inventoryCount} Left)</span>
+                  </span>
+                )}
+              </div>
               <p className="text-[10px] text-[#736C65] tracking-wide uppercase font-medium">
                 Product Catalog Studio
               </p>
@@ -665,17 +677,48 @@ export const SellerProductModal: React.FC = () => {
 
               <div>
                 <label className="block text-xs font-semibold text-[#1C1B1A] mb-1">
-                  Stock Units Left
+                  Inventory Units Left (Firestore Schema) *
                 </label>
-                <input
-                  type="number"
-                  min={0}
-                  value={stockCount}
-                  onChange={(e) => setStockCount(Number(e.target.value))}
-                  className="w-full text-xs px-3 py-2 border border-[#E8DFD8] rounded-lg bg-[#FAF8F5] focus:outline-none focus:border-[#C5A880]"
-                />
+                <div className="relative">
+                  <input
+                    type="number"
+                    min={0}
+                    value={inventoryCount}
+                    onChange={(e) => {
+                      const val = Math.max(0, Number(e.target.value));
+                      setInventoryCount(val);
+                      setStockCount(val);
+                      setInStock(val > 0);
+                    }}
+                    className={`w-full text-xs font-bold px-3 py-2 border rounded-lg focus:outline-none ${
+                      inventoryCount < 5
+                        ? 'bg-amber-50 border-amber-400 text-amber-950 focus:border-amber-600'
+                        : 'bg-[#FAF8F5] border-[#E8DFD8] focus:border-[#C5A880]'
+                    }`}
+                  />
+                  {inventoryCount < 5 && (
+                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] font-bold text-amber-800 bg-amber-200/80 px-1.5 py-0.5 rounded">
+                      ⚠️ Low Inventory (&lt; 5)
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
+
+            {/* Low Inventory Visual Warning Banner */}
+            {inventoryCount < 5 && (
+              <div className="p-3 bg-amber-50 border border-amber-300 rounded-xl text-xs text-amber-900 flex items-start gap-2.5">
+                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold text-amber-950 block">
+                    Low Inventory Warning (&lt; 5 units remaining in Firestore)
+                  </span>
+                  <p className="text-[11px] text-amber-800 mt-0.5">
+                    This piece has only <strong>{inventoryCount} unit{inventoryCount === 1 ? '' : 's'}</strong> available in Kathmandu workshop stock. Restock soon to avoid running out of stock!
+                  </p>
+                </div>
+              </div>
+            )}
 
             {/* Automated Bestseller & Badges */}
             <div className="pt-2 border-t border-[#F0EBE5] space-y-3">

@@ -349,7 +349,7 @@ export const OrderTrackerSection: React.FC = () => {
                   {trackedOrder.items.map((item, idx) => (
                     <div key={idx} className="flex items-center gap-3">
                       <img 
-                        src={getRealProductImage(item.title, item.image)} 
+                        src={getRealProductImage(item.title, item.image, item.productId)} 
                         alt={item.title} 
                         onError={(e) => {
                           (e.currentTarget as HTMLImageElement).src = CAVIAR_PEARL_BAG_IMAGE;

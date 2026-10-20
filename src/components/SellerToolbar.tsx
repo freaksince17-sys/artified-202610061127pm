@@ -15,7 +15,11 @@ import {
   KeyRound,
   Check,
   Award,
-  Gift
+  Gift,
+  TrendingUp,
+  BarChart3,
+  Download,
+  FileSpreadsheet
 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { SellerPaymentSettingsModal } from './SellerPaymentSettingsModal';
@@ -23,6 +27,9 @@ import { SellerChangePasswordModal } from './SellerChangePasswordModal';
 import { ArtisanProfileEditModal } from './ArtisanProfileEditModal';
 import { UnifiedMasterclassModal } from './UnifiedMasterclassModal';
 import { MasterclassCreationModal } from './MasterclassCreationModal';
+import { SellerD3RevenueModal } from './SellerD3RevenueModal';
+import { ProductSalesTrendRechartsModal } from './ProductSalesTrendRechartsModal';
+import { getLocalSalesHistory } from '../services/productSalesService';
 
 export const SellerToolbar: React.FC = () => {
   const { 
@@ -53,6 +60,76 @@ export const SellerToolbar: React.FC = () => {
   const [isArtisanProfileOpen, setIsArtisanProfileOpen] = useState(false);
   const [isWorkshopModalOpen, setIsWorkshopModalOpen] = useState(false);
   const [isMasterclassCreationOpen, setIsMasterclassCreationOpen] = useState(false);
+  const [isD3RevenueOpen, setIsD3RevenueOpen] = useState(false);
+  const [isRechartsTrendsOpen, setIsRechartsTrendsOpen] = useState(false);
+
+  const handleDownloadCurrentMonthReport = async () => {
+    try {
+      let records = getLocalSalesHistory(products);
+      try {
+        const res = await fetch(`/api/sales/history?t=${Date.now()}`, { cache: 'no-store' });
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data?.salesHistory) && data.salesHistory.length > 0) {
+            records = data.salesHistory;
+          }
+        }
+      } catch {}
+
+      const now = new Date();
+      const currentYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      const currentMonthName = now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+      const prodMap = new Map<string, { title: string; category: string; units: number; rev: number; unitPrice: number }>();
+      let totalRev = 0;
+      let totalUnits = 0;
+
+      for (const rec of records) {
+        if (!rec || !rec.timestamp) continue;
+        const d = new Date(rec.timestamp);
+        if (isNaN(d.getTime())) continue;
+        const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        if (ym !== currentYM) continue;
+
+        const prod = products.find((p) => p.id === rec.productId);
+        const title = prod?.title || rec.productTitle || rec.productId || 'Artisan Creation';
+        const category = prod?.category || rec.category || 'Jewelry & Accessories';
+        const qty = Math.max(1, Number(rec.quantity) || 1);
+        const unitPrice = Number(rec.unitPrice) > 0 ? Number(rec.unitPrice) : prod?.price || 1500;
+        const rev = qty * unitPrice;
+
+        totalRev += rev;
+        totalUnits += qty;
+
+        const existing = prodMap.get(rec.productId) || { title, category, units: 0, rev: 0, unitPrice };
+        existing.units += qty;
+        existing.rev += rev;
+        prodMap.set(rec.productId, existing);
+      }
+
+      let csv = `Artified Seller Studio - Monthly Sales Report (${currentMonthName})\n`;
+      csv += `Report Generated,${now.toLocaleString()}\n`;
+      csv += `Total Month Revenue (NPR),${totalRev}\n`;
+      csv += `Total Month Units Sold,${totalUnits}\n\n`;
+      csv += `Product ID,Product Name,Category,Units Sold,Unit Price (NPR),Total Revenue (NPR)\n`;
+
+      for (const [pId, item] of prodMap.entries()) {
+        csv += `${pId},"${item.title.replace(/"/g, '""')}","${item.category}",${item.units},${item.unitPrice},${item.rev}\n`;
+      }
+
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `artified_sales_report_${currentYM}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.warn('Report download notice:', e);
+    }
+  };
 
   // Ensure persistent localStorage tokens are purged so website never opens with seller mode for visitors
   useEffect(() => {
@@ -155,6 +232,39 @@ export const SellerToolbar: React.FC = () => {
             >
               <Layers className="w-3.5 h-3.5 text-[#C5A880]" />
               <span>Manage All Products ({products.length})</span>
+            </button>
+
+            {/* Seller Analytics & Visualization Tools */}
+            <div className="grid grid-cols-2 gap-1.5">
+              <button
+                type="button"
+                onClick={() => setIsD3RevenueOpen(true)}
+                className="py-1.5 px-2 bg-gradient-to-r from-[#D4AF37]/20 to-[#C5A880]/20 hover:from-[#D4AF37]/30 hover:to-[#C5A880]/30 text-[#E6C687] border border-[#C5A880]/40 text-[10px] font-bold rounded-lg flex items-center justify-center gap-1 transition-all shadow-2xs"
+                title="Visualize sales history revenue with D3.js area and bar charts"
+              >
+                <TrendingUp className="w-3 h-3 text-[#D4AF37]" />
+                <span>Revenue (D3)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsRechartsTrendsOpen(true)}
+                className="py-1.5 px-2 bg-gradient-to-r from-[#D4AF37]/20 to-[#C5A880]/20 hover:from-[#D4AF37]/30 hover:to-[#C5A880]/30 text-[#E6C687] border border-[#C5A880]/40 text-[10px] font-bold rounded-lg flex items-center justify-center gap-1 transition-all shadow-2xs"
+                title="Visualize product sales trends with Recharts"
+              >
+                <BarChart3 className="w-3 h-3 text-[#D4AF37]" />
+                <span>Trends (Recharts)</span>
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleDownloadCurrentMonthReport}
+              className="w-full py-1.5 px-2.5 bg-[#D4AF37]/15 hover:bg-[#D4AF37]/25 text-[#E6C687] text-[11px] font-bold rounded-lg flex items-center justify-center gap-1.5 transition-colors border border-[#D4AF37]/40 shadow-2xs"
+              title="Download current month sales report (CSV)"
+            >
+              <Download className="w-3.5 h-3.5 text-[#D4AF37]" />
+              <span>Download Sales Report (CSV)</span>
             </button>
 
             {/* Compact Monthly Bestseller Threshold */}
@@ -330,6 +440,18 @@ export const SellerToolbar: React.FC = () => {
       <MasterclassCreationModal
         isOpen={isMasterclassCreationOpen}
         onClose={() => setIsMasterclassCreationOpen(false)}
+      />
+
+      {/* Seller D3 Revenue Visualization Modal */}
+      <SellerD3RevenueModal
+        isOpen={isD3RevenueOpen}
+        onClose={() => setIsD3RevenueOpen(false)}
+      />
+
+      {/* Seller Recharts Product Sales Trends & Report Modal */}
+      <ProductSalesTrendRechartsModal
+        isOpen={isRechartsTrendsOpen}
+        onClose={() => setIsRechartsTrendsOpen(false)}
       />
     </aside>
   );

@@ -26,6 +26,7 @@ export interface Product {
   isNewArrival?: boolean;
   inStock: boolean;
   stockCount: number;
+  inventoryCount?: number;
   leadTime: string; // e.g. "Handmade to order: 2–4 business days"
   materials: string[];
   dimensions: string;

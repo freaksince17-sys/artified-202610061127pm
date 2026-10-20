@@ -201,7 +201,7 @@ export function sanitizeOrderItems(order: TrackedOrderData): TrackedOrderData {
     ...(item.productId ? { productId: item.productId } : {}),
     quantity: typeof item.quantity === 'number' ? item.quantity : Number(item.quantity) || 1,
     price: typeof item.price === 'number' ? item.price : Number(item.price) || 0,
-    image: getRealProductImage(item?.title, item?.image)
+    image: getRealProductImage(item?.title, item?.image, item?.productId)
   }));
   const total = typeof order.total === 'number' ? order.total : Number(order.total) || 0;
   const computedSub = items.reduce((s, i) => s + i.price * i.quantity, 0);
@@ -1057,6 +1057,21 @@ export async function syncOrdersFromFirestore(): Promise<TrackedOrderData[]> {
  * Subscribes to real-time order updates across all customer devices
  */
 export function subscribeAllOrdersForSeller(onUpdate: (orders: TrackedOrderData[]) => void): () => void {
+  const pollServerOrders = async () => {
+    try {
+      const res = await fetch(`/api/tracked-orders?t=${Date.now()}`, { cache: 'no-store' });
+      if (res.ok) {
+        const serverMap = await res.json();
+        if (serverMap && typeof serverMap === 'object') {
+          syncTrackedOrdersFromServer(serverMap);
+          onUpdate(getAllOrdersForSeller());
+        }
+      }
+    } catch {}
+  };
+
+  const intervalId = typeof window !== 'undefined' ? window.setInterval(pollServerOrders, 3500) : null;
+
   try {
     const unsub = onSnapshot(
       collection(db, 'orders'),
@@ -1122,9 +1137,14 @@ export function subscribeAllOrdersForSeller(onUpdate: (orders: TrackedOrderData[
         onUpdate(getAllOrdersForSeller());
       }
     );
-    return unsub;
+    return () => {
+      if (intervalId !== null) window.clearInterval(intervalId);
+      unsub();
+    };
   } catch {
-    return () => {};
+    return () => {
+      if (intervalId !== null) window.clearInterval(intervalId);
+    };
   }
 }
 
@@ -1150,7 +1170,7 @@ export function buildTrackedOrderFromOrderDetails(order: OrderDetails): TrackedO
     items: order.items.map((i) => ({
       productId: i.product.id,
       title: i.product.title,
-      image: getRealProductImage(i.product.title, i.product.images[0]),
+      image: getRealProductImage(i.product.title, i.product.images[0], i.product.id),
       quantity: i.quantity,
       price: i.product.price,
       customization: i.customizationNote || '',
