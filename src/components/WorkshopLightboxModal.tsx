@@ -71,7 +71,7 @@ export const WorkshopLightboxModal: React.FC<WorkshopLightboxModalProps> = ({
     if (currentItem) {
       if (currentItem.type === 'image') {
         const embedded = getWorkshopEmbeddedFallback(currentItem.url) || getWorkshopEmbeddedFallback(currentItem.thumbnailUrl);
-        setCurrentUrl(embedded || currentItem.url);
+        setCurrentUrl(currentItem.url || embedded || '');
       } else {
         // Video: use item's url directly
         setCurrentUrl(currentItem.url);

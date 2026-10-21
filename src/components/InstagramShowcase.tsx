@@ -58,7 +58,7 @@ export const getPlayableInstagramCover = (item: InstagramJournalItem, index = 0)
 
   // 1. Known local covers for signature atelier reels always take top priority as they are 100% present on disk
   if (shortcode && KNOWN_LOCAL_COVERS[shortcode]) {
-    return getFreshAssetUrl(KNOWN_LOCAL_COVERS[shortcode]);
+    return KNOWN_LOCAL_COVERS[shortcode];
   }
 
   // 2. Prioritize explicit Firebase Storage cover URL if item has it
@@ -68,7 +68,8 @@ export const getPlayableInstagramCover = (item: InstagramJournalItem, index = 0)
 
   // 3. If the item explicitly has its own non-default thumbnail, honor it
   if (item.thumbnail && item.thumbnail.trim() && !item.thumbnail.includes('DdjhhazvaRr_cover.jpg')) {
-    return getFreshAssetUrl(item.thumbnail.trim());
+    const rawThumb = item.thumbnail.trim().split('?')[0];
+    return rawThumb.startsWith('/instagram_videos/') ? rawThumb : getFreshAssetUrl(item.thumbnail.trim());
   }
 
   // 4. Resolve to Firebase Storage cover first for custom downloaded reels
@@ -77,7 +78,8 @@ export const getPlayableInstagramCover = (item: InstagramJournalItem, index = 0)
   }
 
   if (item.thumbnail && item.thumbnail.trim()) {
-    return getFreshAssetUrl(item.thumbnail.trim());
+    const rawThumb = item.thumbnail.trim().split('?')[0];
+    return rawThumb.startsWith('/instagram_videos/') ? rawThumb : getFreshAssetUrl(item.thumbnail.trim());
   }
 
   // 5. Fallback signature covers
@@ -87,7 +89,7 @@ export const getPlayableInstagramCover = (item: InstagramJournalItem, index = 0)
     '/instagram_videos/DdIUMC4BqFr_cover.jpg',
     '/instagram_videos/DY6OqqfPyJu_cover.jpg'
   ];
-  return getFreshAssetUrl(defaultCovers[index % defaultCovers.length]);
+  return defaultCovers[index % defaultCovers.length];
 };
 
 export const ATELIER_CRAFT_VIDEOS = [
@@ -220,60 +222,28 @@ const InstagramJournalCard: React.FC<InstagramJournalCardProps> = ({
   onDeleteRequest,
 }) => {
   const [isHovered, setIsHovered] = useState(false);
-  const [isVideoPlaying, setIsVideoPlaying] = useState(false);
-  const [isImageLoading, setIsImageLoading] = useState(true);
   const clickTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
 
-  const initialVideoSrc = getPlayableInstagramVideo(item, index);
-  const [activeVideoSrc, setActiveVideoSrc] = useState(initialVideoSrc);
+  const { videoRef, play, pause } = useVideoController({
+    autoPlay: false,
+    muted: isMuted,
+    loop: true,
+    playsInline: true,
+  });
 
-  useEffect(() => {
-    setActiveVideoSrc(getPlayableInstagramVideo(item, index));
-  }, [item, index]);
-
-  const handleVideoError = () => {
-    setIsVideoPlaying(false);
-    const safeFallback = getPlayableInstagramVideo(item, index);
-    if (activeVideoSrc !== safeFallback) {
-      setActiveVideoSrc(safeFallback);
-    }
-  };
+  const activeVideoSrc = getPlayableInstagramVideo(item, index);
+  const itemCover = getPlayableInstagramCover(item, index);
 
   const handleMouseEnter = () => {
     setIsHovered(true);
-    const video = videoRef.current;
-    if (!video) return;
-
-    video.muted = isMuted;
-    video.defaultMuted = isMuted;
-    video.playsInline = true;
-    video.loop = true;
-
-    const playPromise = video.play();
-    if (playPromise !== undefined) {
-      playPromise
-        .then(() => {
-          setIsVideoPlaying(true);
-        })
-        .catch(() => {
-          if (videoRef.current) {
-            videoRef.current.muted = true;
-            videoRef.current.play().then(() => setIsVideoPlaying(true)).catch(() => {});
-          }
-        });
-    }
+    play();
   };
 
   const handleMouseLeave = () => {
     setIsHovered(false);
-    setIsVideoPlaying(false);
-    const video = videoRef.current;
-    if (video) {
-      video.pause();
-      try {
-        video.currentTime = 0;
-      } catch {}
+    pause();
+    if (videoRef.current) {
+      videoRef.current.currentTime = 0;
     }
   };
 
@@ -286,7 +256,7 @@ const InstagramJournalCard: React.FC<InstagramJournalCardProps> = ({
     clickTimerRef.current = setTimeout(() => {
       onOpenModal(item);
       clickTimerRef.current = null;
-    }, 220);
+    }, 200);
   };
 
   const handleDoubleClick = (e: React.MouseEvent) => {
@@ -299,8 +269,6 @@ const InstagramJournalCard: React.FC<InstagramJournalCardProps> = ({
     onOpenInstagramDirect(item.postUrl || instagramProfileUrl);
   };
 
-  const itemCover = getPlayableInstagramCover(item, index);
-
   return (
     <div
       onClick={handleClick}
@@ -310,34 +278,21 @@ const InstagramJournalCard: React.FC<InstagramJournalCardProps> = ({
       className="group relative aspect-[9/16] rounded-2xl overflow-hidden bg-[#1C1B1A] cursor-pointer shadow-md hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 select-none"
       title="Hover to play video • Single click to view details • Double-click to open on Instagram"
     >
-      {/* 1. Underlying Cover Photo Thumbnail - Always crystal clear, never black while video is buffering */}
+      {/* 1. Underlying Cover Photo Thumbnail - Always crystal clear, instant local rendering */}
       <img
         src={itemCover}
         alt={item.title || 'Artified craft showcase'}
         loading="lazy"
         decoding="async"
-        onLoad={() => setIsImageLoading(false)}
         onError={(e) => {
           (e.currentTarget as HTMLImageElement).src = itemCover;
-          setIsImageLoading(false);
         }}
-        className={`w-full h-full object-cover transition-opacity duration-300 ${
-          isHovered && isVideoPlaying ? 'opacity-0' : 'opacity-100 group-hover:scale-105'
-        } ${isImageLoading ? 'opacity-0' : 'opacity-100'}`}
+        className={`w-full h-full object-cover transition-transform duration-500 ${
+          isHovered && activeVideoSrc ? 'opacity-0 scale-105' : 'opacity-100 group-hover:scale-105'
+        }`}
       />
 
-      {/* Shimmer skeleton loader shown until the individual video thumbnail covers are fetched/loaded */}
-      {isImageLoading && (
-        <div className="absolute inset-0 bg-neutral-900 flex flex-col items-center justify-center p-4 z-15">
-          <div className="w-10 h-10 rounded-full bg-neutral-800 flex items-center justify-center mb-3 animate-bounce">
-            <Instagram className="w-5 h-5 text-neutral-500" />
-          </div>
-          <div className="w-3/4 h-2.5 bg-neutral-800 rounded-full mb-1.5 animate-pulse" />
-          <div className="w-1/2 h-2.5 bg-neutral-800 rounded-full animate-pulse" />
-        </div>
-      )}
-
-      {/* 2. Video Preview: Plays instantly on hover - rendered in its own dedicated, isolated player instance */}
+      {/* 2. Video Preview: Starts playing seamlessly on hover with preloaded metadata */}
       {activeVideoSrc && (
         <video
           id={`player-${item.id}`}
@@ -353,18 +308,9 @@ const InstagramJournalCard: React.FC<InstagramJournalCardProps> = ({
           loop
           playsInline
           {...({ 'webkit-playsinline': 'true', 'x5-playsinline': 'true' } as any)}
-          preload="none"
-          onPlay={() => setIsVideoPlaying(true)}
-          onPlaying={() => setIsVideoPlaying(true)}
-          onTimeUpdate={() => {
-            if (!isVideoPlaying && videoRef.current && videoRef.current.currentTime > 0) {
-              setIsVideoPlaying(true);
-            }
-          }}
-          onPause={() => setIsVideoPlaying(false)}
-          onError={handleVideoError}
+          preload="metadata"
           className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 pointer-events-none ${
-            isHovered && isVideoPlaying ? 'opacity-100' : 'opacity-0'
+            isHovered ? 'opacity-100' : 'opacity-0'
           }`}
         />
       )}
@@ -390,7 +336,7 @@ const InstagramJournalCard: React.FC<InstagramJournalCardProps> = ({
       </div>
 
       {/* Center Play Button Overlay */}
-      {(!isHovered || !isVideoPlaying) && !isImageLoading && (
+      {!isHovered && (
         <div className="absolute inset-0 flex items-center justify-center z-15 pointer-events-none">
           <div className="w-12 h-12 rounded-full bg-black/60 backdrop-blur-md border border-white/40 text-white flex items-center justify-center shadow-2xl transition-transform group-hover:scale-110">
             <Play className="w-5 h-5 fill-white text-white ml-0.5" />
@@ -437,31 +383,29 @@ const InstagramJournalCard: React.FC<InstagramJournalCardProps> = ({
       </div>
 
       {/* 6. Card Footer Information & High-Contrast Open Post Link */}
-      {!isImageLoading && (
-        <div className="absolute bottom-0 inset-x-0 p-3 sm:p-4 z-20 flex flex-col justify-end">
-          <h3 className="text-white text-xs sm:text-sm font-bold line-clamp-2 leading-snug drop-shadow-lg">
-            {item.title}
-          </h3>
+      <div className="absolute bottom-0 inset-x-0 p-3 sm:p-4 z-20 flex flex-col justify-end">
+        <h3 className="text-white text-xs sm:text-sm font-bold line-clamp-2 leading-snug drop-shadow-lg">
+          {item.title}
+        </h3>
 
-          {/* Double-Click direct hint & Instagram link */}
-          <div className="mt-2 pt-2 border-t border-white/20 flex items-center justify-between gap-2 text-xs">
-            <span className="text-xs font-bold text-white drop-shadow-md truncate max-w-[100px]">
-              {item.handle || instagramHandle}
-            </span>
-            <span 
-              onClick={handleDoubleClick}
-              className="text-xs font-extrabold text-[#FFD700] hover:text-white bg-black/80 hover:bg-[#E1306C] border border-[#FFD700]/70 px-2.5 py-1 rounded-full flex items-center gap-1 cursor-pointer transition-all shadow-md ml-auto shrink-0"
-              title="Double click card to open Instagram post directly"
-            >
-              <span>Open Post</span>
-              <ArrowUpRight className="w-3.5 h-3.5 stroke-[2.5]" />
-            </span>
-          </div>
-          <div className="text-[10px] font-semibold text-white/90 text-right mt-1 drop-shadow-md">
-            Double click to open ↗
-          </div>
+        {/* Double-Click direct hint & Instagram link */}
+        <div className="mt-2 pt-2 border-t border-white/20 flex items-center justify-between gap-2 text-xs">
+          <span className="text-xs font-bold text-white drop-shadow-md truncate max-w-[100px]">
+            {item.handle || instagramHandle}
+          </span>
+          <span 
+            onClick={handleDoubleClick}
+            className="text-xs font-extrabold text-[#FFD700] hover:text-white bg-black/80 hover:bg-[#E1306C] border border-[#FFD700]/70 px-2.5 py-1 rounded-full flex items-center gap-1 cursor-pointer transition-all shadow-md ml-auto shrink-0"
+            title="Double click card to open Instagram post directly"
+          >
+            <span>Open Post</span>
+            <ArrowUpRight className="w-3.5 h-3.5 stroke-[2.5]" />
+          </span>
         </div>
-      )}
+        <div className="text-[10px] font-semibold text-white/90 text-right mt-1 drop-shadow-md">
+          Double click to open ↗
+        </div>
+      </div>
     </div>
   );
 };

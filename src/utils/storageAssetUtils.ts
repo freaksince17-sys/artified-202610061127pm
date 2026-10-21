@@ -45,8 +45,12 @@ export function getFreshAssetUrl(url?: string, version?: string | number): strin
   const trimmed = url.trim();
   if (!trimmed) return '';
 
-  // Data URIs, inline SVGs, and blob URLs don't need cache busting
-  if (trimmed.startsWith('data:') || trimmed.startsWith('blob:')) {
+  // Data URIs, inline SVGs, blob URLs, and local static public assets don't need cache busting unless explicit version is provided
+  if (
+    trimmed.startsWith('data:') || 
+    trimmed.startsWith('blob:') || 
+    (!version && (trimmed.startsWith('/instagram_videos/') || trimmed.startsWith('/tiktok_videos/') || trimmed.startsWith('/workshops/')))
+  ) {
     return trimmed;
   }
 
