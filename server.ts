@@ -315,18 +315,17 @@ async function startServer() {
       const baseSold = p.soldCount !== undefined ? Number(p.soldCount) : 54;
       const verifiedOnline = Math.max(Number(p.onlineSalesCount) || 0, verifiedSalesByProduct[p.id] || 0);
       const verifiedTotal = Math.max(Number(p.totalSold) || 0, baseSold + verifiedOnline);
-      const newlySold = Math.max(0, verifiedOnline - (p.onlineSalesCount || 0));
-      const currentStock = typeof p.inventoryCount === 'number' ? p.inventoryCount : (p.stockCount ?? 10);
-      const updatedInventory = Math.max(0, currentStock - newlySold);
+      const currentStock = typeof p.stockCount === 'number' ? p.stockCount : (typeof p.inventoryCount === 'number' ? p.inventoryCount : 8);
+      const inStock = p.inStock !== false && currentStock > 0;
 
       return {
         ...p,
         soldCount: baseSold,
         onlineSalesCount: verifiedOnline,
         totalSold: verifiedTotal,
-        inventoryCount: updatedInventory,
-        stockCount: updatedInventory,
-        inStock: updatedInventory > 0
+        inventoryCount: currentStock,
+        stockCount: currentStock,
+        inStock
       };
     });
   };

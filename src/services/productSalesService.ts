@@ -372,19 +372,16 @@ export function applyVerifiedSalesToProducts(
       Number(prod.totalSold) || 0,
       baseSold + verifiedOnline
     );
-    const previousOnline = Number(prod.onlineSalesCount) || 0;
-    const newlySold = Math.max(0, verifiedOnline - previousOnline);
-    const currentStock = typeof prod.stockCount === 'number' ? prod.stockCount : (prod.inventoryCount ?? 8);
-    const updatedInventory = newlySold > 0 ? Math.max(0, currentStock - newlySold) : currentStock;
-    const updatedInStock = newlySold > 0 ? updatedInventory > 0 : prod.inStock;
+    const currentStock = typeof prod.stockCount === 'number' ? prod.stockCount : (typeof prod.inventoryCount === 'number' ? prod.inventoryCount : 8);
+    const updatedInStock = prod.inStock !== false && currentStock > 0;
     const updatedBestSeller = verifiedTotal >= bestsellerThreshold || Boolean(prod.isBestSeller);
 
     if (
       prod.soldCount === baseSold &&
       (prod.onlineSalesCount || 0) === verifiedOnline &&
       prod.totalSold === verifiedTotal &&
-      prod.stockCount === updatedInventory &&
-      prod.inventoryCount === updatedInventory &&
+      prod.stockCount === currentStock &&
+      prod.inventoryCount === currentStock &&
       prod.inStock === updatedInStock &&
       Boolean(prod.isBestSeller) === updatedBestSeller
     ) {
@@ -397,8 +394,8 @@ export function applyVerifiedSalesToProducts(
       soldCount: baseSold,
       onlineSalesCount: verifiedOnline,
       totalSold: verifiedTotal,
-      inventoryCount: updatedInventory,
-      stockCount: updatedInventory,
+      inventoryCount: currentStock,
+      stockCount: currentStock,
       inStock: updatedInStock,
       isBestSeller: updatedBestSeller
     };

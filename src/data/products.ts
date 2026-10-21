@@ -125,14 +125,14 @@ export function reconcileProductCatalog(candidateProducts?: Product[] | null, bu
         );
 
         const hasMoreSales = (candidate.onlineSalesCount || 0) > (bundledItem.onlineSalesCount || 0);
-        const isNewerThanBundled = (candidateTime > bundledTime && candidateTime > buildTimestampMs) || hasMoreSales;
-        const nextStockCount = isNewerThanBundled && typeof candidate.stockCount === 'number'
+        const isNewerThanBundled = candidateTime >= bundledTime || hasMoreSales || (typeof candidate.stockCount === 'number' && candidate.stockCount !== bundledItem.stockCount);
+        const nextStockCount = typeof candidate.stockCount === 'number' && (isNewerThanBundled || candidate.stockCount !== bundledItem.stockCount)
           ? Math.max(0, candidate.stockCount)
-          : bundledItem.stockCount;
-        const nextInventoryCount = isNewerThanBundled && typeof candidate.inventoryCount === 'number'
+          : (typeof bundledItem.stockCount === 'number' ? bundledItem.stockCount : 8);
+        const nextInventoryCount = typeof candidate.inventoryCount === 'number' && (isNewerThanBundled || candidate.inventoryCount !== bundledItem.inventoryCount)
           ? Math.max(0, candidate.inventoryCount)
           : (bundledItem.inventoryCount ?? nextStockCount);
-        const nextInStock = isNewerThanBundled && typeof candidate.inStock === 'boolean'
+        const nextInStock = typeof candidate.inStock === 'boolean' && (isNewerThanBundled || candidate.inStock !== bundledItem.inStock)
           ? candidate.inStock
           : (nextStockCount > 0 && bundledItem.inStock !== false);
         const nextIsNewArrival = isNewerThanBundled && typeof candidate.isNewArrival === 'boolean'

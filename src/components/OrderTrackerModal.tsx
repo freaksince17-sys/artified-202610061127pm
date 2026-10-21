@@ -215,10 +215,6 @@ export const OrderTrackerModal: React.FC = () => {
             <div>
               <h3 className="font-serif text-base sm:text-lg font-semibold tracking-wide flex items-center gap-2 flex-wrap">
                 <span>Handmade Order & Delivery Tracker</span>
-                <span className="inline-flex items-center gap-1 text-[10px] bg-emerald-950/80 text-emerald-400 border border-emerald-500/40 px-2 py-0.5 rounded-full font-medium">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  <span>Real-time Firestore Sync</span>
-                </span>
                 {isSellerMode && (
                   <span className="text-[10px] bg-[#D4AF37] text-[#1C1B1A] font-bold px-1.5 py-0.5 rounded">
                     Seller Active

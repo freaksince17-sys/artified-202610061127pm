@@ -783,9 +783,11 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         }
       }, (err) => {
+        detectQuotaError(err);
         console.warn('Notice: Firestore product snapshot listener:', err);
       });
     } catch (fsErr) {
+      detectQuotaError(fsErr);
       console.warn('Notice: Firestore product query setup:', fsErr);
     }
 
@@ -1006,10 +1008,11 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Products State - Guaranteed all 33 products loaded immediately with authoritative prices reconciled
   const [products, setProducts] = useState<Product[]>(() => {
     try {
-      const priceListVersion = localStorage.getItem('artified_price_list_v2026');
-      if (priceListVersion !== 'true') {
+      const stockVersionKey = 'artified_stock_v2026_oct_restock';
+      if (localStorage.getItem(stockVersionKey) !== 'true') {
         localStorage.removeItem('artified_products_custom');
-        localStorage.setItem('artified_price_list_v2026', 'true');
+        localStorage.removeItem('artified_products_v3');
+        localStorage.setItem(stockVersionKey, 'true');
       }
 
       const saved = localStorage.getItem('artified_products_v3') || localStorage.getItem('artified_products_custom');
@@ -1804,23 +1807,30 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       // 1. Clear local storage cache
       localStorage.removeItem('artified_products_custom');
+      localStorage.removeItem('artified_products_v3');
 
       // 2. Fetch fresh documents directly from Cloud Firestore collection `products`
-      const snap = await getDocs(collection(db, 'products'));
       const freshCloudProducts: Product[] = [];
       const freshPrices: Record<string, number> = {};
 
-      if (!snap.empty) {
-        snap.forEach((d) => {
-          const data = d.data() as Product;
-          if (data && data.id && data.title) {
-            const cleaned = sanitizeProduct(data);
-            freshCloudProducts.push(cleaned);
-            if (typeof cleaned.price === 'number') {
-              freshPrices[cleaned.id] = cleaned.price;
-            }
+      if (!isFirestoreQuotaExceeded) {
+        try {
+          const snap = await getDocs(collection(db, 'products'));
+          if (!snap.empty) {
+            snap.forEach((d) => {
+              const data = d.data() as Product;
+              if (data && data.id && data.title) {
+                const cleaned = sanitizeProduct(data);
+                freshCloudProducts.push(cleaned);
+                if (typeof cleaned.price === 'number') {
+                  freshPrices[cleaned.id] = cleaned.price;
+                }
+              }
+            });
           }
-        });
+        } catch (e) {
+          detectQuotaError(e);
+        }
       }
 
       // 3. Fallback/Bypass fetch to server API with cache-busting timestamp
@@ -1839,7 +1849,9 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setDbSyncedPrices(freshPrices);
 
       try {
-        localStorage.setItem('artified_products_custom', JSON.stringify(mergedList));
+        const serialized = JSON.stringify(mergedList);
+        localStorage.setItem('artified_products_custom', serialized);
+        localStorage.setItem('artified_products_v3', serialized);
       } catch {}
 
       setIsCloudSynced(true);
@@ -1908,9 +1920,15 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       for (const prod of dirtyEntries) {
         try {
-          const prodRef = doc(db, 'products', prod.id);
-          await setDoc(prodRef, prod, { merge: true });
-        } catch {}
+          if (!isFirestoreQuotaExceeded) {
+            const prodRef = doc(db, 'products', prod.id);
+            await setDoc(prodRef, sanitizeForFirestore(prod), { merge: true }).catch((err) => {
+              detectQuotaError(err);
+            });
+          }
+        } catch (err) {
+          detectQuotaError(err);
+        }
       }
     }, 320);
   };
