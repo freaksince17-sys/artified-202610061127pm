@@ -10,6 +10,8 @@ import { generateSitemapXml } from './src/utils/sitemapGenerator.ts';
 import { GoogleGenAI } from '@google/genai';
 import { autoGenerateWorkshopGroup, autoGenerateMediaCaption } from './src/utils/workshopAIGenerator.ts';
 import { handleAtomicSalesIncrementCloudFunction } from './functions/src/index.ts';
+import { db } from './src/firebase.ts';
+import { collection, getDocs } from 'firebase/firestore';
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const archiverPkg = require('archiver');
@@ -333,6 +335,7 @@ async function startServer() {
   // GET /api/products
   app.get('/api/products', (_req, res) => {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    syncServerWithFirestore().catch(() => {});
     try {
       if (fs.existsSync(productsJsonPath)) {
         const data = fs.readFileSync(productsJsonPath, 'utf-8');
@@ -348,6 +351,7 @@ async function startServer() {
   // GET /api/sales/history - Verify total sold counts from sales_history collection & server ledger
   app.get('/api/sales/history', (_req, res) => {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    syncServerWithFirestore().catch(() => {});
     try {
       const stats = computeVerifiedSalesStats();
       return res.json({
@@ -507,9 +511,122 @@ async function startServer() {
     } catch {}
   };
 
+  const syncServerWithFirestore = async () => {
+    try {
+      // 1. Sync sales_history from Firestore
+      const salesSnap = await getDocs(collection(db, 'sales_history'));
+      if (!salesSnap.empty) {
+        const cloudSales: any[] = [];
+        salesSnap.forEach((docSnap) => {
+          const d = docSnap.data();
+          if (d && (d.productId || docSnap.id)) {
+            const canonical = String(d.orderId || docSnap.id).replace(/[^A-Z0-9]/gi, '').toUpperCase();
+            if (purgedOrderKeys.has(canonical)) return;
+            cloudSales.push({
+              id: d.id || docSnap.id,
+              orderId: d.orderId || '',
+              productId: d.productId,
+              productTitle: d.productTitle || '',
+              category: d.category || 'pearl-bags',
+              quantity: Math.max(1, Number(d.quantity) || 1),
+              unitPrice: Number(d.unitPrice) || 1500,
+              revenue: Number(d.revenue) || (Math.max(1, Number(d.quantity) || 1) * 1500),
+              timestamp: d.createdAt || d.timestamp || new Date().toISOString(),
+              createdAt: d.createdAt || d.timestamp || new Date().toISOString(),
+              status: 'completed'
+            });
+          }
+        });
+        if (cloudSales.length > 0) {
+          const existing = loadStoredSalesHistory();
+          const map = new Map<string, any>();
+          existing.forEach((r: any) => { if (r && r.id) map.set(r.id, r); });
+          cloudSales.forEach((r: any) => { if (r && r.id) map.set(r.id, r); });
+          const mergedSales = Array.from(map.values());
+          saveStoredSalesHistory(mergedSales);
+        }
+      }
+
+      // 2. Sync product_reviews from Firestore
+      const revSnap = await getDocs(collection(db, 'product_reviews'));
+      if (!revSnap.empty) {
+        const cloudReviews: any[] = [];
+        revSnap.forEach((docSnap) => {
+          const d = docSnap.data();
+          if (d && d.author && d.comment) {
+            cloudReviews.push({ ...d, id: d.id || docSnap.id });
+          }
+        });
+        if (cloudReviews.length > 0) {
+          const existingRevs = loadStoredReviews();
+          const seenIds = new Set<string>();
+          const seenSigs = new Set<string>();
+          const mergedRevs: any[] = [];
+          for (const r of [...cloudReviews, ...existingRevs]) {
+            if (!r || !r.id || !r.author || !r.comment) continue;
+            const cId = String(r.id).trim();
+            const sig = `${(r.author || '').trim().toLowerCase()}_${(r.comment || '').trim().toLowerCase()}`;
+            if (!seenIds.has(cId) && !seenSigs.has(sig)) {
+              seenIds.add(cId);
+              seenSigs.add(sig);
+              mergedRevs.push(r);
+            }
+          }
+          saveStoredReviews(mergedRevs);
+        }
+      }
+
+      // 3. Sync products from Firestore
+      const prodSnap = await getDocs(collection(db, 'products'));
+      if (!prodSnap.empty) {
+        const cloudProdMap = new Map<string, any>();
+        prodSnap.forEach((docSnap) => {
+          const d = docSnap.data();
+          const pid = d.id || docSnap.id;
+          if (pid) cloudProdMap.set(pid, d);
+        });
+
+        if (fs.existsSync(productsJsonPath)) {
+          try {
+            const currentProds = JSON.parse(fs.readFileSync(productsJsonPath, 'utf-8'));
+            const updated = currentProds.map((p: any) => {
+              const cloud = cloudProdMap.get(p.id);
+              if (!cloud) return p;
+              const online = typeof cloud.onlineSalesCount === 'number' ? Math.max(p.onlineSalesCount || 0, cloud.onlineSalesCount) : (p.onlineSalesCount || 0);
+              const base = typeof cloud.soldCount === 'number' ? cloud.soldCount : (p.soldCount !== undefined ? p.soldCount : 54);
+              const total = typeof cloud.totalSold === 'number' ? Math.max(p.totalSold || 0, cloud.totalSold, base + online) : Math.max(p.totalSold || 0, base + online);
+              return {
+                ...p,
+                onlineSalesCount: online,
+                totalSold: total,
+                soldCount: base,
+                stockCount: typeof cloud.stockCount === 'number' ? cloud.stockCount : p.stockCount,
+                inventoryCount: typeof cloud.inventoryCount === 'number' ? cloud.inventoryCount : p.inventoryCount,
+                inStock: typeof cloud.inStock === 'boolean' ? cloud.inStock : p.inStock
+              };
+            });
+            fs.writeFileSync(productsJsonPath, JSON.stringify(updated, null, 2), 'utf-8');
+            try {
+              fs.writeFileSync(path.resolve(seedDataDir, 'products.json'), JSON.stringify(updated, null, 2), 'utf-8');
+            } catch {}
+            try {
+              fs.writeFileSync(path.resolve(process.cwd(), 'public/products.json'), JSON.stringify(updated, null, 2), 'utf-8');
+            } catch {}
+          } catch {}
+        }
+      }
+    } catch (e: any) {
+      console.warn('Notice: Server Firestore sync:', e?.message || e);
+    }
+  };
+
+  // Run initial Firestore sync in background on server boot
+  syncServerWithFirestore().catch(() => {});
+
   // GET /api/reviews - Persistent server review store
   app.get('/api/reviews', (_req, res) => {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    syncServerWithFirestore().catch(() => {});
     try {
       const allReviews = loadStoredReviews();
       return res.json(allReviews);

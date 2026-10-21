@@ -97,4 +97,28 @@ html.dark ::-webkit-scrollbar-thumb {
   animation: shimmer 1.8s infinite cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/* Performance & Buttery Smooth Scrolling Optimization */
+html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+/* Hardware accelerate overlays, modals, and sticky bars */
+.fixed, .absolute, dialog, [role="dialog"] {
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+
 

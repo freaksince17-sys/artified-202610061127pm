@@ -301,9 +301,9 @@ export const ProductDetailModal: React.FC = () => {
   const isBestSeller = isProductBestSeller(product, bestsellerThreshold);
   const dynamicReviewsCount = reviewsList.length;
   const rawRatingVal = reviewsList.length > 0
-    ? (reviewsList.reduce((acc, r) => acc + (r.rating || 4.8), 0) / reviewsList.length)
-    : (product.rating ? Number(product.rating) : 4.8);
-  const averageRating = Math.min(5.0, Math.max(4.5, rawRatingVal)).toFixed(1);
+    ? (reviewsList.reduce((acc, r) => acc + (r.rating || 5.0), 0) / reviewsList.length)
+    : (product.rating ? Number(product.rating) : 5.0);
+  const averageRating = Math.min(5.0, Math.max(1.0, rawRatingVal)).toFixed(1);
 
   const handleAddToCart = () => {
     addToCart(product, quantity, '', selectedStyle);
@@ -336,7 +336,7 @@ export const ProductDetailModal: React.FC = () => {
       id: reviewId,
       author: newReviewAuthor.trim(),
       location: newReviewLocation.trim() || 'Kathmandu, Nepal',
-      rating: Math.max(4.5, Math.min(5, newReviewRating)),
+      rating: Math.max(1.0, Math.min(5.0, Number(newReviewRating) || 5.0)),
       date: 'Just now',
       verified: true,
       comment: newReviewComment.trim()
@@ -1041,24 +1041,62 @@ export const ProductDetailModal: React.FC = () => {
                   <h4 className="text-xs font-bold uppercase tracking-wider text-[#1C1B1A] dark:text-[#FAF8F5]">
                     Share Your Handcrafted Experience
                   </h4>
-                  <div className="flex items-center gap-1">
-                    <span className="text-[11px] text-[#736C65] dark:text-[#A69E96] mr-1">Your Rating:</span>
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <button
-                        key={star}
-                        type="button"
-                        onClick={() => setNewReviewRating(star)}
-                        className="p-0.5 focus:outline-none"
-                      >
-                        <Star
-                          className={`w-4 h-4 ${
-                            star <= newReviewRating
-                              ? 'fill-amber-400 text-amber-400'
-                              : 'text-zinc-300 dark:text-zinc-600'
-                          }`}
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                    <span className="text-[11px] font-medium text-[#736C65] dark:text-[#A69E96]">Your Rating:</span>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <div className="flex items-center gap-0.5 text-amber-400">
+                        {[1, 2, 3, 4, 5].map((star) => {
+                          const diff = newReviewRating - (star - 1);
+                          return (
+                            <button
+                              key={star}
+                              type="button"
+                              onClick={() => {
+                                if (newReviewRating === star) {
+                                  setNewReviewRating(Math.max(1.0, star - 0.5));
+                                } else {
+                                  setNewReviewRating(star);
+                                }
+                              }}
+                              className="p-0.5 focus:outline-none hover:scale-110 transition-transform cursor-pointer"
+                              title={`Rate ${star} or ${star - 0.5} stars`}
+                            >
+                              {diff >= 0.75 ? (
+                                <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
+                              ) : diff >= 0.25 ? (
+                                <div className="relative w-4 h-4 shrink-0">
+                                  <Star className="w-4 h-4 text-zinc-300 dark:text-zinc-600" />
+                                  <div className="absolute inset-0 overflow-hidden w-1/2">
+                                    <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
+                                  </div>
+                                </div>
+                              ) : (
+                                <Star className="w-4 h-4 text-zinc-300 dark:text-zinc-600" />
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {/* Direct decimal input allowing any exact customer decimal rating (e.g. 4.5, 4.7, 4.8) */}
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          step="0.1"
+                          min="1.0"
+                          max="5.0"
+                          value={newReviewRating}
+                          onChange={(e) => {
+                            const val = parseFloat(e.target.value);
+                            if (!isNaN(val)) {
+                              setNewReviewRating(Math.max(1.0, Math.min(5.0, Math.round(val * 10) / 10)));
+                            }
+                          }}
+                          className="w-14 px-1.5 py-0.5 text-center font-bold text-xs bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-300 border border-amber-300 dark:border-amber-700 rounded-md focus:outline-none focus:border-amber-500"
                         />
-                      </button>
-                    ))}
+                        <span className="text-[11px] font-semibold text-amber-600 dark:text-amber-400">/ 5.0</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -1145,7 +1183,8 @@ export const ProductDetailModal: React.FC = () => {
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <div className="flex items-center gap-0.5 text-amber-400">
                             {[1, 2, 3, 4, 5].map((s) => {
-                              const diff = (rev.rating || 4.5) - (s - 1);
+                              const rVal = typeof rev.rating === 'number' ? rev.rating : 5.0;
+                              const diff = rVal - (s - 1);
                               if (diff >= 0.75) {
                                 return <Star key={s} className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />;
                               } else if (diff >= 0.25) {
@@ -1163,7 +1202,7 @@ export const ProductDetailModal: React.FC = () => {
                             })}
                           </div>
                           <span className="text-[11px] font-bold text-[#1C1B1A] dark:text-[#FAF8F5]">
-                            {typeof rev.rating === 'number' ? rev.rating.toFixed(1) : '4.5'}
+                            {typeof rev.rating === 'number' ? rev.rating.toFixed(1) : '5.0'}
                           </span>
                           {isNew && (
                             <span className="inline-flex items-center gap-1 text-[9px] font-bold text-amber-800 dark:text-amber-200 bg-amber-100 dark:bg-amber-900/60 border border-amber-300 dark:border-amber-700 px-2 py-0.5 rounded-full animate-pulse">

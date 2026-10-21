@@ -735,29 +735,41 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     // 1. Persistent Product Catalog Hydration & Real-time Sync (Cloud Firestore)
     let unsubscribeProducts: (() => void) | null = null;
+    let unsubscribeSalesHistory: (() => void) | null = null;
+    let unsubscribeReviews: (() => void) | null = null;
+
     try {
       unsubscribeProducts = onSnapshot(collection(db, 'products'), (snap) => {
         if (!snap.empty) {
           const now = Date.now();
           const cloudProducts: Product[] = [];
           const cloudPrices: Record<string, number> = {};
+          const cloudMap = new Map<string, any>();
+
           snap.forEach((d: any) => {
-            const data = d.data() as Product;
+            const data = d.data();
             const pid = data?.id || d.id;
-            // Skip echoing back a product that the user just edited locally within the last 5 seconds
             if (pid && now - (lastLocalProductEditRef.current[pid] || 0) < 5000) {
               return;
             }
-            if (
-              data &&
-              data.id &&
-              data.title &&
-              ((typeof data.price === 'number' && data.price > 0) || PRODUCTS.some((p) => p.id === data.id))
-            ) {
-              const cleaned = sanitizeProduct(data);
+            if (data && pid) {
+              cloudMap.set(pid, { ...data, id: pid });
+              const baseProd = PRODUCTS.find((p) => p.id === pid);
+              const mergedProd = {
+                ...(baseProd || {}),
+                ...data,
+                id: pid,
+                title: data.title || baseProd?.title || 'Handmade Craft',
+                category: data.category || baseProd?.category || 'pearl-bags',
+                price: typeof data.price === 'number' && data.price > 0 ? data.price : (baseProd?.price || 1500),
+                onlineSalesCount: typeof data.onlineSalesCount === 'number' ? data.onlineSalesCount : (baseProd?.onlineSalesCount || 0),
+                soldCount: typeof data.soldCount === 'number' ? data.soldCount : (baseProd?.soldCount !== undefined ? baseProd.soldCount : 54),
+                totalSold: typeof data.totalSold === 'number' ? data.totalSold : Math.max(Number(baseProd?.totalSold || 0), (baseProd?.soldCount || 54) + (data.onlineSalesCount || 0))
+              };
+              const cleaned = sanitizeProduct(mergedProd as Product);
               cloudProducts.push(cleaned);
-              if (typeof data.price === 'number' && data.price > 0) {
-                cloudPrices[cleaned.id] = data.price;
+              if (typeof cleaned.price === 'number' && cleaned.price > 0) {
+                cloudPrices[cleaned.id] = cleaned.price;
               }
             }
           });
@@ -778,7 +790,21 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (cloudProducts.length > 0) {
             setProducts((prev) => {
               const reconciled = reconcileProductCatalog(cloudProducts, prev);
-              return reconciled === prev ? prev : reconciled;
+              return reconciled;
+            });
+            setQuickViewProduct((prevQuick) => {
+              if (!prevQuick) return prevQuick;
+              const found = cloudMap.get(prevQuick.id);
+              if (found) {
+                return {
+                  ...prevQuick,
+                  ...found,
+                  onlineSalesCount: typeof found.onlineSalesCount === 'number' ? found.onlineSalesCount : prevQuick.onlineSalesCount,
+                  totalSold: typeof found.totalSold === 'number' ? found.totalSold : prevQuick.totalSold,
+                  soldCount: typeof found.soldCount === 'number' ? found.soldCount : prevQuick.soldCount
+                };
+              }
+              return prevQuick;
             });
           }
         }
@@ -790,6 +816,106 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       detectQuotaError(fsErr);
       console.warn('Notice: Firestore product query setup:', fsErr);
     }
+
+    // Real-time Firestore listener on sales_history to sync verified sales counts
+    try {
+      unsubscribeSalesHistory = onSnapshot(collection(db, 'sales_history'), (snap) => {
+        if (!snap.empty) {
+          const cloudSales: SalesHistoryRecord[] = [];
+          snap.forEach((docSnap: any) => {
+            const d = docSnap.data();
+            if (d && (d.productId || docSnap.id)) {
+              cloudSales.push({
+                id: d.id || docSnap.id,
+                productId: d.productId,
+                productTitle: d.productTitle || '',
+                category: d.category || '',
+                orderId: d.orderId || '',
+                quantity: Math.max(1, Number(d.quantity) || 1),
+                unitPrice: Number(d.unitPrice) || undefined,
+                revenue: Number(d.revenue) || undefined,
+                timestamp: typeof d.createdAt === 'string' ? d.createdAt : new Date().toISOString(),
+                createdAt: typeof d.createdAt === 'string' ? d.createdAt : new Date().toISOString(),
+                status: 'completed'
+              });
+            }
+          });
+          if (cloudSales.length > 0) {
+            const { verifiedSalesByProduct } = mergeSalesHistoryRecords(cloudSales, PRODUCTS);
+            setProducts((prev) => applyVerifiedSalesToProducts(prev, verifiedSalesByProduct));
+            setQuickViewProduct((prevQuick) => {
+              if (!prevQuick) return prevQuick;
+              const addSales = verifiedSalesByProduct[prevQuick.id];
+              if (typeof addSales === 'number' && addSales > 0) {
+                const base = prevQuick.soldCount !== undefined ? prevQuick.soldCount : 54;
+                const newOnline = Math.max(prevQuick.onlineSalesCount || 0, addSales);
+                const newTotal = Math.max(prevQuick.totalSold || 0, base + newOnline);
+                return { ...prevQuick, onlineSalesCount: newOnline, totalSold: newTotal };
+              }
+              return prevQuick;
+            });
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(
+                new CustomEvent('artified_sales_incremented', {
+                  detail: { productQuantities: {}, verifiedSalesByProduct }
+                })
+              );
+            }
+          }
+        }
+      }, (err) => {
+        detectQuotaError(err);
+      });
+    } catch {}
+
+    // Real-time Firestore listener on product_reviews to instantly sync reviews across all browsers
+    try {
+      unsubscribeReviews = onSnapshot(collection(db, 'product_reviews'), (snap) => {
+        if (!snap.empty) {
+          const revList: any[] = [];
+          snap.forEach((docSnap: any) => {
+            const d = docSnap.data();
+            if (d && d.author && d.comment) {
+              revList.push({ ...d, id: d.id || docSnap.id });
+            }
+          });
+          if (revList.length > 0) {
+            const byProd: Record<string, any[]> = {};
+            for (const r of revList) {
+              const pid = r.productId;
+              if (pid) {
+                if (!byProd[pid]) byProd[pid] = [];
+                byProd[pid].push(r);
+              }
+            }
+            setProducts((prev) => {
+              return prev.map((p) => {
+                const prodRevs = byProd[p.id];
+                if (!prodRevs || prodRevs.length === 0) return p;
+                const existing = p.customReviews || [];
+                const seenIds = new Set<string>();
+                const seenSigs = new Set<string>();
+                const merged: any[] = [];
+                for (const r of [...prodRevs, ...existing]) {
+                  if (!r || !r.id || !r.author || !r.comment || r.isDeleted) continue;
+                  const cId = String(r.id).trim();
+                  const sig = `${String(r.author).trim().toLowerCase()}_${String(r.comment).trim().toLowerCase()}`;
+                  if (!seenIds.has(cId) && !seenSigs.has(sig)) {
+                    seenIds.add(cId);
+                    seenSigs.add(sig);
+                    merged.push(r);
+                  }
+                }
+                return { ...p, customReviews: merged };
+              });
+            });
+            invalidateReviewsCache();
+          }
+        }
+      }, (err) => {
+        detectQuotaError(err);
+      });
+    } catch {}
 
     const hydrateCatalog = async () => {
       // If Firestore collection was empty or offline, hydrate from /api/products or static /products.json
@@ -940,6 +1066,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     return () => {
       if (unsubscribeProducts) unsubscribeProducts();
+      if (unsubscribeSalesHistory) unsubscribeSalesHistory();
+      if (unsubscribeReviews) unsubscribeReviews();
     };
   }, []);
 

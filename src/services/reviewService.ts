@@ -83,7 +83,7 @@ export async function submitProductReviewToFirestore(
     productTitle: cleanTitle,
     author: reviewInput.author.trim(),
     location: (reviewInput.location || 'Kathmandu, Nepal').trim(),
-    rating: Math.max(4.5, Math.min(5, reviewInput.rating)),
+    rating: Math.max(1.0, Math.min(5.0, Number(reviewInput.rating) || 5.0)),
     comment: reviewInput.comment.trim(),
     date: dateFormatted,
     verified: true,

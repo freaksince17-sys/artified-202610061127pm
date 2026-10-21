@@ -1,119 +1,382 @@
 [
   {
-    "id": "ART20261852_apsara-layered-pearl-collar",
     "orderId": "#ART-2026-1852",
-    "productId": "apsara-layered-pearl-collar",
-    "productTitle": "Caviar Pearl Bag",
-    "category": "pearl-bags",
+    "status": "completed",
     "quantity": 1,
-    "unitPrice": 3000,
-    "revenue": 3000,
-    "timestamp": "2026-10-18T11:29:34.277Z",
+    "serverSyncedAt": {
+      "type": "firestore/timestamp/1.0",
+      "seconds": 1792431938,
+      "nanoseconds": 718000000
+    },
     "createdAt": "2026-10-18T11:29:34.277Z",
-    "status": "completed"
+    "productTitle": "Caviar Pearl Bag",
+    "timestamp": "2026-10-18T11:29:34.277Z",
+    "productId": "apsara-layered-pearl-collar",
+    "id": "ART20261852_apsara-layered-pearl-collar"
   },
   {
-    "id": "ART20261853_lalitpur-bloom-pearl-tote",
-    "orderId": "#ART-2026-1853",
-    "productId": "lalitpur-bloom-pearl-tote",
-    "productTitle": "Pearl Beaded Bag",
-    "category": "pearl-bags",
-    "quantity": 1,
-    "unitPrice": 2800,
-    "revenue": 2800,
-    "timestamp": "2026-10-18T11:32:45.558Z",
+    "status": "completed",
     "createdAt": "2026-10-18T11:32:45.558Z",
-    "status": "completed"
+    "productTitle": "Pearl Beaded Bag",
+    "serverSyncedAt": {
+      "type": "firestore/timestamp/1.0",
+      "seconds": 1792431938,
+      "nanoseconds": 797000000
+    },
+    "timestamp": "2026-10-18T11:32:45.558Z",
+    "orderId": "#ART-2026-1853",
+    "quantity": 1,
+    "productId": "lalitpur-bloom-pearl-tote",
+    "id": "ART20261853_lalitpur-bloom-pearl-tote"
   },
   {
-    "id": "ART20261854_art-1790323549756-24tl6",
-    "orderId": "#ART-2026-1854",
+    "createdAt": "2026-10-18T12:05:38.714Z",
+    "serverSyncedAt": {
+      "type": "firestore/timestamp/1.0",
+      "seconds": 1792431938,
+      "nanoseconds": 858000000
+    },
+    "quantity": 1,
+    "timestamp": "2026-10-18T12:05:38.714Z",
+    "status": "completed",
     "productId": "art-1790323549756-24tl6",
     "productTitle": "Beaded Pearl Layer Necklace with Earrings",
-    "category": "pearl-necklaces",
-    "quantity": 1,
-    "unitPrice": 800,
-    "revenue": 800,
-    "timestamp": "2026-10-18T12:05:38.714Z",
-    "createdAt": "2026-10-18T12:05:38.714Z",
-    "status": "completed"
+    "id": "ART20261854_art-1790323549756-24tl6",
+    "orderId": "#ART-2026-1854"
   },
   {
-    "id": "ART20261855_art-1790323202380-nw0zi",
-    "orderId": "#ART-2026-1855",
     "productId": "art-1790323202380-nw0zi",
-    "productTitle": "Handmade Macrame Plant Hanger without pot",
-    "category": "macrame",
     "quantity": 1,
-    "unitPrice": 850,
-    "revenue": 850,
+    "serverSyncedAt": {
+      "type": "firestore/timestamp/1.0",
+      "seconds": 1792431938,
+      "nanoseconds": 909000000
+    },
     "timestamp": "2026-10-18T11:42:48.894Z",
+    "orderId": "#ART-2026-1855",
     "createdAt": "2026-10-18T11:42:48.894Z",
+    "productTitle": "Handmade Macrame Plant Hanger without pot",
+    "id": "ART20261855_art-1790323202380-nw0zi",
     "status": "completed"
   },
   {
-    "id": "ART20261856_art-1790321559072-ym8ui",
-    "orderId": "#ART-2026-1856",
-    "productId": "art-1790321559072-ym8ui",
     "productTitle": "Marble Bead Hand Bag",
-    "category": "pearl-bags",
+    "id": "ART20261856_art-1790321559072-ym8ui",
+    "serverSyncedAt": {
+      "type": "firestore/timestamp/1.0",
+      "seconds": 1792431938,
+      "nanoseconds": 959000000
+    },
+    "status": "completed",
     "quantity": 1,
-    "unitPrice": 2800,
-    "revenue": 2800,
-    "timestamp": "2026-10-18T12:08:36.748Z",
     "createdAt": "2026-10-18T12:08:36.748Z",
-    "status": "completed"
+    "orderId": "#ART-2026-1856",
+    "timestamp": "2026-10-18T12:08:36.748Z",
+    "productId": "art-1790321559072-ym8ui"
   },
   {
-    "id": "ART20261858_art-1790334939460-sj7ss",
-    "orderId": "#ART-2026-1858",
-    "productId": "art-1790334939460-sj7ss",
     "productTitle": "Pearl Beaded Keyring Set of 4",
-    "category": "accessories",
     "quantity": 1,
-    "unitPrice": 600,
-    "revenue": 600,
-    "timestamp": "2026-10-18T12:31:09.962Z",
+    "orderId": "#ART-2026-1858",
+    "serverSyncedAt": {
+      "type": "firestore/timestamp/1.0",
+      "seconds": 1792431939,
+      "nanoseconds": 32000000
+    },
     "createdAt": "2026-10-18T12:31:09.962Z",
-    "status": "completed"
+    "id": "ART20261858_art-1790334939460-sj7ss",
+    "productId": "art-1790334939460-sj7ss",
+    "status": "completed",
+    "timestamp": "2026-10-18T12:31:09.962Z"
   },
   {
     "id": "ART20261859_art-1790339748217-gx4df",
-    "orderId": "#ART-2026-1859",
-    "productId": "art-1790339748217-gx4df",
     "productTitle": "Silk Scrunchies Set of 4",
-    "category": "accessories",
-    "quantity": 1,
-    "unitPrice": 300,
-    "revenue": 300,
+    "productId": "art-1790339748217-gx4df",
+    "orderId": "#ART-2026-1859",
     "timestamp": "2026-10-18T12:57:55.453Z",
-    "createdAt": "2026-10-18T12:57:55.453Z",
+    "serverSyncedAt": {
+      "type": "firestore/timestamp/1.0",
+      "seconds": 1792431939,
+      "nanoseconds": 76000000
+    },
+    "status": "completed",
+    "quantity": 1,
+    "createdAt": "2026-10-18T12:57:55.453Z"
+  },
+  {
+    "productTitle": "Caviar Pearl Bag",
+    "orderId": "#ART-2026-1860",
+    "productId": "apsara-layered-pearl-collar",
+    "timestamp": {
+      "type": "firestore/timestamp/1.0",
+      "seconds": 1792591136,
+      "nanoseconds": 403000000
+    },
+    "category": "pearl-bags",
+    "id": "ART20261860_apsara-layered-pearl-collar",
+    "createdAt": "2026-10-21T13:58:55.578Z",
+    "unitPrice": 800,
+    "revenue": 800,
+    "quantity": 1,
     "status": "completed"
   },
   {
-    "id": "ART20261865_lalitpur-bloom-pearl-tote",
-    "orderId": "#ART-2026-1865",
-    "productId": "lalitpur-bloom-pearl-tote",
-    "productTitle": "Pearl Beaded Bag",
-    "category": "pearl-bags",
+    "revenue": 800,
+    "productTitle": "Caviar Pearl Bag",
     "quantity": 1,
-    "unitPrice": 2800,
-    "revenue": 2800,
-    "timestamp": "2026-10-19T17:33:55.488Z",
-    "createdAt": "2026-10-19T17:33:55.488Z",
+    "unitPrice": 800,
+    "category": "pearl-bags",
+    "orderId": "#ART-2026-1861",
+    "createdAt": "2026-10-20T16:18:07.574Z",
+    "status": "completed",
+    "timestamp": {
+      "type": "firestore/timestamp/1.0",
+      "seconds": 1792513089,
+      "nanoseconds": 652000000
+    },
+    "id": "ART20261861_apsara-layered-pearl-collar",
+    "productId": "apsara-layered-pearl-collar"
+  },
+  {
+    "createdAt": "2025-01-01T00:00:00.000Z",
+    "orderId": "#ART-2026-1861",
+    "id": "ART20261861_maya-aurelia-pearl-bag",
+    "productTitle": "Red Pearl Beaded Bag",
+    "status": "completed",
+    "timestamp": {
+      "type": "firestore/timestamp/1.0",
+      "seconds": 1792432817,
+      "nanoseconds": 946000000
+    },
+    "quantity": 1,
+    "productId": "maya-aurelia-pearl-bag"
+  },
+  {
+    "createdAt": "2025-01-01T00:00:00.000Z",
+    "orderId": "#ART-2026-1862",
+    "status": "completed",
+    "productTitle": "Pearl Whisper Minimalist Choker",
+    "quantity": 1,
+    "timestamp": {
+      "type": "firestore/timestamp/1.0",
+      "seconds": 1792432817,
+      "nanoseconds": 707000000
+    },
+    "id": "ART20261862_art-1790340220660-1ix2y",
+    "productId": "art-1790340220660-1ix2y"
+  },
+  {
+    "orderId": "#ART-2026-1862",
+    "productTitle": "Pearl Beaded Adjustable Choker",
+    "category": "pearl-necklaces",
+    "unitPrice": 250,
+    "id": "ART20261862_chandra-baroque-pearl-choker",
+    "revenue": 250,
+    "quantity": 1,
+    "createdAt": "2026-10-20T16:24:22.069Z",
+    "productId": "chandra-baroque-pearl-choker",
+    "timestamp": {
+      "type": "firestore/timestamp/1.0",
+      "seconds": 1792513463,
+      "nanoseconds": 199000000
+    },
     "status": "completed"
+  },
+  {
+    "orderId": "#ART-2026-1862",
+    "quantity": 1,
+    "productTitle": "",
+    "id": "ART20261862_kumari-pearl-choker",
+    "createdAt": "2026-10-20T16:18:07.577Z",
+    "revenue": 250,
+    "status": "completed",
+    "unitPrice": 250,
+    "timestamp": {
+      "type": "firestore/timestamp/1.0",
+      "seconds": 1792513089,
+      "nanoseconds": 51000000
+    },
+    "category": "pearl-bags",
+    "productId": "kumari-pearl-choker"
+  },
+  {
+    "revenue": 250,
+    "category": "accessories",
+    "unitPrice": 250,
+    "id": "ART20261863_art-1790340220660-1ix2y",
+    "status": "completed",
+    "productTitle": "Pearl Whisper Minimalist Choker",
+    "createdAt": "2026-10-20T16:24:22.071Z",
+    "orderId": "#ART-2026-1863",
+    "productId": "art-1790340220660-1ix2y",
+    "timestamp": {
+      "type": "firestore/timestamp/1.0",
+      "seconds": 1792513463,
+      "nanoseconds": 967000000
+    },
+    "quantity": 1
+  },
+  {
+    "productId": "lalitpur-bloom-pearl-tote",
+    "orderId": "#ART-2026-1864",
+    "timestamp": {
+      "type": "firestore/timestamp/1.0",
+      "seconds": 1792432818,
+      "nanoseconds": 216000000
+    },
+    "createdAt": "2026-10-19T17:27:58.797Z",
+    "quantity": 1,
+    "status": "completed",
+    "productTitle": "Pearl Beaded Bag",
+    "id": "ART20261864_lalitpur-bloom-pearl-tote"
+  },
+  {
+    "createdAt": "2026-10-19T17:33:55.488Z",
+    "orderId": "#ART-2026-1865",
+    "timestamp": "2026-10-19T17:33:55.488Z",
+    "productId": "lalitpur-bloom-pearl-tote",
+    "status": "completed",
+    "serverSyncedAt": {
+      "type": "firestore/timestamp/1.0",
+      "seconds": 1792431939,
+      "nanoseconds": 132000000
+    },
+    "quantity": 1,
+    "id": "ART20261865_lalitpur-bloom-pearl-tote",
+    "productTitle": "Pearl Beaded Bag"
   },
   {
     "id": "ART20261866_tara-micro-pearl-clutch",
     "orderId": "#ART-2026-1866",
-    "productId": "tara-micro-pearl-clutch",
+    "createdAt": "2026-10-19T18:09:19.939Z",
     "productTitle": "Three Layer Pearl Necklace with Earrings",
-    "category": "pearl-necklaces",
     "quantity": 1,
-    "unitPrice": 650,
-    "revenue": 650,
-    "timestamp": "2026-10-19T18:06:19.073Z",
-    "createdAt": "2026-10-19T18:06:19.073Z",
-    "status": "completed"
+    "status": "completed",
+    "productId": "tara-micro-pearl-clutch",
+    "timestamp": {
+      "type": "firestore/timestamp/1.0",
+      "seconds": 1792433360,
+      "nanoseconds": 800000000
+    }
+  },
+  {
+    "revenue": 2800,
+    "quantity": 1,
+    "productTitle": "Pearl Beaded Bag",
+    "unitPrice": 2800,
+    "orderId": "#ART-2026-1867",
+    "createdAt": "2026-10-20T08:51:44.331Z",
+    "status": "completed",
+    "id": "ART20261867_lalitpur-bloom-pearl-tote",
+    "productId": "lalitpur-bloom-pearl-tote",
+    "category": "pearl-bags",
+    "timestamp": {
+      "type": "firestore/timestamp/1.0",
+      "seconds": 1792486306,
+      "nanoseconds": 750000000
+    }
+  },
+  {
+    "status": "completed",
+    "quantity": 1,
+    "revenue": 2800,
+    "id": "ART20261868_lalitpur-bloom-pearl-tote",
+    "unitPrice": 2800,
+    "createdAt": "2026-10-20T09:13:11.438Z",
+    "timestamp": {
+      "type": "firestore/timestamp/1.0",
+      "seconds": 1792487603,
+      "nanoseconds": 15000000
+    },
+    "productId": "lalitpur-bloom-pearl-tote",
+    "productTitle": "Pearl Beaded Bag",
+    "orderId": "#ART-2026-1868",
+    "category": "pearl-bags"
+  },
+  {
+    "timestamp": {
+      "type": "firestore/timestamp/1.0",
+      "seconds": 1792488147,
+      "nanoseconds": 700000000
+    },
+    "orderId": "#ART-2026-1869",
+    "productId": "lalitpur-bloom-pearl-tote",
+    "createdAt": "2026-10-20T09:22:16.984Z",
+    "productTitle": "Pearl Beaded Bag",
+    "category": "pearl-bags",
+    "unitPrice": 2800,
+    "revenue": 2800,
+    "quantity": 1,
+    "status": "completed",
+    "id": "ART20261869_lalitpur-bloom-pearl-tote"
+  },
+  {
+    "productTitle": "Red Pearl Beaded Bag",
+    "quantity": 1,
+    "status": "completed",
+    "revenue": 2800,
+    "productId": "maya-aurelia-pearl-bag",
+    "timestamp": {
+      "type": "firestore/timestamp/1.0",
+      "seconds": 1792488469,
+      "nanoseconds": 42000000
+    },
+    "category": "pearl-bags",
+    "unitPrice": 2800,
+    "orderId": "#ART-2026-1870",
+    "createdAt": "2026-10-20T09:27:38.589Z",
+    "id": "ART20261870_maya-aurelia-pearl-bag"
+  },
+  {
+    "id": "ART20261871_maya-aurelia-pearl-bag",
+    "createdAt": "2026-10-21T13:58:57.519Z",
+    "unitPrice": 2800,
+    "orderId": "#ART-2026-1871",
+    "quantity": 1,
+    "timestamp": {
+      "type": "firestore/timestamp/1.0",
+      "seconds": 1792591137,
+      "nanoseconds": 408000000
+    },
+    "productId": "maya-aurelia-pearl-bag",
+    "status": "completed",
+    "category": "pearl-bags",
+    "productTitle": "Red Pearl Beaded Bag",
+    "revenue": 2800
+  },
+  {
+    "createdAt": "2026-10-20T15:39:32.217Z",
+    "unitPrice": 2800,
+    "status": "completed",
+    "orderId": "#ART-2026-1872",
+    "quantity": 1,
+    "timestamp": {
+      "type": "firestore/timestamp/1.0",
+      "seconds": 1792510773,
+      "nanoseconds": 508000000
+    },
+    "productId": "maya-aurelia-pearl-bag",
+    "category": "pearl-bags",
+    "productTitle": "Red Pearl Beaded Bag",
+    "id": "ART20261872_maya-aurelia-pearl-bag",
+    "revenue": 2800
+  },
+  {
+    "createdAt": "2026-10-20T15:39:35.304Z",
+    "status": "completed",
+    "unitPrice": 2800,
+    "timestamp": {
+      "type": "firestore/timestamp/1.0",
+      "seconds": 1792510776,
+      "nanoseconds": 96000000
+    },
+    "id": "ART20261873_maya-aurelia-pearl-bag",
+    "productTitle": "Red Pearl Beaded Bag",
+    "orderId": "#ART-2026-1873",
+    "quantity": 1,
+    "productId": "maya-aurelia-pearl-bag",
+    "category": "pearl-bags",
+    "revenue": 2800
   }
 ]

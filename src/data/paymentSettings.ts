@@ -22,7 +22,7 @@ export const DEFAULT_PAYMENT_SETTINGS: SellerPaymentSettings = {
   bankName: 'Global IME Bank (Fonepay Network)',
   branch: 'Kathmandu, Nepal',
   fonepayQrImage: '',
-  esewaQrImage: '',
+  esewaQrImage: '/esewa_qr.png',
   khaltiQrImage: '',
   enableEsewa: true,
   enableFonepay: false,
@@ -37,6 +37,7 @@ export function getSellerPaymentSettings(): SellerPaymentSettings {
       return { 
         ...DEFAULT_PAYMENT_SETTINGS, 
         ...parsed,
+        esewaQrImage: parsed.esewaQrImage || DEFAULT_PAYMENT_SETTINGS.esewaQrImage,
         enableEsewa: parsed.enableEsewa ?? true,
         enableFonepay: parsed.enableFonepay ?? false,
         enableKhalti: parsed.enableKhalti ?? false
@@ -122,7 +123,7 @@ export async function fetchPaymentSettingsFromServer(): Promise<SellerPaymentSet
         ...local,
         ...data,
         fonepayQrImage: data.fonepayQrImage || local.fonepayQrImage || '',
-        esewaQrImage: data.esewaQrImage || local.esewaQrImage || '',
+        esewaQrImage: data.esewaQrImage || local.esewaQrImage || DEFAULT_PAYMENT_SETTINGS.esewaQrImage,
         khaltiQrImage: data.khaltiQrImage || local.khaltiQrImage || '',
         enableEsewa: data.enableEsewa ?? local.enableEsewa ?? true,
         enableFonepay: data.enableFonepay ?? local.enableFonepay ?? false,

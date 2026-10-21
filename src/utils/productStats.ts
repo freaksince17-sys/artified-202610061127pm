@@ -817,27 +817,16 @@ const UNIQUE_CUSTOMER_FALLBACK_POOL = [
 ];
 
 /**
- * Sanitizes any review location, comment text, and ensures ratings strictly >= 4.5 (4.5, 4.6, 4.7, 4.8, 4.9, 5.0).
+ * Sanitizes any review location, comment text, and ensures ratings are valid 1.0 to 5.0 numbers.
  */
 export function sanitizeReviewItem<T extends { location?: string; comment?: string; rating?: number; id?: string }>(rev: T): T {
-  let rating = typeof rev.rating === 'number' ? rev.rating : 4.7;
-  if (rating < 4.5 || rating > 5.0) {
-    let hash = 0;
-    const seed = (rev.id || '') + (rev.comment || '');
-    for (let i = 0; i < seed.length; i++) {
-      hash = (hash * 31 + seed.charCodeAt(i)) & 0xffffffff;
-    }
-    const pool = [4.5, 4.6, 4.7, 4.8, 4.9, 5.0];
-    rating = pool[Math.abs(hash) % pool.length];
-  } else {
-    // Ensure rating is rounded to 1 decimal place and >= 4.5
-    rating = Math.max(4.5, Math.min(5.0, Math.round(rating * 10) / 10));
-  }
+  let rating = typeof rev.rating === 'number' && !isNaN(rev.rating) ? rev.rating : 5.0;
+  rating = Math.max(1.0, Math.min(5.0, Math.round(rating * 10) / 10));
 
   return {
     ...rev,
     rating,
-    location: 'Kathmandu, Nepal',
+    location: rev.location && rev.location.trim() ? rev.location.trim() : 'Kathmandu, Nepal',
     comment: rev.comment
       ? rev.comment
           .replace(/Chikamugal,?\s*Kathmandu/gi, 'Kathmandu, Nepal')
@@ -885,10 +874,10 @@ function getStoredReviewsDict(): Record<string, ProductReviewItem[]> {
 }
 
 /**
- * Calculates the exact average rating of a product from its reviews, strictly matching inside reviews and ranging between 4.5 and 5.0.
+ * Calculates the exact average rating of a product from its reviews.
  */
 export function getProductAverageRating(product: Product): number {
-  if (!product) return 4.8;
+  if (!product) return 5.0;
   const cached = productReviewsMemo.get(product.id);
   if (
     cached &&
@@ -902,11 +891,11 @@ export function getProductAverageRating(product: Product): number {
   const afterEntry = productReviewsMemo.get(product.id);
   if (afterEntry) return afterEntry.avgRating;
   if (reviews.length === 0) {
-    return Number(product.rating || 4.8);
+    return Number(product.rating || 5.0);
   }
-  const sum = reviews.reduce((acc, r) => acc + (Number(r.rating) || 4.7), 0);
+  const sum = reviews.reduce((acc, r) => acc + (Number(r.rating) || 5.0), 0);
   const avg = sum / reviews.length;
-  return Math.max(4.5, Math.min(5.0, Math.round(avg * 10) / 10));
+  return Math.max(1.0, Math.min(5.0, Math.round(avg * 10) / 10));
 }
 
 /**
@@ -1027,10 +1016,10 @@ export function getProductReviews(product: Product): ProductReviewItem[] {
   }
 
   const finalReviews = uniqueCombined.map(sanitizeReviewItem);
-  let avgRating = Number(product.rating || 4.8);
+  let avgRating = Number(product.rating || 5.0);
   if (finalReviews.length > 0) {
-    const sum = finalReviews.reduce((acc, r) => acc + (Number(r.rating) || 4.7), 0);
-    avgRating = Math.max(4.5, Math.min(5.0, Math.round((sum / finalReviews.length) * 10) / 10));
+    const sum = finalReviews.reduce((acc, r) => acc + (Number(r.rating) || 5.0), 0);
+    avgRating = Math.max(1.0, Math.min(5.0, Math.round((sum / finalReviews.length) * 10) / 10));
   }
 
   productReviewsMemo.set(product.id, {

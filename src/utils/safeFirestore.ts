@@ -13,51 +13,31 @@ import {
   QuerySnapshot
 } from 'firebase/firestore';
 
-// Check persistent storage on startup so quota exceeded status survives page reloads
-const TODAY_UTC_STRING = new Date().toISOString().slice(0, 10);
-let initialQuotaExceeded = false;
+// Clean up any stale quota lock from previous sessions so Firestore is always attempted
 try {
   if (typeof localStorage !== 'undefined') {
-    const recordedDate = localStorage.getItem('artified_firestore_quota_exceeded_date');
-    if (recordedDate === TODAY_UTC_STRING) {
-      initialQuotaExceeded = true;
-    } else if (recordedDate && recordedDate !== TODAY_UTC_STRING) {
-      localStorage.removeItem('artified_firestore_quota_exceeded_date');
-    }
+    localStorage.removeItem('artified_firestore_quota_exceeded_date');
   }
 } catch {}
 
 // Global flag to track if Firestore has run out of daily write/read quota
-export let isFirestoreQuotaExceeded = initialQuotaExceeded;
+export let isFirestoreQuotaExceeded = false;
 
 export function setFirestoreQuotaExceeded(val: boolean) {
   isFirestoreQuotaExceeded = val;
   try {
     (window as any).isFirestoreQuotaExceeded = val;
-    if (val && typeof localStorage !== 'undefined') {
-      const today = new Date().toISOString().slice(0, 10);
-      localStorage.setItem('artified_firestore_quota_exceeded_date', today);
-    } else if (!val && typeof localStorage !== 'undefined') {
-      localStorage.removeItem('artified_firestore_quota_exceeded_date');
-    }
   } catch {}
 }
 
-// Automatically detect quota limit, resource exhaustion, or maximum backoff delay errors
+// Automatically detect genuine hard quota limit or resource exhaustion errors
 export function detectQuotaError(err: any): boolean {
   if (!err) return false;
   const msg = (err.message || String(err)).toLowerCase();
   const code = (err.code || err.Code || '').toLowerCase();
   const isHardQuotaExceeded = 
-    code === 'resource-exhausted' ||
-    msg.includes('quota limit exceeded') || 
-    msg.includes('quota exceeded') ||
-    msg.includes('resource-exhausted') ||
-    msg.includes('free daily write units') ||
-    msg.includes('free daily read units') ||
-    msg.includes('maximum backoff delay') ||
-    msg.includes('prevent overloading the backend') ||
-    (msg.includes('quota') && msg.includes('exceeded'));
+    code === 'resource-exhausted' &&
+    (msg.includes('quota') || msg.includes('free daily'));
 
   if (isHardQuotaExceeded) {
     setFirestoreQuotaExceeded(true);

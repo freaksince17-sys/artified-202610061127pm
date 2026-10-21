@@ -504,22 +504,61 @@ export const CustomerReviews: React.FC = () => {
                 </h4>
               </div>
 
-              <div className="flex items-center gap-1">
-                <span className="text-xs text-[#736C65] dark:text-[#A69E96] mr-1">Rating:</span>
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <button
-                    key={star}
-                    type="button"
-                    onClick={() => setRating(star)}
-                    className="p-0.5 focus:outline-none cursor-pointer"
-                  >
-                    <Star
-                      className={`w-4 h-4 ${
-                        star <= rating ? 'fill-amber-400 text-amber-400' : 'text-zinc-200 dark:text-zinc-600'
-                      }`}
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                <span className="text-xs text-[#736C65] dark:text-[#A69E96]">Rating:</span>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <div className="flex items-center gap-0.5 text-amber-400">
+                    {[1, 2, 3, 4, 5].map((star) => {
+                      const diff = rating - (star - 1);
+                      return (
+                        <button
+                          key={star}
+                          type="button"
+                          onClick={() => {
+                            if (rating === star) {
+                              setRating(Math.max(1.0, star - 0.5));
+                            } else {
+                              setRating(star);
+                            }
+                          }}
+                          className="p-0.5 focus:outline-none cursor-pointer hover:scale-110 transition-transform"
+                        >
+                          {diff >= 0.75 ? (
+                            <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
+                          ) : diff >= 0.25 ? (
+                            <div className="relative w-4 h-4 shrink-0">
+                              <Star className="w-4 h-4 text-zinc-200 dark:text-zinc-600" />
+                              <div className="absolute inset-0 overflow-hidden w-1/2">
+                                <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
+                              </div>
+                            </div>
+                          ) : (
+                            <Star className="w-4 h-4 text-zinc-200 dark:text-zinc-600" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="1.0"
+                      max="5.0"
+                      value={rating}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value);
+                        if (!isNaN(val)) {
+                          setRating(Math.max(1.0, Math.min(5.0, Math.round(val * 10) / 10)));
+                        }
+                      }}
+                      className="w-14 px-1.5 py-0.5 text-center font-bold text-xs bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-300 border border-amber-300 dark:border-amber-700 rounded-md focus:outline-none"
                     />
-                  </button>
-                ))}
+                    <span className="text-[11px] font-semibold text-amber-600 dark:text-amber-400">/ 5.0</span>
+                  </div>
+
+                </div>
               </div>
             </div>
 
