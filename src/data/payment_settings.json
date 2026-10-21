@@ -1,0 +1,12 @@
+{
+  "accountName": "Sahina Shrestha",
+  "phone": "9767573721",
+  "bankName": "+9779813028999 (eSewa Direct)",
+  "branch": "Kathmandu, Nepal",
+  "fonepayQrImage": "",
+  "esewaQrImage": "/esewa_qr.png",
+  "khaltiQrImage": "",
+  "enableEsewa": true,
+  "enableFonepay": false,
+  "enableKhalti": false
+}

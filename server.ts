@@ -810,10 +810,68 @@ async function startServer() {
     }
   });
 
-  // POST /api/save-all-to-repo - Save all products, orders, sales history, and studio data to repository files for deployment to artified.com.np
+  const paymentSettingsJsonPath = path.resolve(dataDir, 'payment_settings.json');
+  const seedPaymentSettingsJsonPath = path.resolve(seedDataDir, 'payment_settings.json');
+
+  const persistPaymentSettingsToRepo = (settings: any) => {
+    if (!settings || typeof settings !== 'object') return;
+    try {
+      const serialized = JSON.stringify(settings, null, 2);
+      fs.writeFileSync(paymentSettingsJsonPath, serialized, 'utf-8');
+      try {
+        fs.writeFileSync(seedPaymentSettingsJsonPath, serialized, 'utf-8');
+      } catch {}
+
+      if (settings.esewaQrImage && typeof settings.esewaQrImage === 'string' && settings.esewaQrImage.startsWith('data:image/')) {
+        try {
+          const base64Part = settings.esewaQrImage.replace(/^data:image\/[\w+]+;base64,/, '');
+          const buf = Buffer.from(base64Part, 'base64');
+          fs.writeFileSync(path.resolve(process.cwd(), 'public/esewa_qr.png'), buf);
+          fs.writeFileSync(path.resolve(process.cwd(), 'public/esewa_qr.jpg'), buf);
+          const fallbackTs = `export const ESEWA_QR_FALLBACK = ${JSON.stringify(settings.esewaQrImage)};\n`;
+          fs.writeFileSync(path.resolve(seedDataDir, 'esewa_qr_fallback.ts'), fallbackTs, 'utf-8');
+        } catch {}
+      }
+    } catch (err) {
+      console.warn('Error persisting payment settings to repo:', err);
+    }
+  };
+
+  // GET /api/payment-settings - Fetch current seller QR and payment settings
+  app.get('/api/payment-settings', (_req, res) => {
+    try {
+      if (fs.existsSync(paymentSettingsJsonPath)) {
+        const data = JSON.parse(fs.readFileSync(paymentSettingsJsonPath, 'utf-8'));
+        return res.json(data);
+      }
+      if (fs.existsSync(seedPaymentSettingsJsonPath)) {
+        const data = JSON.parse(fs.readFileSync(seedPaymentSettingsJsonPath, 'utf-8'));
+        return res.json(data);
+      }
+      return res.json({});
+    } catch (err) {
+      return res.json({});
+    }
+  });
+
+  // POST /api/save-payment-settings - Save seller QR and payment settings to repository and public assets
+  app.post('/api/save-payment-settings', (req, res) => {
+    try {
+      persistPaymentSettingsToRepo(req.body);
+      return res.json({ success: true, savedAt: new Date().toISOString() });
+    } catch (err: any) {
+      return res.status(500).json({ error: err?.message || 'Failed to save payment settings' });
+    }
+  });
+
+  // POST /api/save-all-to-repo - Save all products, orders, sales history, payment settings, and studio data to repository files for deployment to artified.com.np
   app.post('/api/save-all-to-repo', (req, res) => {
     try {
-      const { products: incomingProducts, trackedOrders: incomingOrders, reels: incomingReels, instagramItems: incomingIg, craftStory: incomingStory, artisanProfile: incomingArtisan } = req.body || {};
+      const { products: incomingProducts, trackedOrders: incomingOrders, reels: incomingReels, instagramItems: incomingIg, craftStory: incomingStory, artisanProfile: incomingArtisan, paymentSettings: incomingPaymentSettings } = req.body || {};
+
+      if (incomingPaymentSettings && typeof incomingPaymentSettings === 'object') {
+        persistPaymentSettingsToRepo(incomingPaymentSettings);
+      }
 
       if (Array.isArray(incomingProducts) && incomingProducts.length > 0) {
         const cleanedProducts = incomingProducts.map((prod) => {

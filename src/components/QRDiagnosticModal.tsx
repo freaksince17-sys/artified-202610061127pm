@@ -16,7 +16,8 @@ import {
 } from 'lucide-react';
 import jsQR from 'jsqr';
 import { Html5Qrcode } from 'html5-qrcode';
-import { getSellerPaymentSettings, fetchPaymentSettingsFromServer, SellerPaymentSettings } from '../data/paymentSettings';
+import { getSellerPaymentSettings, fetchPaymentSettingsFromServer, normalizeQrImageUrl, SellerPaymentSettings } from '../data/paymentSettings';
+import { ESEWA_QR_FALLBACK } from '../data/esewa_qr_fallback';
 
 interface QRDiagnosticModalProps {
   isOpen: boolean;
@@ -95,10 +96,10 @@ export const QRDiagnosticModal: React.FC<QRDiagnosticModalProps> = ({
   if (!isOpen) return null;
 
   const getActiveQrUrl = (): string => {
-    if (activeTab === 'esewa') return settings.esewaQrImage || '/esewa_qr.png';
-    if (activeTab === 'fonepay') return settings.fonepayQrImage || '';
-    if (activeTab === 'khalti') return settings.khaltiQrImage || '';
-    return '/esewa_qr.png';
+    if (activeTab === 'esewa') return normalizeQrImageUrl(settings.esewaQrImage, ESEWA_QR_FALLBACK);
+    if (activeTab === 'fonepay') return normalizeQrImageUrl(settings.fonepayQrImage, '');
+    if (activeTab === 'khalti') return normalizeQrImageUrl(settings.khaltiQrImage, '');
+    return ESEWA_QR_FALLBACK;
   };
 
   const currentQrUrl = getActiveQrUrl();

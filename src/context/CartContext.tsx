@@ -57,6 +57,7 @@ import {
   RestockAlertItem 
 } from '../utils/waitlistService';
 import { ArtisanProfileData, getArtisanProfile, saveArtisanProfile, fetchArtisanProfileFromServer } from '../data/artisanProfile';
+import { getSellerPaymentSettings } from '../data/paymentSettings';
 import { sanitizeInstagramItemsList } from '../utils/instagramSanitizer';
 
 export type AppNavTab = 'home' | 'artisan' | 'workshops' | 'tiktok' | 'journal' | 'track' | 'orders';
@@ -1886,7 +1887,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
       setDbSyncedPrices((prev) => ({ ...prev, ...newPrices }));
 
-      // 1. Single fast local repository write (persists products, orders, reels, instagram, craft story & profile to both runtime & src/data + public)
+      // 1. Single fast local repository write (persists products, orders, reels, instagram, craft story, payment settings & profile to both runtime & src/data + public)
       const repoSavePromise = fetch('/api/save-all-to-repo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1896,7 +1897,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
           reels,
           instagramItems,
           craftStory,
-          artisanProfile
+          artisanProfile,
+          paymentSettings: getSellerPaymentSettings()
         })
       }).catch(() => {});
 

@@ -16,7 +16,8 @@ import {
   HelpCircle,
   Info
 } from 'lucide-react';
-import { getSellerPaymentSettings, SellerPaymentSettings } from '../data/paymentSettings';
+import { getSellerPaymentSettings, fetchPaymentSettingsFromServer, normalizeQrImageUrl, SellerPaymentSettings } from '../data/paymentSettings';
+import { ESEWA_QR_FALLBACK } from '../data/esewa_qr_fallback';
 
 export interface PaymentQRModalProps {
   isOpen: boolean;
@@ -73,10 +74,13 @@ export const PaymentQRModal: React.FC<PaymentQRModalProps> = ({
 
   useEffect(() => {
     setSettings(getSellerPaymentSettings());
+    if (isOpen) {
+      fetchPaymentSettingsFromServer().then((fresh) => setSettings(fresh)).catch(() => {});
+    }
     const handleUpdate = () => setSettings(getSellerPaymentSettings());
     window.addEventListener('artified_payment_settings_updated', handleUpdate);
     return () => window.removeEventListener('artified_payment_settings_updated', handleUpdate);
-  }, []);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -86,12 +90,12 @@ export const PaymentQRModal: React.FC<PaymentQRModalProps> = ({
   const currentBranch = branch || settings.branch || 'Kathmandu, Nepal';
   const displayRef = referenceNumber || orderId;
 
-  // Active QR image resolution: customQrUrl -> settings uploaded image -> fallback SVG pattern
+  // Active QR image resolution: customQrUrl -> settings uploaded image -> embedded eSewa QR fallback
   const activeQrImage = 
-    customQrUrl ||
-    (activeTab === 'fonepay' && settings.fonepayQrImage ? settings.fonepayQrImage : null) ||
-    (activeTab === 'esewa' && settings.esewaQrImage ? settings.esewaQrImage : null) ||
-    (activeTab === 'khalti' && settings.khaltiQrImage ? settings.khaltiQrImage : null);
+    normalizeQrImageUrl(customQrUrl) ||
+    (activeTab === 'fonepay' && settings.fonepayQrImage ? normalizeQrImageUrl(settings.fonepayQrImage) : null) ||
+    (activeTab === 'esewa' ? normalizeQrImageUrl(settings.esewaQrImage, ESEWA_QR_FALLBACK) : null) ||
+    (activeTab === 'khalti' && settings.khaltiQrImage ? normalizeQrImageUrl(settings.khaltiQrImage) : null);
 
   const copyToClipboard = (text: string, key: string) => {
     navigator.clipboard.writeText(text);
@@ -273,6 +277,12 @@ export const PaymentQRModal: React.FC<PaymentQRModalProps> = ({
                   src={activeQrImage}
                   alt={`${activeTab} QR for Sahina Shrestha`}
                   className="w-48 h-48 sm:w-56 sm:h-56 object-contain rounded-xl"
+                  onError={(e) => {
+                    const target = e.currentTarget;
+                    if (target.src !== ESEWA_QR_FALLBACK) {
+                      target.src = ESEWA_QR_FALLBACK;
+                    }
+                  }}
                 />
               ) : (
                 /* High-fidelity Authentic Fallback QR Graphic */

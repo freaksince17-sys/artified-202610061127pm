@@ -38,8 +38,10 @@ import { DeliveryZone, PaymentMethod, OrderDetails } from '../types';
 import { 
   getSellerPaymentSettings, 
   fetchPaymentSettingsFromServer, 
+  normalizeQrImageUrl,
   SellerPaymentSettings 
 } from '../data/paymentSettings';
+import { ESEWA_QR_FALLBACK } from '../data/esewa_qr_fallback';
 import { buildTrackedOrderFromOrderDetails, saveTrackedOrder, generateUniqueOrderId, syncOrdersFromFirestore, getOrderManufactureDeliveryBreakdown } from '../data/trackingData';
 import { sendOrderConfirmationEmail } from '../services/emailService';
 import { compressAndStampPaymentScreenshot } from '../utils/imageCompressor';
@@ -426,11 +428,11 @@ export const CheckoutModal: React.FC = () => {
     triggerWhatsAppConfirmation(order);
   };
 
-  // Resolve QR image from settings
+  // Resolve QR image from settings with embedded fallback
   const activeQrImage = 
-    (paymentMethod === 'fonepay' && paymentSettings.fonepayQrImage ? paymentSettings.fonepayQrImage : null) ||
-    (paymentMethod === 'esewa' && paymentSettings.esewaQrImage ? paymentSettings.esewaQrImage : null) ||
-    (paymentMethod === 'khalti' && paymentSettings.khaltiQrImage ? paymentSettings.khaltiQrImage : null);
+    (paymentMethod === 'fonepay' && paymentSettings.fonepayQrImage ? normalizeQrImageUrl(paymentSettings.fonepayQrImage) : null) ||
+    (paymentMethod === 'esewa' ? normalizeQrImageUrl(paymentSettings.esewaQrImage, ESEWA_QR_FALLBACK) : null) ||
+    (paymentMethod === 'khalti' && paymentSettings.khaltiQrImage ? normalizeQrImageUrl(paymentSettings.khaltiQrImage) : null);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fade-in">
@@ -822,6 +824,12 @@ export const CheckoutModal: React.FC = () => {
                         src={activeQrImage} 
                         alt={`${paymentMethod} QR`} 
                         className="w-32 h-32 object-contain rounded-lg border border-[#E8DFD8]"
+                        onError={(e) => {
+                          const target = e.currentTarget;
+                          if (target.src !== ESEWA_QR_FALLBACK) {
+                            target.src = ESEWA_QR_FALLBACK;
+                          }
+                        }}
                       />
                       <p className="text-[9px] text-[#736C65] mt-2 italic">Scan to pay with {paymentMethod}</p>
                     </div>
@@ -916,7 +924,17 @@ export const CheckoutModal: React.FC = () => {
                     title="Click to view full screen QR"
                   >
                     {activeQrImage ? (
-                      <img src={activeQrImage} alt="Direct QR" className="w-full h-full object-contain" />
+                      <img
+                        src={activeQrImage}
+                        alt="Direct QR"
+                        className="w-full h-full object-contain"
+                        onError={(e) => {
+                          const target = e.currentTarget;
+                          if (target.src !== ESEWA_QR_FALLBACK) {
+                            target.src = ESEWA_QR_FALLBACK;
+                          }
+                        }}
+                      />
                     ) : (
                       <>
                         <div className="w-full h-full bg-linear-to-br from-zinc-900 to-zinc-700 rounded-lg p-1.5 flex flex-col items-center justify-center text-white">

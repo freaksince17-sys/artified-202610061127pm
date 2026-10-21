@@ -1,28 +1,41 @@
 [
   {
-    "productTitle": "Pearl Cascade Graduated Beaded Choker",
-    "verified": true,
-    "author": "Nisha",
-    "createdAt": "2026-10-19T09:12:49.611Z",
-    "location": "KMC 23",
     "id": "rev_1792401169611_vblea",
-    "comment": "Nice Design and Good Quality Pearl",
+    "productTitle": "Pearl Cascade Graduated Beaded Choker",
+    "createdAt": "2026-10-19T09:12:49.611Z",
+    "rating": 5,
+    "location": "KMC 23",
+    "productId": "art-1790326308284-gd3uy",
     "date": "Oct 19, 2026",
     "timestamp": 1792401169618,
-    "rating": 5,
-    "productId": "art-1790326308284-gd3uy"
+    "comment": "Nice Design and Good Quality Pearl",
+    "verified": true,
+    "author": "Nisha"
   },
   {
-    "verified": true,
-    "productId": "maya-aurelia-pearl-bag",
-    "comment": "Loved the color and design",
-    "timestamp": 1792591586064,
     "productTitle": "Red Pearl Beaded Bag",
-    "author": "Sara",
-    "createdAt": "2026-10-21T14:06:26.058Z",
-    "id": "rev_1792591583581_zh5ao",
     "location": "KMC 06",
     "rating": 5,
-    "date": "Oct 21, 2026"
+    "createdAt": "2026-10-21T14:06:26.058Z",
+    "date": "Oct 21, 2026",
+    "productId": "maya-aurelia-pearl-bag",
+    "comment": "Loved the color and design",
+    "id": "rev_1792591583581_zh5ao",
+    "author": "Sara",
+    "timestamp": 1792591586064,
+    "verified": true
+  },
+  {
+    "rating": 5,
+    "verified": true,
+    "productTitle": "Caviar Pearl Bag",
+    "createdAt": "2026-10-21T15:15:56.885Z",
+    "productId": "apsara-layered-pearl-collar",
+    "date": "Oct 21, 2026",
+    "author": "Saru",
+    "timestamp": 1792595756885,
+    "id": "rev_1792595756148_acgxh",
+    "comment": "Very Premium Quality Bag",
+    "location": "KMC 04"
   }
 ]

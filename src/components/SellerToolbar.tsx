@@ -194,10 +194,11 @@ export const SellerToolbar: React.FC = () => {
   if (!isSellerMode) return null;
 
   return (
-    <aside 
-      aria-label="Seller Studio Mode Controls" 
-      className="fixed bottom-16 md:bottom-4 right-3 sm:right-5 z-[999] flex flex-col items-end gap-1.5 animate-fade-in"
-    >
+    <>
+      <aside 
+        aria-label="Seller Studio Mode Controls" 
+        className="fixed bottom-16 md:bottom-4 right-3 sm:right-5 z-[990] flex flex-col items-end gap-1.5"
+      >
       {/* Minimized Pill */}
       {isMinimized ? (
         <button
@@ -387,6 +388,7 @@ export const SellerToolbar: React.FC = () => {
           </div>
         </div>
       )}
+      </aside>
 
       {/* Seller Personal Payment & QR Settings Modal */}
       <SellerPaymentSettingsModal
@@ -429,6 +431,6 @@ export const SellerToolbar: React.FC = () => {
         isOpen={isRechartsTrendsOpen}
         onClose={() => setIsRechartsTrendsOpen(false)}
       />
-    </aside>
+    </>
   );
 };
