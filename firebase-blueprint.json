@@ -265,12 +265,33 @@
         "status": { "type": "string", "maxLength": 64 }
       },
       "required": ["id", "productId", "timestamp"]
+    },
+    "DailyVisitor": {
+      "title": "DailyVisitor",
+      "description": "Daily website visitor count and session metrics for artified.com.np",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64 },
+        "date": { "type": "string", "maxLength": 32 },
+        "dateKey": { "type": "string", "maxLength": 32 },
+        "visits": { "type": "number" },
+        "uniqueVisitors": { "type": "number" },
+        "sources": { "type": "object" },
+        "locations": { "type": "object" },
+        "devices": { "type": "object" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "dateKey", "visits", "uniqueVisitors"]
     }
   },
   "firestore": {
     "/products/{productId}": {
       "schema": "Product",
       "description": "Live catalog products accessible to all buyers and editable by seller"
+    },
+    "/daily_visitors/{dateStr}": {
+      "schema": "DailyVisitor",
+      "description": "Daily visitor counts and traffic statistics for artified.com.np"
     },
     "/workshop_groups/{groupId}": {
       "schema": "WorkshopGroupEntity",

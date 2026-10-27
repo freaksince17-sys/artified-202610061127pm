@@ -767,11 +767,29 @@ async function startServer() {
     }
   });
 
-  // Helper to sanitize images so we never serve broken ephemeral /uploads/ paths
-  const processImages = (images: string[]): string[] => {
-    return (images || []).map((imgUrl) => {
+  // Helper to sanitize images and extract base64 into static /products/ files so products.json stays < 60KB
+  const processImages = (images: string[], productId = 'item'): string[] => {
+    const publicProductsDir = path.resolve(process.cwd(), 'public/products');
+    if (!fs.existsSync(publicProductsDir)) {
+      try {
+        fs.mkdirSync(publicProductsDir, { recursive: true });
+      } catch {}
+    }
+    return (images || []).map((imgUrl, idx) => {
       if (typeof imgUrl === 'string' && imgUrl.startsWith('/uploads/')) {
         return 'https://images.unsplash.com/photo-1566150905458-1bf1fc113f0d?auto=format&fit=crop&w=900&q=80';
+      }
+      if (typeof imgUrl === 'string' && imgUrl.startsWith('data:image/')) {
+        try {
+          const base64Part = imgUrl.replace(/^data:image\/[\w+]+;base64,/, '');
+          const buf = Buffer.from(base64Part, 'base64');
+          const safeId = String(productId || 'item').replace(/[^a-zA-Z0-9_-]/g, '_');
+          const fileName = `${safeId}_${idx}.jpg`;
+          fs.writeFileSync(path.join(publicProductsDir, fileName), buf);
+          return `/products/${fileName}`;
+        } catch {
+          return imgUrl;
+        }
       }
       return imgUrl;
     });
@@ -786,7 +804,7 @@ async function startServer() {
       }
 
       const cleanedProducts = incomingProducts.map((prod) => {
-        const cleanImages = processImages(prod.images || []);
+        const cleanImages = processImages(prod.images || [], prod.id);
         const { sku, ...rest } = prod || {};
         return {
           ...rest,
@@ -875,7 +893,7 @@ async function startServer() {
 
       if (Array.isArray(incomingProducts) && incomingProducts.length > 0) {
         const cleanedProducts = incomingProducts.map((prod) => {
-          const cleanImages = processImages(prod.images || []);
+          const cleanImages = processImages(prod.images || [], prod.id);
           const { sku, ...rest } = prod || {};
           return {
             ...rest,

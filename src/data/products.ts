@@ -36,14 +36,14 @@ export const PRODUCTS: Product[] = (SAVED_PRODUCTS as unknown as Product[]).map(
   customReviews: p.customReviews || PRODUCT_REVIEWS_MAP[p.id] || []
 }));
 
-export const CATALOG_BUILD_TIMESTAMP = '2026-10-19T10:00:00.000Z';
+export const CATALOG_BUILD_TIMESTAMP = '2026-10-26T12:00:00.000Z';
+export const CATALOG_BUILD_VERSION = 'artified_v_2026_10_26_cache_bust';
 
 /**
  * Reconciles candidate products (from localStorage, Firestore, or API) against the authoritative bundled PRODUCTS.
- * - Bundled products with their updated prices/names always take precedence over stale cached products.
- * - Only if a candidate product has an updatedAt that is genuinely NEWER than the bundled version's updatedAt
- *   (i.e., edited in live Seller Studio after this code build), will the candidate's changes be accepted.
- * - Newly added custom products created by the seller (whose IDs are not in the bundled list) are preserved.
+ * - Bundled products with their updated prices/names/images always take precedence over stale cached products.
+ * - Stale localStorage candidate prices can NEVER overwrite official bundled prices for buyers.
+ * - Custom reviews, verified sales counts, and custom products created by the artisan are preserved.
  */
 export function reconcileProductCatalog(candidateProducts?: Product[] | null, bundled: Product[] = PRODUCTS): Product[] {
   const map = new Map<string, Product>();
@@ -84,10 +84,6 @@ export function reconcileProductCatalog(candidateProducts?: Product[] | null, bu
         }
       } else {
         const bundledItem = map.get(candidate.id)!;
-        const candidateTime = candidate.updatedAt ? new Date(candidate.updatedAt).getTime() : 0;
-        const bundledTime = bundledItem.updatedAt
-          ? new Date(bundledItem.updatedAt).getTime()
-          : buildTimestampMs;
 
         const extraReviews = Array.isArray(storedReviewsDict[candidate.id]) ? storedReviewsDict[candidate.id] : [];
 
@@ -124,50 +120,39 @@ export function reconcileProductCatalog(candidateProducts?: Product[] | null, bu
           (mergedSoldCount !== undefined ? mergedSoldCount : 54) + mergedOnlineSales
         );
 
-        const hasMoreSales = (candidate.onlineSalesCount || 0) > (bundledItem.onlineSalesCount || 0);
-        const isNewerThanBundled = candidateTime >= bundledTime || hasMoreSales || (typeof candidate.stockCount === 'number' && candidate.stockCount !== bundledItem.stockCount);
-        const nextStockCount = typeof candidate.stockCount === 'number' && (isNewerThanBundled || candidate.stockCount !== bundledItem.stockCount)
+        const nextStockCount = typeof candidate.stockCount === 'number'
           ? Math.max(0, candidate.stockCount)
           : (typeof bundledItem.stockCount === 'number' ? bundledItem.stockCount : 8);
-        const nextInventoryCount = typeof candidate.inventoryCount === 'number' && (isNewerThanBundled || candidate.inventoryCount !== bundledItem.inventoryCount)
+        const nextInventoryCount = typeof candidate.inventoryCount === 'number'
           ? Math.max(0, candidate.inventoryCount)
           : (bundledItem.inventoryCount ?? nextStockCount);
-        const nextInStock = typeof candidate.inStock === 'boolean' && (isNewerThanBundled || candidate.inStock !== bundledItem.inStock)
-          ? candidate.inStock
+        const nextInStock = typeof candidate.inStock === 'boolean'
+          ? (candidate.inStock && nextStockCount > 0)
           : (nextStockCount > 0 && bundledItem.inStock !== false);
-        const nextIsNewArrival = isNewerThanBundled && typeof candidate.isNewArrival === 'boolean'
-          ? candidate.isNewArrival
-          : bundledItem.isNewArrival;
 
-        let nextProd: Product;
-        if (isNewerThanBundled && typeof candidate.price === 'number' && candidate.price > 0) {
-          nextProd = {
-            ...bundledItem,
-            ...candidate,
-            stockCount: nextStockCount,
-            inventoryCount: nextInventoryCount,
-            inStock: nextInStock,
-            isNewArrival: nextIsNewArrival,
-            customReviews: mergedReviews,
-            soldCount: candidate.soldCount !== undefined ? candidate.soldCount : mergedSoldCount,
-            onlineSalesCount: mergedOnlineSales,
-            totalSold: mergedTotalSold,
-          };
-        } else {
-          nextProd = {
-            ...bundledItem,
-            stockCount: nextStockCount,
-            inventoryCount: nextInventoryCount,
-            inStock: nextInStock,
-            isNewArrival: nextIsNewArrival,
-            updatedAt: isNewerThanBundled ? candidate.updatedAt : bundledItem.updatedAt,
-            customReviews: mergedReviews,
-            soldCount: mergedSoldCount,
-            onlineSalesCount: mergedOnlineSales,
-            totalSold: mergedTotalSold,
-            ...(candidate.rating !== undefined ? { rating: candidate.rating } : {})
-          };
-        }
+        // Authoritative bundled properties (price, originalPrice, title, description, category, images)
+        // are ALWAYS protected so updates deployed in code/git immediately take effect for all buyers.
+        const nextProd: Product = {
+          ...bundledItem,
+          price: bundledItem.price,
+          originalPrice: bundledItem.originalPrice,
+          title: bundledItem.title,
+          subtitle: bundledItem.subtitle || candidate.subtitle,
+          description: bundledItem.description || candidate.description,
+          category: bundledItem.category,
+          images: (bundledItem.images && bundledItem.images.length > 0) ? bundledItem.images : (candidate.images || []),
+          stockCount: nextStockCount,
+          inventoryCount: nextInventoryCount,
+          inStock: nextInStock,
+          isNewArrival: bundledItem.isNewArrival,
+          isBestSeller: bundledItem.isBestSeller || (mergedTotalSold >= 50),
+          customReviews: mergedReviews,
+          soldCount: mergedSoldCount,
+          onlineSalesCount: mergedOnlineSales,
+          totalSold: mergedTotalSold,
+          updatedAt: bundledItem.updatedAt || CATALOG_BUILD_TIMESTAMP,
+          ...(candidate.rating !== undefined ? { rating: candidate.rating } : {})
+        };
 
         // Preserve exact object reference if nothing meaningful changed to prevent unnecessary React re-renders
         const isUnchanged =
@@ -185,7 +170,7 @@ export function reconcileProductCatalog(candidateProducts?: Product[] | null, bu
           nextProd.totalSold === bundledItem.totalSold &&
           nextProd.updatedAt === bundledItem.updatedAt &&
           (nextProd.images?.length || 0) === (bundledItem.images?.length || 0) &&
-          (nextProd. images?.[0] || '') === (bundledItem.images?.[0] || '') &&
+          (nextProd.images?.[0] || '') === (bundledItem.images?.[0] || '') &&
           mergedReviews.length === (bundledItem.customReviews?.length || 0);
 
         map.set(candidate.id, isUnchanged ? bundledItem : nextProd);

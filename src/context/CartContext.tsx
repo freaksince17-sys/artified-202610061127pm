@@ -4,6 +4,7 @@ import {
   DELIVERY_ZONES, 
   PRODUCTS, 
   reconcileProductCatalog,
+  CATALOG_BUILD_VERSION,
   TIKTOK_REELS, 
   DEFAULT_CRAFT_STORY,
   DEFAULT_INSTAGRAM_ITEMS,
@@ -1134,14 +1135,16 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Social Media Showcase Tab State ('tiktok' | 'journal')
   const [activeSocialTab, setActiveSocialTab] = useState<'tiktok' | 'journal'>('tiktok');
 
-  // Products State - Guaranteed all 33 products loaded immediately with authoritative prices reconciled
+  // Products State - Guaranteed all products loaded immediately with authoritative prices reconciled
   const [products, setProducts] = useState<Product[]>(() => {
     try {
-      const stockVersionKey = 'artified_stock_v2026_oct_restock';
-      if (localStorage.getItem(stockVersionKey) !== 'true') {
+      const storedBuildVersion = localStorage.getItem('artified_catalog_build_version');
+      if (storedBuildVersion !== CATALOG_BUILD_VERSION) {
+        // Automatic cache purge on new release deployment:
+        // Any returning normal browser visitor immediately discards stale product caches from previous releases
         localStorage.removeItem('artified_products_custom');
         localStorage.removeItem('artified_products_v3');
-        localStorage.setItem(stockVersionKey, 'true');
+        localStorage.setItem('artified_catalog_build_version', CATALOG_BUILD_VERSION);
       }
 
       const saved = localStorage.getItem('artified_products_v3') || localStorage.getItem('artified_products_custom');
@@ -1151,10 +1154,12 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
           localStorage.removeItem('artified_products_v3');
           localStorage.removeItem('artified_products_custom');
         } else {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            baseList = reconcileProductCatalog(parsed, PRODUCTS);
-          }
+          try {
+            const parsed = JSON.parse(saved);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              baseList = reconcileProductCatalog(parsed, PRODUCTS);
+            }
+          } catch {}
         }
       }
 

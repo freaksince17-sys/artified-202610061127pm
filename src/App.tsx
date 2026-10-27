@@ -41,6 +41,7 @@ import { useCart } from './context/CartContext';
 import { useAuthPersistence } from './hooks/useAuthPersistence';
 import { LanguageProvider } from './context/LanguageContext';
 import { ThemeProvider } from './context/ThemeContext';
+import { recordVisitorHit } from './services/visitorAnalyticsService';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -181,6 +182,11 @@ function AppContent() {
     isMeetArtisanOpen,
     setIsMeetArtisanOpen
   } = useCart();
+
+  // Log visitor traffic hit unobtrusively for live analytics
+  React.useEffect(() => {
+    recordVisitorHit().catch(() => {});
+  }, []);
 
   return (
     <div id="top" className="min-h-screen bg-[#FAF8F5] dark:bg-[#0F0E0E] text-[#1C1B1A] dark:text-[#F5F2EB] flex flex-col font-sans selection:bg-[#E8DFD8] dark:selection:bg-[#33302C] selection:text-[#1C1B1A] dark:selection:text-[#FAF8F5] transition-colors duration-200">

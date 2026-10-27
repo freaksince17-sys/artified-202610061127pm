@@ -40,11 +40,36 @@
       ]
     },
     {
-      "source": "/(index.html|sw.js|manifest.webmanifest|registerSW.js)",
+      "source": "/(index\\.html|sw\\.js|manifest\\.webmanifest|site\\.webmanifest|registerSW\\.js|products\\.json|$)",
       "headers": [
         {
           "key": "Cache-Control",
-          "value": "public, max-age=0, must-revalidate"
+          "value": "public, max-age=0, must-revalidate, no-cache"
+        },
+        {
+          "key": "Pragma",
+          "value": "no-cache"
+        },
+        {
+          "key": "Expires",
+          "value": "0"
+        }
+      ]
+    },
+    {
+      "source": "/",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate, no-cache"
+        },
+        {
+          "key": "Pragma",
+          "value": "no-cache"
+        },
+        {
+          "key": "Expires",
+          "value": "0"
         }
       ]
     },

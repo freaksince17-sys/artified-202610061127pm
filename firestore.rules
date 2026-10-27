@@ -118,6 +118,11 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    // Daily website visitor analytics & traffic
+    match /daily_visitors/{dateStr} {
+      allow read, write: if true;
+    }
+
     match /error_logs/{logId} {
       allow read, write: if true;
     }

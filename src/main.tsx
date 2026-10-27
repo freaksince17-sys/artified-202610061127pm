@@ -16,7 +16,15 @@ if (typeof window !== 'undefined') {
   if ('caches' in window) {
     caches.keys().then((names) => {
       for (const name of names) {
-        if (name.includes('artified-firebase-storage-assets') || name.includes('artified-workshop') || name.includes('workshops')) {
+        if (
+          name.includes('precache') ||
+          name.includes('workbox') ||
+          name.includes('artified-precache') ||
+          name.includes('artified-api') ||
+          name.includes('artified-firebase-storage-assets') ||
+          name.includes('artified-workshop') ||
+          name.includes('workshops')
+        ) {
           caches.delete(name);
         }
       }
