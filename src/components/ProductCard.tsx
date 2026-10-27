@@ -98,8 +98,8 @@ export const ProductCard: React.FC<ProductCardProps> = React.memo(({ product, is
       onMouseLeave={() => setIsHovered(false)}
       className="group relative flex flex-col bg-white dark:bg-[#161514] rounded-lg overflow-hidden border-[1.5px] border-[#C4B5A3] dark:border-[#2D2B28] hover:border-[#1C1B1A] dark:hover:border-[#D4AF37] transition-all duration-200 shadow-xs hover:shadow-md cursor-pointer z-0"
     >
-      {/* Image Container with secondary flip - 4:3 Concise Aspect Ratio */}
-      <div className="relative aspect-[4/3] max-h-[110px] sm:max-h-[130px] bg-[#EFE8DF] dark:bg-[#1C1A18] border-b border-[#DDD2C4] dark:border-[#262422] overflow-hidden">
+      {/* Image Container with secondary flip - Unified 1:1 Square Aspect Ratio matching Detail Modal */}
+      <div className="relative aspect-square bg-[#EFE8DF] dark:bg-[#1C1A18] border-b border-[#DDD2C4] dark:border-[#262422] overflow-hidden">
         {/* Badges - positioned strictly in front of product photo */}
         <div className="absolute top-1 left-1 sm:top-1.5 sm:left-1.5 z-30 flex flex-col gap-1 items-start pointer-events-none">
           {isOutOfStock && !isSellerMode && (

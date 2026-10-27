@@ -47,16 +47,19 @@ const ProductPhotoManagerSection: React.FC<ProductPhotoManagerSectionProps> = Re
   onMoveImage,
 }) => (
   <div className="bg-white p-4 sm:p-5 rounded-xl border border-[#E8DFD8] space-y-3.5">
-    <div className="flex items-center justify-between">
+    <div className="flex flex-wrap items-center justify-between gap-2">
       <div>
         <h3 className="text-xs font-bold uppercase tracking-wider text-[#1C1B1A] flex items-center gap-1.5">
           <ImageIcon className="w-3.5 h-3.5 text-[#C5A880]" />
           <span>Product Photos ({images.length})</span>
         </h3>
         <p className="text-[11px] text-[#736C65]">
-          First photo is the main cover image shown on product cards and in search.
+          First photo is the main cover image. Best aspect ratio: <strong className="text-[#1C1B1A]">1:1 Square (e.g. 1000 × 1000 px)</strong> — matches both storefront cards &amp; inside popup identically.
         </p>
       </div>
+      <span className="px-2.5 py-1 rounded-full bg-[#FAF6F0] border border-[#C5A880]/50 text-[10px] font-bold text-[#7A5216]">
+        Recommended: 1:1 Square
+      </span>
     </div>
 
     {/* Images Grid */}
@@ -64,7 +67,7 @@ const ProductPhotoManagerSection: React.FC<ProductPhotoManagerSectionProps> = Re
       {images.map((img, idx) => (
         <div 
           key={idx} 
-          className="relative group aspect-[4/5] rounded-lg overflow-hidden border border-[#E8DFD8] bg-[#FAF8F5] shadow-2xs"
+          className="relative group aspect-square rounded-lg overflow-hidden border border-[#E8DFD8] bg-[#FAF8F5] shadow-2xs"
         >
           <img 
             src={img?.trim() || CAVIAR_PEARL_BAG_IMAGE} 
@@ -80,7 +83,7 @@ const ProductPhotoManagerSection: React.FC<ProductPhotoManagerSectionProps> = Re
           {/* Badge */}
           {idx === 0 && (
             <span className="absolute top-1.5 left-1.5 bg-[#1C1B1A]/85 text-[#FAF8F5] text-[9px] font-bold px-1.5 py-0.5 rounded shadow-2xs">
-              Cover
+              Cover (1:1)
             </span>
           )}
 
@@ -124,10 +127,10 @@ const ProductPhotoManagerSection: React.FC<ProductPhotoManagerSectionProps> = Re
       ))}
 
       {/* Upload New Box */}
-      <label className="relative aspect-[4/5] rounded-lg border-2 border-dashed border-[#C5A880]/60 bg-[#FAF8F5] hover:bg-[#F4EFEB] flex flex-col items-center justify-center cursor-pointer transition-colors p-2 text-center">
+      <label className="relative aspect-square rounded-lg border-2 border-dashed border-[#C5A880]/60 bg-[#FAF8F5] hover:bg-[#F4EFEB] flex flex-col items-center justify-center cursor-pointer transition-colors p-2 text-center">
         <Upload className="w-5 h-5 text-[#C5A880] mb-1" />
         <span className="text-[11px] font-semibold text-[#1C1B1A]">Upload Photo</span>
-        <span className="text-[9px] text-[#736C65]">From computer or phone</span>
+        <span className="text-[9px] text-[#736C65]">1:1 Square recommended</span>
         <input 
           type="file" 
           accept="image/*" 

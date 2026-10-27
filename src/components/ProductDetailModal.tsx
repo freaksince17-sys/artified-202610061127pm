@@ -56,7 +56,9 @@ export const ProductDetailModal: React.FC = () => {
     isProductCompared,
     openCompareModal,
     filteredProducts,
-    navigateProduct
+    navigateProduct,
+    productImageFit,
+    setProductImageFit
   } = useCart();
 
   const { language, t } = useLanguage();
@@ -536,13 +538,21 @@ export const ProductDetailModal: React.FC = () => {
                 <div className="flex items-center justify-between px-1">
                   <div className="flex items-center gap-1.5 text-xs text-[#8C7A6B]">
                     <Sparkles className="w-3.5 h-3.5 text-[#D4AF37]" />
-                    <span className="font-serif italic text-xs text-[#1C1B1A]">Kathmandu Atelier Craft View</span>
+                    <span className="font-serif italic text-xs text-[#1C1B1A]">Kathmandu Atelier Craft View (1:1 Square)</span>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => setProductImageFit(productImageFit === 'contain' ? 'cover' : 'contain')}
+                    className="text-[10px] font-medium px-2 py-0.5 rounded-full border border-[#E8DFD8] bg-white text-[#5E5955] hover:text-[#1C1B1A] hover:border-[#C5A880] transition-colors cursor-pointer"
+                    title="Switch between edge-to-edge fill and uncropped full photo"
+                  >
+                    {productImageFit === 'contain' ? 'View: Full Uncropped' : 'View: Edge-to-Edge Fill'}
+                  </button>
                 </div>
 
-                {/* Main Feature View with Hover-to-Zoom */}
+                {/* Main Feature View with Hover-to-Zoom - Unified 1:1 Square matching ProductCard */}
                 <div 
-                  className="relative aspect-[4/5] rounded-xl overflow-hidden bg-white border border-[#E8DFD8] shadow-xs select-none group cursor-crosshair"
+                  className="relative aspect-square rounded-xl overflow-hidden bg-[#EFE8DF] border border-[#E8DFD8] shadow-xs select-none group cursor-crosshair"
                   onMouseEnter={handleMouseEnter}
                   onMouseMove={handleMouseMove}
                   onMouseLeave={handleMouseLeave}
@@ -558,7 +568,9 @@ export const ProductDetailModal: React.FC = () => {
                     onError={(e) => {
                       (e.currentTarget as HTMLImageElement).src = modalFallback;
                     }}
-                    className="w-full h-full object-cover object-center pointer-events-none will-change-transform"
+                    className={`w-full h-full object-center pointer-events-none will-change-transform ${
+                      productImageFit === 'contain' ? 'object-contain p-1' : 'object-cover'
+                    }`}
                     style={{
                       transformOrigin: `${zoomPosition.x}% ${zoomPosition.y}%`,
                       transform: isZoomed ? `scale(${zoomScale})` : 'scale(1)',
