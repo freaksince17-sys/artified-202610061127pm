@@ -98,8 +98,8 @@ export const ProductCard: React.FC<ProductCardProps> = React.memo(({ product, is
       onMouseLeave={() => setIsHovered(false)}
       className="group relative flex flex-col bg-white dark:bg-[#161514] rounded-lg overflow-hidden border-[1.5px] border-[#C4B5A3] dark:border-[#2D2B28] hover:border-[#1C1B1A] dark:hover:border-[#D4AF37] transition-all duration-200 shadow-xs hover:shadow-md cursor-pointer z-0"
     >
-      {/* Image Container with secondary flip - Unified 1:1 Square Aspect Ratio matching Detail Modal */}
-      <div className="relative aspect-square bg-[#EFE8DF] dark:bg-[#1C1A18] border-b border-[#DDD2C4] dark:border-[#262422] overflow-hidden">
+      {/* Image Container with secondary flip - Compact height with strict 1:1 Square photo frame so 10 products fit on screen at once */}
+      <div className="relative h-[110px] sm:h-[120px] w-full bg-[#EFE8DF] dark:bg-[#1C1A18] border-b border-[#DDD2C4] dark:border-[#262422] overflow-hidden flex items-center justify-center">
         {/* Badges - positioned strictly in front of product photo */}
         <div className="absolute top-1 left-1 sm:top-1.5 sm:left-1.5 z-30 flex flex-col gap-1 items-start pointer-events-none">
           {isOutOfStock && !isSellerMode && (
@@ -159,7 +159,7 @@ export const ProductCard: React.FC<ProductCardProps> = React.memo(({ product, is
         <button
           type="button"
           onClick={handleWishlistClick}
-          className={`absolute top-1 right-1 sm:top-1.5 sm:right-1.5 z-30 w-5.5 h-5.5 sm:w-6.5 sm:h-6.5 rounded-full flex items-center justify-center transition-colors duration-150 cursor-pointer ${
+          className={`absolute top-1 right-1 sm:top-1.5 sm:right-1.5 z-30 w-5.5 h-5.5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center transition-colors duration-150 cursor-pointer ${
             wishlisted
               ? 'bg-rose-50 dark:bg-rose-950/90 text-rose-500 shadow-2xs'
               : 'bg-white/95 dark:bg-[#23211F]/95 text-[#736C65] dark:text-[#A8A096] hover:text-[#1C1B1A] dark:hover:text-white hover:bg-white dark:hover:bg-[#2A2724] shadow-2xs'
@@ -176,7 +176,7 @@ export const ProductCard: React.FC<ProductCardProps> = React.memo(({ product, is
             e.stopPropagation();
             toggleCompareProduct(product);
           }}
-          className={`absolute top-7.5 sm:top-8.5 right-1 sm:right-1.5 z-30 w-5.5 h-5.5 sm:w-6.5 sm:h-6.5 rounded-full flex items-center justify-center transition-opacity duration-150 cursor-pointer ${
+          className={`absolute top-7 sm:top-8 right-1 sm:right-1.5 z-30 w-5.5 h-5.5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center transition-opacity duration-150 cursor-pointer ${
             isProductCompared(product.id)
               ? 'bg-[#1C1B1A] text-[#D4AF37] border border-[#D4AF37] opacity-100 shadow-xs'
               : 'bg-white/95 dark:bg-[#23211F]/95 text-[#736C65] dark:text-[#A8A096] hover:text-[#1C1B1A] dark:hover:text-white hover:bg-white dark:hover:bg-[#2A2724] opacity-0 group-hover:opacity-100 shadow-2xs'
@@ -187,55 +187,57 @@ export const ProductCard: React.FC<ProductCardProps> = React.memo(({ product, is
           <Scale className="w-3 h-3" />
         </button>
 
-        {/* Primary and secondary hover image - contain mode guarantees 100% of product is visible */}
-        <img
-          src={currentImg}
-          alt={product.title}
-          loading="lazy"
-          decoding="async"
-          onError={() => {
-            if (currentImg !== defaultFallback) {
-              setCurrentImg(defaultFallback);
-            }
-          }}
-          className={`relative z-0 w-full h-full transition-opacity duration-200 ${
-            productImageFit === 'contain'
-              ? 'object-contain object-center p-0.5'
-              : 'object-cover object-center'
-          } ${
-            isHovered && currentSecImg !== currentImg
-              ? 'opacity-0'
-              : 'opacity-100'
-          }`}
-        />
-        {currentSecImg && currentSecImg !== currentImg && (
+        {/* Strict 1:1 Square Inner Photo Frame so 1:1 square uploads are never stretched */}
+        <div className="relative h-full aspect-square mx-auto overflow-hidden">
           <img
-            src={currentSecImg}
-            alt={`${product.title} alternate view`}
+            src={currentImg}
+            alt={product.title}
             loading="lazy"
             decoding="async"
-            onError={() => setCurrentSecImg(currentImg)}
-            className={`absolute inset-0 z-0 w-full h-full transition-opacity duration-200 ${
+            onError={() => {
+              if (currentImg !== defaultFallback) {
+                setCurrentImg(defaultFallback);
+              }
+            }}
+            className={`relative z-0 w-full h-full transition-opacity duration-200 ${
               productImageFit === 'contain'
                 ? 'object-contain object-center p-0.5'
                 : 'object-cover object-center'
             } ${
-              isHovered ? 'opacity-100' : 'opacity-0'
+              isHovered && currentSecImg !== currentImg
+                ? 'opacity-0'
+                : 'opacity-100'
             }`}
           />
-        )}
+          {currentSecImg && currentSecImg !== currentImg && (
+            <img
+              src={currentSecImg}
+              alt={`${product.title} alternate view`}
+              loading="lazy"
+              decoding="async"
+              onError={() => setCurrentSecImg(currentImg)}
+              className={`absolute inset-0 z-0 w-full h-full transition-opacity duration-200 ${
+                productImageFit === 'contain'
+                  ? 'object-contain object-center p-0.5'
+                  : 'object-cover object-center'
+              } ${
+                isHovered ? 'opacity-100' : 'opacity-0'
+              }`}
+            />
+          )}
+        </div>
       </div>
 
-      {/* Product Details - Modeled directly on high-density reference style */}
-      <div className="p-1.5 sm:p-2 flex-1 flex flex-col justify-between bg-white dark:bg-[#161514]">
+      {/* Product Details - Ultra-compact layout so 2 rows (10 products) fit in viewport */}
+      <div className="p-1.5 flex-1 flex flex-col justify-between bg-white dark:bg-[#161514]">
         <div>
-          {/* Title - Full title displayed completely without truncation */}
-          <h3 className="text-[11px] sm:text-xs font-semibold text-[#111111] dark:text-[#F5F2EB] leading-snug group-hover:text-[#7A5216] dark:group-hover:text-[#D4AF37] transition-colors break-words" title={product.title}>
+          {/* Title - Single concise line on desktop to keep card height uniform for 10-product view */}
+          <h3 className="text-[11px] sm:text-xs font-semibold text-[#111111] dark:text-[#F5F2EB] leading-tight group-hover:text-[#7A5216] dark:group-hover:text-[#D4AF37] transition-colors line-clamp-1" title={product.title}>
             {product.title}
           </h3>
 
           {/* Rating stars & review count row */}
-          <div className="flex items-center gap-1 my-0.5">
+          <div className="flex items-center gap-1 mt-0.5">
             <div className="flex items-center text-amber-600 dark:text-amber-400">
               {[1, 2, 3, 4, 5].map((star) => (
                 <Star
@@ -255,20 +257,19 @@ export const ProductCard: React.FC<ProductCardProps> = React.memo(({ product, is
 
         {/* Pricing & Status block - Clean, uncongested, concise layout */}
         <div className="mt-1 pt-1 border-t border-[#D8CCBE] dark:border-[#262422]">
-          {/* Strikethrough original price - strictly shown only if explicitly set and higher than current price */}
-          {displayOriginalPrice > (product.price || 0) && (
-            <div className="text-[9px] sm:text-[10px] font-medium text-[#5A524C] dark:text-[#8C847E] line-through leading-none">
-              NPR {Number(displayOriginalPrice || 0).toLocaleString()}
+          <div className="flex items-baseline justify-between gap-1">
+            <div className="flex items-baseline gap-1.5 min-w-0 truncate">
+              <span className="text-xs sm:text-[13px] font-extrabold text-[#0D0C0B] dark:text-[#FAF8F5] tracking-tight leading-none">
+                NPR {Number(product.price || 0).toLocaleString()}
+              </span>
+              {displayOriginalPrice > (product.price || 0) && (
+                <span className="text-[9px] sm:text-[10px] font-medium text-[#5A524C] dark:text-[#8C847E] line-through leading-none">
+                  NPR {Number(displayOriginalPrice || 0).toLocaleString()}
+                </span>
+              )}
             </div>
-          )}
-
-          {/* Current bold price */}
-          <div className="flex items-baseline justify-between gap-1 mt-0.5">
-            <span className="text-xs sm:text-[13px] font-extrabold text-[#0D0C0B] dark:text-[#FAF8F5] tracking-tight leading-tight">
-              NPR {Number(product.price || 0).toLocaleString()}
-            </span>
             {isOutOfStock && (
-              <span className="text-[9px] font-bold text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/60 px-1 py-0.5 rounded border border-amber-300 dark:border-amber-800">
+              <span className="text-[8px] font-bold text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/60 px-1 py-0.5 rounded border border-amber-300 dark:border-amber-800 shrink-0">
                 Sold Out
               </span>
             )}

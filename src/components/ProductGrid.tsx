@@ -236,9 +236,9 @@ export const ProductGrid: React.FC = () => {
         </div>
       )}
 
-      {/* Product Grid - 5 columns on desktop, concise spacing */}
+      {/* Product Grid - 5 columns on desktop/tablet, compact spacing so 10 products (2 rows of 5) are visible at once */}
       {filteredProducts.length > 0 ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-1.5 sm:gap-2 lg:gap-2.5 relative z-0 isolate">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-1.5 sm:gap-2 relative z-0 isolate">
           {filteredProducts.map((product) => (
             <ProductCard 
               key={product.id} 
