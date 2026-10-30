@@ -22,7 +22,7 @@ import { Product } from '../types';
 import { useCart } from '../context/CartContext';
 import { compressImage } from '../utils/imageCompressor';
 import { CAVIAR_PEARL_BAG_IMAGE } from '../utils/productImages';
-import { getProductReviews, calculateTotalTimeEstimate, generateDefaultReviewForProduct } from '../utils/productStats';
+import { getProductReviews, calculateTotalTimeEstimate, parseManufacturingTime, generateDefaultReviewForProduct } from '../utils/productStats';
 import { batchDeleteFirebaseStorageFiles } from '../services/firebaseWorkshopStorageService';
 
 interface ProductPhotoManagerSectionProps {
@@ -218,7 +218,7 @@ export const SellerProductModal: React.FC = () => {
   const [inventoryCount, setInventoryCount] = useState<number>(5);
   const [isBestSeller, setIsBestSeller] = useState<boolean>(false);
   const [isNewArrival, setIsNewArrival] = useState<boolean>(true);
-  const [leadTime, setLeadTime] = useState('Handmade to order: 2–4 business days');
+  const [leadTime, setLeadTime] = useState<'1 to 2 days' | '2 to 3 days'>('1 to 2 days');
   const [description, setDescription] = useState('');
   const [materialsText, setMaterialsText] = useState('');
   const [dimensions, setDimensions] = useState('18cm × 14cm × 6cm');
@@ -270,7 +270,12 @@ export const SellerProductModal: React.FC = () => {
       setRating(editingProduct.rating ?? 5.0);
       setReviewsCount(actualReviewsLen);
       setSoldCount(editingProduct.soldCount ?? 0);
-      setLeadTime(editingProduct.manufacturingTime || editingProduct.leadTime || '2–4 days');
+      setLeadTime(
+        parseManufacturingTime(
+          editingProduct.manufacturingTime || editingProduct.leadTime,
+          editingProduct.category
+        ).label
+      );
       setDescription(editingProduct.description || '');
       setMaterialsText(editingProduct.materials && Array.isArray(editingProduct.materials) ? editingProduct.materials.join('\n') : '');
       setDimensions(editingProduct.dimensions || '');
@@ -293,7 +298,7 @@ export const SellerProductModal: React.FC = () => {
       setRating(5.0);
       setReviewsCount(1);
       setSoldCount(0);
-      setLeadTime('2–4 days');
+      setLeadTime('1 to 2 days');
       setDescription('Meticulously hand-woven using high-luster pearls and reinforced tensile core.');
       setMaterialsText('');
       setDimensions('');
@@ -419,8 +424,8 @@ export const SellerProductModal: React.FC = () => {
       inStock,
       stockCount: Number(stockCount) || 0,
       inventoryCount: Number(inventoryCount) >= 0 ? Number(inventoryCount) : Number(stockCount) || 0,
-      leadTime: leadTime.trim() || '2–4 days',
-      manufacturingTime: leadTime.trim() || '2–4 days',
+      leadTime: leadTime || '1 to 2 days',
+      manufacturingTime: leadTime || '1 to 2 days',
       materials: materials,
       dimensions: dimensions.trim(),
       weight: weight.trim(),
@@ -661,54 +666,50 @@ export const SellerProductModal: React.FC = () => {
                   <label className="block text-xs font-semibold text-[#1C1B1A]">
                     Manufacturing Time *
                   </label>
-                  <span className="text-[10px] text-[#8C7A6B]">Artisan Crafting Days</span>
+                  <span className="text-[10px] text-[#8C7A6B]">Select 1 to 2 days or 2 to 3 days</span>
                 </div>
-                <input
-                  type="text"
-                  value={leadTime}
-                  onChange={(e) => setLeadTime(e.target.value)}
-                  placeholder="e.g. 2–4 days, or Ready in stock (0 days)"
-                  className="w-full text-xs px-3 py-2 border border-[#E8DFD8] rounded-lg bg-[#FAF8F5] focus:outline-none focus:border-[#C5A880]"
-                />
-                
-                {/* Preset quick buttons */}
-                <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
-                  {[
-                    { label: 'Ready (0 d)', val: 'Ready in stock (0 days)' },
-                    { label: '1–2 days', val: '1–2 days' },
-                    { label: '2–4 days', val: '2–4 days' },
-                    { label: '3–5 days', val: '3–5 days' }
-                  ].map((p) => (
-                    <button
-                      key={p.val}
-                      type="button"
-                      onClick={() => setLeadTime(p.val)}
-                      className={`text-[9px] px-1.5 py-0.5 rounded border transition-colors cursor-pointer ${
-                        leadTime === p.val
-                          ? 'bg-[#1C1B1A] text-white border-[#1C1B1A] font-bold'
-                          : 'bg-white text-[#736C65] border-[#E8DFD8] hover:border-[#C5A880]'
-                      }`}
-                    >
-                      {p.label}
-                    </button>
-                  ))}
+
+                {/* 2-Option Selector for Manufacturing Time */}
+                <div className="grid grid-cols-2 gap-2">
+                  {(['1 to 2 days', '2 to 3 days'] as const).map((val) => {
+                    const isSelected = leadTime === val;
+                    return (
+                      <button
+                        key={val}
+                        type="button"
+                        onClick={() => setLeadTime(val)}
+                        className={`text-xs py-2 px-3 rounded-lg border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                          isSelected
+                            ? 'bg-[#1C1B1A] text-white border-[#1C1B1A] font-bold shadow-2xs'
+                            : 'bg-[#FAF8F5] text-[#5E5955] border-[#E8DFD8] hover:border-[#C5A880]'
+                        }`}
+                      >
+                        <span className={`w-2 h-2 rounded-full ${isSelected ? 'bg-[#D4AF37]' : 'bg-[#D8CFCA]'}`} />
+                        <span>{val}</span>
+                      </button>
+                    );
+                  })}
                 </div>
 
                 {/* Dynamic Calculated Delivery Time Preview Banner */}
                 {(() => {
-                  const est = calculateTotalTimeEstimate({ leadTime } as any);
+                  const est = calculateTotalTimeEstimate({ leadTime, manufacturingTime: leadTime, category } as any);
                   return (
-                    <div className="mt-2 p-2 bg-[#F6F2EC] rounded-lg border border-[#E8DFD8] text-[10px] space-y-0.5 text-[#5E5955]">
-                      <div className="font-bold text-[#1C1B1A] flex items-center gap-1">
-                        <span>⚡ Total Delivery to Customer Doorstep:</span>
+                    <div className="mt-2 p-2.5 bg-[#F6F2EC] rounded-lg border border-[#E8DFD8] text-[10px] space-y-1.5 text-[#5E5955]">
+                      <div className="font-bold text-[#1C1B1A] flex items-center justify-between">
+                        <span>⚡ Manufacturing + Delivery = Total Days:</span>
                       </div>
-                      <div className="flex items-center justify-between text-[#4A4541]">
-                        <span>• Kathmandu Valley (Mfg + 1–2 d):</span>
-                        <strong className="text-emerald-800">{est.ktm}</strong>
+                      <div className="flex items-center justify-between gap-1 flex-wrap text-[#4A4541]">
+                        <span>• Inside Kathmandu Valley (1 to 2 days del):</span>
+                        <span className="text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded font-semibold">
+                          {est.ktmBreakdown}
+                        </span>
                       </div>
-                      <div className="flex items-center justify-between text-[#4A4541]">
-                        <span>• Outside Valley (Mfg + 3–7 d):</span>
-                        <strong className="text-emerald-800">{est.outside}</strong>
+                      <div className="flex items-center justify-between gap-1 flex-wrap text-[#4A4541]">
+                        <span>• Outside Kathmandu Valley (3 to 7 days del):</span>
+                        <span className="text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded font-semibold">
+                          {est.outsideBreakdown}
+                        </span>
                       </div>
                     </div>
                   );

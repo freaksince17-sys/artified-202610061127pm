@@ -418,9 +418,9 @@ export const OrderTrackerModal: React.FC = () => {
                     {(() => {
                       const bd = getOrderManufactureDeliveryBreakdown(trackedOrder.items, trackedOrder.deliveryZoneName, trackedOrder.deliveryAddress);
                       return (
-                        <p className="text-[10px] text-[#5E5955] font-medium mt-0.5">
-                          🛠 {bd.manufactureDaysText} manufacture ({bd.categoryLabel}) + 🚚 {bd.deliveryDaysText} delivery
-                        </p>
+                        <span className="inline-block text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded font-semibold mt-1">
+                          Total: {bd.totalEstimatedDaysText} ({bd.manufactureDaysText} mfg + {bd.deliveryDaysText} del)
+                        </span>
                       );
                     })()}
                   </div>

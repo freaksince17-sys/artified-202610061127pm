@@ -100,51 +100,8 @@ export const ProductDetailModal: React.FC = () => {
       return;
     }
 
-    // Immediately hydrate cached reviews from local storage so reviews stick instantly with zero flash
-    try {
-      const deletedIds = new Set<string>();
-      const globDeletedRaw = localStorage.getItem('artified_deleted_review_ids');
-      if (globDeletedRaw) {
-        const globList = JSON.parse(globDeletedRaw);
-        if (Array.isArray(globList)) globList.forEach((id: string) => deletedIds.add(String(id).trim()));
-      }
-      const isAllCleared = deletedIds.has(`${quickViewProduct.id}::all_cleared`);
-      const isRoyalCape =
-        quickViewProduct.id === 'art-1793343690587-202g7' ||
-        (quickViewProduct.title && quickViewProduct.title.toLowerCase().includes('royal layered drape pearl cape'));
-      const cached = localStorage.getItem(`artified_reviews_${quickViewProduct.id}`);
-      if (cached && !isAllCleared) {
-        const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed)) {
-          const filtered = parsed.filter((r: any) => {
-            if (!r || !r.id || !r.author || r.isDeleted) return false;
-            const cid = String(r.id).trim();
-            const al = String(r.author).trim().toLowerCase();
-            if (deletedIds.has(cid) || deletedIds.has(`${quickViewProduct.id}::${al}`)) return false;
-            if (
-              isRoyalCape &&
-              (al.includes('kashish') ||
-                al.includes('jenisha') ||
-                cid === 'art-1793343690587-202g7-rev-1' ||
-                cid === 'art-1793343690587-202g7-rev-3')
-            ) {
-              return false;
-            }
-            return true;
-          });
-          if (filtered.length !== parsed.length) {
-            localStorage.setItem(`artified_reviews_${quickViewProduct.id}`, JSON.stringify(filtered));
-          }
-          setFirestoreReviews(filtered);
-        }
-      } else {
-        setFirestoreReviews([]);
-      }
-    } catch {
-      setFirestoreReviews([]);
-    }
+    setFirestoreReviews([]);
 
-    const initial = getProductReviews(quickViewProduct);
     const unsubscribe = subscribeToProductReviews(
       quickViewProduct.id,
       (fetched) => {
@@ -152,7 +109,7 @@ export const ProductDetailModal: React.FC = () => {
           setFirestoreReviews(fetched);
         }
       },
-      initial
+      []
     );
 
     return () => {
@@ -253,18 +210,18 @@ export const ProductDetailModal: React.FC = () => {
   };
 
   const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (!isZoomed) return;
     if (e.touches.length > 0) {
       const touch = e.touches[0];
       const { left, top, width, height } = e.currentTarget.getBoundingClientRect();
       const x = Math.max(0, Math.min(100, ((touch.clientX - left) / width) * 100));
       const y = Math.max(0, Math.min(100, ((touch.clientY - top) / height) * 100));
       setZoomPosition({ x, y });
-      setIsZoomed(true);
     }
   };
 
   const handleTouchEnd = () => {
-    setIsZoomed(false);
+    // Keep zoom toggle controlled on mobile so normal vertical scrolling is uninterrupted
   };
 
   const currentProductIndex = React.useMemo(() => {
@@ -303,9 +260,14 @@ export const ProductDetailModal: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [quickViewProduct, currentProductIndex, filteredProducts]);
 
+  const activeProduct = React.useMemo(() => {
+    if (!quickViewProduct) return null;
+    return products.find((p) => p.id === quickViewProduct.id) || quickViewProduct;
+  }, [products, quickViewProduct]);
+
   const fallbackReviews = React.useMemo(() => {
-    return quickViewProduct ? getProductReviews(quickViewProduct) : [];
-  }, [quickViewProduct]);
+    return activeProduct ? getProductReviews(activeProduct) : [];
+  }, [activeProduct]);
 
   const reviewsList = React.useMemo(() => {
     const seenIds = new Set<string>();
@@ -319,10 +281,20 @@ export const ProductDetailModal: React.FC = () => {
       }
     } catch {}
 
-    const isAllCleared = quickViewProduct?.id ? deletedIds.has(`${quickViewProduct.id}::all_cleared`) : false;
+    const targetId = activeProduct?.id || quickViewProduct?.id || '';
+    (activeProduct?.customReviews || []).forEach((r: any) => {
+      if (r && r.isDeleted) {
+        if (r.id) deletedIds.add(String(r.id).trim());
+        if (r.author && targetId) deletedIds.add(`${targetId}::${String(r.author).trim().toLowerCase()}`);
+      }
+    });
+
     const isRoyalCape =
-      quickViewProduct?.id === 'art-1793343690587-202g7' ||
-      Boolean(quickViewProduct?.title && quickViewProduct.title.toLowerCase().includes('royal layered drape pearl cape'));
+      targetId === 'art-1793343690587-202g7' ||
+      Boolean(activeProduct?.title && activeProduct.title.toLowerCase().includes('royal layered drape pearl cape'));
+    const isClassicCape =
+      targetId === 'art-1793354171215-n8r5d' ||
+      Boolean(activeProduct?.title && activeProduct.title.toLowerCase().includes('classic woven collar pearl cape'));
 
     const list: ProductReviewItem[] = [];
 
@@ -331,7 +303,7 @@ export const ProductDetailModal: React.FC = () => {
       if ((r as any).isDeleted) return;
       const cleanId = String(r.id).trim();
       const authorLower = r.author.trim().toLowerCase();
-      if (isAllCleared || deletedIds.has(cleanId) || (quickViewProduct?.id && deletedIds.has(`${quickViewProduct.id}::${authorLower}`))) {
+      if (deletedIds.has(cleanId) || (targetId && deletedIds.has(`${targetId}::${authorLower}`))) {
         return;
       }
       if (
@@ -340,6 +312,12 @@ export const ProductDetailModal: React.FC = () => {
           authorLower.includes('jenisha') ||
           cleanId === 'art-1793343690587-202g7-rev-1' ||
           cleanId === 'art-1793343690587-202g7-rev-3')
+      ) {
+        return;
+      }
+      if (
+        isClassicCape &&
+        (authorLower.includes('smarika') || cleanId === 'art-1793354171215-n8r5d-rev-1')
       ) {
         return;
       }
@@ -355,11 +333,11 @@ export const ProductDetailModal: React.FC = () => {
     fallbackReviews.forEach(addReview);
 
     return list;
-  }, [firestoreReviews, fallbackReviews, quickViewProduct?.id, quickViewProduct?.title]);
+  }, [firestoreReviews, fallbackReviews, activeProduct, quickViewProduct?.id]);
 
-  if (!quickViewProduct) return null;
+  if (!quickViewProduct || !activeProduct) return null;
 
-  const product = products.find((p) => p.id === quickViewProduct.id) || quickViewProduct;
+  const product = activeProduct;
   const wishlisted = isWishlisted(product.id);
   const totalSold = calculateTotalSold(product);
   const isBestSeller = isProductBestSeller(product, bestsellerThreshold);
@@ -495,11 +473,11 @@ export const ProductDetailModal: React.FC = () => {
           <button
             type="button"
             onClick={handlePrevProduct}
-            className="absolute -left-5 sm:-left-8 md:-left-12 lg:-left-16 top-1/2 -translate-y-1/2 z-40 w-11 h-11 sm:w-13 sm:h-13 rounded-full bg-white text-[#1C1B1A] border-2 border-[#1C1B1A] shadow-2xl flex items-center justify-center transition-all duration-300 hover:scale-115 hover:border-emerald-600 hover:text-emerald-600 hover:shadow-[0_0_28px_rgba(16,185,129,0.7),0_8px_20px_rgba(0,0,0,0.18)] active:scale-95 cursor-pointer focus:outline-none group"
+            className="absolute left-1.5 sm:-left-4 md:-left-11 lg:-left-15 top-1/2 -translate-y-1/2 z-40 w-9 h-9 sm:w-11 sm:h-11 md:w-12 md:h-12 rounded-full bg-white/95 text-[#1C1B1A] border-2 border-[#1C1B1A] shadow-2xl flex items-center justify-center transition-all duration-300 hover:scale-110 hover:border-emerald-600 hover:text-emerald-600 hover:shadow-[0_0_28px_rgba(16,185,129,0.7),0_8px_20px_rgba(0,0,0,0.18)] active:scale-95 cursor-pointer focus:outline-none group"
             title="Previous piece (Left arrow key)"
             aria-label="Previous piece"
           >
-            <ChevronLeft className="w-5 h-5 sm:w-6 sm:h-6 stroke-[3] transition-colors" />
+            <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 stroke-[3] transition-colors" />
           </button>
         )}
 
@@ -508,16 +486,16 @@ export const ProductDetailModal: React.FC = () => {
           <button
             type="button"
             onClick={handleNextProduct}
-            className="absolute -right-5 sm:-right-8 md:-right-12 lg:-right-16 top-1/2 -translate-y-1/2 z-40 w-11 h-11 sm:w-13 sm:h-13 rounded-full bg-white text-emerald-700 border-2 border-emerald-700 shadow-2xl flex items-center justify-center transition-all duration-300 hover:scale-115 hover:border-emerald-500 hover:text-emerald-500 hover:shadow-[0_0_28px_rgba(16,185,129,0.7),0_8px_20px_rgba(0,0,0,0.18)] active:scale-95 cursor-pointer focus:outline-none group"
+            className="absolute right-1.5 sm:-right-4 md:-right-11 lg:-right-15 top-1/2 -translate-y-1/2 z-40 w-9 h-9 sm:w-11 sm:h-11 md:w-12 md:h-12 rounded-full bg-white/95 text-emerald-700 border-2 border-emerald-700 shadow-2xl flex items-center justify-center transition-all duration-300 hover:scale-110 hover:border-emerald-500 hover:text-emerald-500 hover:shadow-[0_0_28px_rgba(16,185,129,0.7),0_8px_20px_rgba(0,0,0,0.18)] active:scale-95 cursor-pointer focus:outline-none group"
             title="Next piece (Right arrow key)"
             aria-label="Next piece"
           >
-            <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6 stroke-[3] transition-colors" />
+            <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 stroke-[3] transition-colors" />
           </button>
         )}
 
         {/* Modal Dialog Card */}
-        <div className="bg-[#FAF8F5] w-full rounded-2xl shadow-2xl border border-[#E8DFD8] overflow-hidden flex flex-col max-h-[92vh]">
+        <div className="bg-[#FAF8F5] w-full rounded-2xl shadow-2xl border border-[#E8DFD8] overflow-hidden flex flex-col max-h-[90dvh] sm:max-h-[92vh]">
           {/* Top Header with Brand, Product Title in Center, Counter, and Actions */}
           <div className="flex items-center justify-between px-3.5 sm:px-6 py-3.5 border-b border-[#E8DFD8] bg-white sticky top-0 z-20 gap-2">
             {/* Left: Brand and Category Label */}
@@ -614,11 +592,13 @@ export const ProductDetailModal: React.FC = () => {
 
                 {/* Main Feature View with Hover-to-Zoom - Unified 1:1 Square matching ProductCard */}
                 <div 
-                  className="relative aspect-square rounded-xl overflow-hidden bg-[#EFE8DF] border border-[#E8DFD8] shadow-xs select-none group cursor-crosshair"
+                  className={`relative aspect-square rounded-xl overflow-hidden bg-[#EFE8DF] border border-[#E8DFD8] shadow-xs select-none group cursor-crosshair ${
+                    isZoomed ? 'touch-none' : 'touch-pan-y'
+                  }`}
                   onMouseEnter={handleMouseEnter}
                   onMouseMove={handleMouseMove}
                   onMouseLeave={handleMouseLeave}
-                  onTouchStart={handleTouchMove}
+                  onClick={() => setIsZoomed((prev) => !prev)}
                   onTouchMove={handleTouchMove}
                   onTouchEnd={handleTouchEnd}
                 >
@@ -640,9 +620,14 @@ export const ProductDetailModal: React.FC = () => {
                     }}
                   />
 
-                  {/* Hover-to-zoom craft inspection status badge */}
-                  <div 
-                    className={`absolute top-3 left-3 py-1 px-2.5 rounded-full text-[11px] font-medium transition-all duration-200 flex items-center gap-1.5 shadow-xs backdrop-blur-md pointer-events-none z-10 ${
+                  {/* Hover/Tap-to-zoom craft inspection status badge */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsZoomed((prev) => !prev);
+                    }}
+                    className={`absolute top-3 left-3 py-1 px-2.5 rounded-full text-[11px] font-medium transition-all duration-200 flex items-center gap-1.5 shadow-xs backdrop-blur-md z-10 cursor-pointer ${
                       isZoomed 
                         ? 'bg-[#1C1B1A]/90 text-[#FAF8F5] border border-[#C5A880]/50' 
                         : 'bg-white/95 text-[#5E5955] border border-[#E8DFD8] opacity-90 group-hover:opacity-100'
@@ -651,52 +636,16 @@ export const ProductDetailModal: React.FC = () => {
                     {isZoomed ? (
                       <>
                         <Sparkles className="w-3.5 h-3.5 text-[#D4AF37] animate-pulse" />
-                        <span>Inspecting Bead Details ({zoomScale}x)</span>
+                        <span>Inspecting Bead Details ({zoomScale}x) • Tap to Reset</span>
                       </>
                     ) : (
                       <>
                         <ZoomIn className="w-3.5 h-3.5 text-[#C5A880]" />
-                        <span>Hover / Pan to Inspect Beads</span>
+                        <span>Hover / Tap to Inspect Beads</span>
                       </>
                     )}
-                  </div>
+                  </button>
 
-                  {/* Zoom Scale Selector Pills (2x, 2.5x, 3.2x) */}
-                  <div 
-                    className="absolute bottom-3 right-3 flex items-center bg-[#1C1B1A]/85 backdrop-blur-md rounded-full p-0.5 border border-white/10 shadow-sm z-10"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    {[2.0, 2.5, 3.2].map((scaleVal) => (
-                      <button
-                        key={scaleVal}
-                        type="button"
-                        onClick={() => setZoomScale(scaleVal)}
-                        className={`px-2 py-0.5 text-[10px] rounded-full font-mono transition-colors ${
-                          zoomScale === scaleVal
-                            ? 'bg-[#C5A880] text-[#1C1B1A] font-bold shadow-2xs'
-                            : 'text-[#FAF8F5]/80 hover:text-white'
-                        }`}
-                      >
-                        {scaleVal}x
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Craft Manufacturing & Total Delivery Floating Tag */}
-                  {(() => {
-                    const timeEst = calculateTotalTimeEstimate(product);
-                    return (
-                      <div 
-                        className={`absolute bottom-3 left-3 bg-[#1C1B1A]/85 backdrop-blur-md text-white text-[11px] py-1 px-3 rounded-full flex items-center gap-1.5 shadow-sm transition-opacity duration-200 pointer-events-none ${
-                          isZoomed ? 'opacity-30' : 'opacity-100'
-                        }`}
-                        title="Artisan manufacturing time + Nepal courier transit"
-                      >
-                        <Clock className="w-3 h-3 text-[#D4AF37]" />
-                        <span>Making: {timeEst.mfgLabel} • KTM Doorstep: {timeEst.ktm}</span>
-                      </div>
-                    );
-                  })()}
                 </div>
 
               {/* Thumbnail Strip */}
@@ -1015,22 +964,43 @@ export const ProductDetailModal: React.FC = () => {
                       return (
                         <div className="pb-3 text-xs text-[#5E5955] space-y-2 animate-in fade-in">
                           {/* Manufacturing + Delivery Total Time Card */}
-                          <div className="p-2.5 bg-[#FAF6F0] rounded-xl border border-[#E8DFD8] space-y-1">
-                            <div className="font-bold text-[#1C1B1A] flex items-center gap-1.5 text-[11px]">
-                              <Clock className="w-3.5 h-3.5 text-[#D4AF37]" />
-                              <span>Total Estimated Delivery to Doorstep:</span>
+                          <div className="p-3 bg-[#FAF6F0] rounded-xl border border-[#E8DFD8] space-y-2">
+                            <div className="flex items-center justify-between border-b border-[#E8DFD8] pb-1.5">
+                              <span className="font-bold text-[#1C1B1A] flex items-center gap-1.5 text-[11px]">
+                                <Clock className="w-3.5 h-3.5 text-[#D4AF37]" />
+                                <span>Manufacturing Time:</span>
+                              </span>
+                              <span className="text-[11px] font-bold text-[#1C1B1A] bg-white px-2 py-0.5 rounded border border-[#E8DFD8]">
+                                {est.mfgLabel}
+                              </span>
                             </div>
-                            <div className="text-[11px] text-[#4A4541] flex items-center justify-between pt-0.5">
-                              <span>⏱️ Handcrafting / Making Time:</span>
-                              <strong>{est.mfgLabel}</strong>
+
+                            {/* Inside Kathmandu Valley */}
+                            <div className="p-2 bg-white rounded-lg border border-[#E8DFD8] space-y-1">
+                              <div className="flex items-center justify-between text-[11px]">
+                                <span className="font-semibold text-[#1C1B1A]">Inside Kathmandu Valley</span>
+                                <span className="font-bold text-[#1C1B1A]">NPR 120</span>
+                              </div>
+                              <div className="flex items-center justify-between gap-2 flex-wrap text-[10px]">
+                                <span className="text-[#736C65]">Delivery Days: <strong className="text-[#1C1B1A]">1 to 2 days</strong></span>
+                                <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded font-semibold">
+                                  {est.ktmBreakdown}
+                                </span>
+                              </div>
                             </div>
-                            <div className="text-[11px] text-[#4A4541] flex items-center justify-between">
-                              <span>🚚 Kathmandu Valley Doorstep:</span>
-                              <strong className="text-emerald-800">{est.ktm} (NPR 120)</strong>
-                            </div>
-                            <div className="text-[11px] text-[#4A4541] flex items-center justify-between">
-                              <span>🚚 Outside Valley Doorstep:</span>
-                              <strong className="text-emerald-800">{est.outside} (NPR 250)</strong>
+
+                            {/* Outside Kathmandu Valley */}
+                            <div className="p-2 bg-white rounded-lg border border-[#E8DFD8] space-y-1">
+                              <div className="flex items-center justify-between text-[11px]">
+                                <span className="font-semibold text-[#1C1B1A]">Outside Kathmandu Valley</span>
+                                <span className="font-bold text-[#1C1B1A]">NPR 250</span>
+                              </div>
+                              <div className="flex items-center justify-between gap-2 flex-wrap text-[10px]">
+                                <span className="text-[#736C65]">Delivery Days: <strong className="text-[#1C1B1A]">3 to 7 days</strong></span>
+                                <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded font-semibold">
+                                  {est.outsideBreakdown}
+                                </span>
+                              </div>
                             </div>
                           </div>
                           <p className="text-[11px]">

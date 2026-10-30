@@ -36,8 +36,8 @@ export const PRODUCTS: Product[] = (SAVED_PRODUCTS as unknown as Product[]).map(
   customReviews: p.customReviews || PRODUCT_REVIEWS_MAP[p.id] || []
 }));
 
-export const CATALOG_BUILD_TIMESTAMP = '2026-10-30T09:40:00.000Z';
-export const CATALOG_BUILD_VERSION = 'artified_v_2026_10_30_royal_cape_photo_restored';
+export const CATALOG_BUILD_TIMESTAMP = '2026-10-30T10:30:00.000Z';
+export const CATALOG_BUILD_VERSION = 'artified_v_2026_10_30_reset_reviews_v3';
 
 const GENERIC_FALLBACK_SUBSTRINGS = [
   'photo-1566150905458-1bf1fc113f0d',
@@ -93,7 +93,7 @@ export function selectBestProductImages(
  * Reconciles candidate products (from localStorage, Firestore, or API) against the authoritative bundled PRODUCTS.
  * - Bundled products with their updated prices/names/images always take precedence over stale cached products.
  * - Self-contained data:image/ photos and newly uploaded creation photos are strictly protected from reverting to placeholders.
- * - Custom reviews, verified sales counts, and custom products created by the artisan are preserved.
+ * - Custom reviews, deletion tombstones, verified sales counts, and custom products created by the artisan are preserved.
  */
 export function reconcileProductCatalog(candidateProducts?: Product[] | null, bundled: Product[] = PRODUCTS): Product[] {
   const map = new Map<string, Product>();
@@ -104,15 +104,6 @@ export function reconcileProductCatalog(candidateProducts?: Product[] | null, bu
       map.set(item.id, item);
     }
   }
-
-  // Parse custom reviews dictionary once outside the loop
-  let storedReviewsDict: Record<string, any[]> = {};
-  try {
-    const dictRaw = typeof localStorage !== 'undefined' ? localStorage.getItem('artified_custom_reviews_v1') : null;
-    if (dictRaw) {
-      storedReviewsDict = JSON.parse(dictRaw) || {};
-    }
-  } catch {}
 
   const deletedRevIds = new Set<string>();
   try {
@@ -142,14 +133,37 @@ export function reconcileProductCatalog(candidateProducts?: Product[] | null, bu
       } else {
         const bundledItem = map.get(candidate.id)!;
 
-        const extraReviews = Array.isArray(storedReviewsDict[candidate.id]) ? storedReviewsDict[candidate.id] : [];
+        const candidateTime = candidate.updatedAt ? new Date(candidate.updatedAt).getTime() : 0;
+        const bundledTime = bundledItem.updatedAt ? new Date(bundledItem.updatedAt).getTime() : 0;
+        const isCandidateNewer = candidateTime > bundledTime;
+
         const isRoyalCape =
           candidate.id === 'art-1793343690587-202g7' ||
           Boolean(candidate.title && candidate.title.toLowerCase().includes('royal layered drape pearl cape'));
+        const isClassicCape =
+          candidate.id === 'art-1793354171215-n8r5d' ||
+          Boolean(candidate.title && candidate.title.toLowerCase().includes('classic woven collar pearl cape'));
+
+        // First collect any deletion tombstones across sources so deleted reviews never resurrect
+        const tombstoneReviews: any[] = [];
+        const seenTombstoneIds = new Set<string>();
+        const collectTombstones = (r: any) => {
+          if (!r || !r.isDeleted) return;
+          const cleanId = r.id ? String(r.id).trim() : '';
+          if (cleanId) deletedRevIds.add(cleanId);
+          if (r.author) deletedRevIds.add(`${candidate.id}::${String(r.author).trim().toLowerCase()}`);
+          if (cleanId && !seenTombstoneIds.has(cleanId)) {
+            seenTombstoneIds.add(cleanId);
+            tombstoneReviews.push(r);
+          }
+        };
+
+        (bundledItem.customReviews || []).forEach(collectTombstones);
+        (candidate.customReviews || []).forEach(collectTombstones);
 
         const seenRevIds = new Set<string>();
         const seenRevSigs = new Set<string>();
-        const mergedReviews: any[] = [];
+        const visibleMergedReviews: any[] = [];
 
         const addMerged = (r: any) => {
           if (!r || !r.id || !r.author || !r.comment || r.isDeleted) return;
@@ -165,19 +179,29 @@ export function reconcileProductCatalog(candidateProducts?: Product[] | null, bu
           ) {
             return;
           }
+          if (
+            isClassicCape &&
+            (authorLower.includes('smarika') || cleanId === 'art-1793354171215-n8r5d-rev-1')
+          ) {
+            return;
+          }
           const sig = `${authorLower}_${String(r.comment).trim().toLowerCase()}`;
           if (!seenRevIds.has(cleanId) && !seenRevSigs.has(sig)) {
             seenRevIds.add(cleanId);
             seenRevSigs.add(sig);
-            mergedReviews.push(r);
+            visibleMergedReviews.push(r);
           }
         };
 
-        if (!deletedRevIds.has(`${candidate.id}::all_cleared`)) {
-          extraReviews.forEach(addMerged);
+        if (isCandidateNewer) {
+          (candidate.customReviews || []).forEach(addMerged);
+          (bundledItem.customReviews || []).forEach(addMerged);
+        } else {
           (bundledItem.customReviews || []).forEach(addMerged);
           (candidate.customReviews || []).forEach(addMerged);
         }
+
+        const mergedReviews = [...visibleMergedReviews, ...tombstoneReviews];
 
         const mergedOnlineSales = Math.max(
           candidate.onlineSalesCount || 0,
@@ -199,11 +223,9 @@ export function reconcileProductCatalog(candidateProducts?: Product[] | null, bu
           ? (candidate.inStock && nextStockCount > 0)
           : (nextStockCount > 0 && bundledItem.inStock !== false);
 
-        const candidateTime = candidate.updatedAt ? new Date(candidate.updatedAt).getTime() : 0;
-        const bundledTime = bundledItem.updatedAt ? new Date(bundledItem.updatedAt).getTime() : 0;
-        const isCandidateNewer = candidateTime > bundledTime;
-
         const resolvedImages = selectBestProductImages(candidate.images, bundledItem.images, isCandidateNewer);
+
+        const nextReviewsCount = visibleMergedReviews.length;
 
         const nextProd: Product = {
           ...bundledItem,
@@ -222,6 +244,7 @@ export function reconcileProductCatalog(candidateProducts?: Product[] | null, bu
           inStock: nextInStock,
           isNewArrival: typeof candidate.isNewArrival === 'boolean' && isCandidateNewer ? candidate.isNewArrival : bundledItem.isNewArrival,
           isBestSeller: bundledItem.isBestSeller || (mergedTotalSold >= 50),
+          reviewsCount: nextReviewsCount,
           customReviews: mergedReviews,
           soldCount: mergedSoldCount,
           onlineSalesCount: mergedOnlineSales,
@@ -245,6 +268,9 @@ export function reconcileProductCatalog(candidateProducts?: Product[] | null, bu
           nextProd.onlineSalesCount === bundledItem.onlineSalesCount &&
           nextProd.totalSold === bundledItem.totalSold &&
           nextProd.updatedAt === bundledItem.updatedAt &&
+          nextProd.leadTime === bundledItem.leadTime &&
+          nextProd.manufacturingTime === bundledItem.manufacturingTime &&
+          (nextProd.materials?.length || 0) === (bundledItem.materials?.length || 0) &&
           (nextProd.images?.length || 0) === (bundledItem.images?.length || 0) &&
           (nextProd.images?.[0] || '') === (bundledItem.images?.[0] || '') &&
           mergedReviews.length === (bundledItem.customReviews?.length || 0);

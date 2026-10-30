@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { getRealProductImage, CAVIAR_PEARL_BAG_IMAGE } from '../utils/productImages';
-import { calculateTotalSold } from '../utils/productStats';
+import { calculateTotalSold, calculateTotalTimeEstimate } from '../utils/productStats';
 
 export const CartDrawer: React.FC = () => {
   const {
@@ -292,10 +292,30 @@ export const CartDrawer: React.FC = () => {
                   <span>- NPR {discount.toLocaleString()}</span>
                 </div>
               )}
-              <div className="flex justify-between text-[#736C65] dark:text-[#8C847E] text-[11px]">
-                <span>Estimated Delivery</span>
-                <span>KTM Valley: NPR 120 (1–2 days) • Outside: NPR 250 (3–7 days)</span>
-              </div>
+              {(() => {
+                const hasLongMfg = cart.some(
+                  (i) => calculateTotalTimeEstimate(i.product).mfgLabel === '2 to 3 days'
+                );
+                const mfgLabel = hasLongMfg ? '2 to 3 days' : '1 to 2 days';
+                const ktmTotal = hasLongMfg ? '3 to 5 days' : '2 to 4 days';
+                const outTotal = hasLongMfg ? '5 to 10 days' : '4 to 9 days';
+                return (
+                  <div className="p-2.5 bg-[#FAF8F5] dark:bg-[#201F1D] rounded-lg border border-[#E8DFD8] dark:border-[#33302C] space-y-1 text-[10px]">
+                    <div className="flex items-center justify-between gap-1 flex-wrap">
+                      <span className="font-semibold text-[#1C1B1A] dark:text-[#F5F2EB]">Inside Kathmandu Valley (NPR 120):</span>
+                      <span className="text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded font-semibold">
+                        Total: {ktmTotal} ({mfgLabel} mfg + 1 to 2 days del)
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between gap-1 flex-wrap">
+                      <span className="font-semibold text-[#1C1B1A] dark:text-[#F5F2EB]">Outside Kathmandu Valley (NPR 250):</span>
+                      <span className="text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded font-semibold">
+                        Total: {outTotal} ({mfgLabel} mfg + 3 to 7 days del)
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
             <div className="pt-2 border-t border-[#F0EBE5] dark:border-[#262422] flex items-baseline justify-between">

@@ -173,11 +173,14 @@ export function subscribeToProductReviews(
       }
     } catch {}
 
-    const isAllCleared = deletedIds.has(`${productId}::all_cleared`);
     const isRoyalCapeProduct =
       productId === 'art-1793343690587-202g7' ||
       targetId.includes('art-1793343690587-202g7') ||
       targetId.includes('royal-layered-drape-pearl-cape');
+    const isClassicCapeProduct =
+      productId === 'art-1793354171215-n8r5d' ||
+      targetId.includes('art-1793354171215-n8r5d') ||
+      targetId.includes('classic-woven-collar-pearl-cape');
 
     const seenIds = new Set<string>();
     const seenSignatures = new Set<string>();
@@ -188,7 +191,7 @@ export function subscribeToProductReviews(
       if ((r as any).isDeleted) return;
       const cleanId = String(r.id).trim();
       const authorLower = r.author.trim().toLowerCase();
-      if (isAllCleared || deletedIds.has(cleanId) || deletedIds.has(`${productId}::${authorLower}`)) return;
+      if (deletedIds.has(cleanId) || deletedIds.has(`${productId}::${authorLower}`)) return;
 
       const isRoyalCapeItem =
         isRoyalCapeProduct ||
@@ -205,6 +208,18 @@ export function subscribeToProductReviews(
         return;
       }
 
+      const isClassicCapeItem =
+        isClassicCapeProduct ||
+        r.productId === 'art-1793354171215-n8r5d' ||
+        (r.productTitle && r.productTitle.toLowerCase().includes('classic woven collar pearl cape'));
+
+      if (
+        isClassicCapeItem &&
+        (authorLower.includes('smarika') || cleanId === 'art-1793354171215-n8r5d-rev-1')
+      ) {
+        return;
+      }
+
       const sig = `${authorLower}_${r.comment.trim().toLowerCase()}`;
       if (!seenIds.has(cleanId) && !seenSignatures.has(sig)) {
         seenIds.add(cleanId);
@@ -213,42 +228,10 @@ export function subscribeToProductReviews(
       }
     };
 
-    // 1. Fresh Firestore reviews
+    // 1. Fresh Firestore product_reviews collection
     firestoreReviews.forEach(addReview);
     // 2. Persistent Server database reviews
     serverReviews.forEach(addReview);
-
-    // 3. Persistent LocalStorage cached reviews for this product
-    try {
-      const localRaw = localStorage.getItem(`artified_reviews_${productId}`);
-      if (localRaw) {
-        const parsed = JSON.parse(localRaw);
-        if (Array.isArray(parsed)) parsed.forEach(addReview);
-      }
-      const customStoreRaw = localStorage.getItem('artified_custom_reviews_v1');
-      if (customStoreRaw) {
-        const parsedDict = JSON.parse(customStoreRaw);
-        const prodCustom = parsedDict[productId];
-        if (Array.isArray(prodCustom)) {
-          prodCustom.forEach((c: any) => addReview({ ...c, productId } as FirestoreProductReview));
-        }
-        // Clean up stale legacy reviews in artified_custom_reviews_v1 for Royal Cape
-        if (isRoyalCapeProduct && Array.isArray(prodCustom)) {
-          const cleanedCustom = prodCustom.filter((c: any) => {
-            if (!c || !c.author) return false;
-            const al = String(c.author).toLowerCase();
-            return !al.includes('kashish') && !al.includes('jenisha');
-          });
-          if (cleanedCustom.length !== prodCustom.length) {
-            parsedDict[productId] = cleanedCustom;
-            localStorage.setItem('artified_custom_reviews_v1', JSON.stringify(parsedDict));
-          }
-        }
-      }
-    } catch {}
-
-    // 4. Fallback reviews (product custom reviews + curated base)
-    fallbackReviews.forEach((fb) => addReview({ ...fb, productId } as FirestoreProductReview));
 
     // Sort newest first
     combined.sort((a, b) => {
@@ -258,10 +241,6 @@ export function subscribeToProductReviews(
     });
 
     onReviews(combined);
-
-    try {
-      localStorage.setItem(`artified_reviews_${productId}`, JSON.stringify(combined));
-    } catch {}
   };
 
   // Real-time listener on all reviews for this product
@@ -326,7 +305,7 @@ export function subscribeToAllProductReviews(
       const cleanId = String(r.id).trim();
       const authorLower = r.author.trim().toLowerCase();
       const pId = String(r.productId || '').trim();
-      if (deletedIds.has(cleanId) || (pId && (deletedIds.has(`${pId}::${authorLower}`) || deletedIds.has(`${pId}::all_cleared`)))) {
+      if (deletedIds.has(cleanId) || (pId && deletedIds.has(`${pId}::${authorLower}`))) {
         return;
       }
       const isRoyalCape =
@@ -341,6 +320,15 @@ export function subscribeToAllProductReviews(
       ) {
         return;
       }
+      const isClassicCape =
+        pId === 'art-1793354171215-n8r5d' ||
+        (r.productTitle && r.productTitle.toLowerCase().includes('classic woven collar pearl cape'));
+      if (
+        isClassicCape &&
+        (authorLower.includes('smarika') || cleanId === 'art-1793354171215-n8r5d-rev-1')
+      ) {
+        return;
+      }
       const sig = `${authorLower}_${r.comment.trim().toLowerCase()}`;
       if (!seenIds.has(cleanId) && !seenSignatures.has(sig)) {
         seenIds.add(cleanId);
@@ -351,21 +339,6 @@ export function subscribeToAllProductReviews(
 
     firestoreReviews.forEach(addReview);
     serverReviews.forEach(addReview);
-
-    // Also include all custom reviews from localStorage dictionary
-    try {
-      const customStoreRaw = typeof localStorage !== 'undefined' ? localStorage.getItem('artified_custom_reviews_v1') : null;
-      if (customStoreRaw) {
-        const parsedDict = JSON.parse(customStoreRaw);
-        if (parsedDict && typeof parsedDict === 'object') {
-          Object.entries(parsedDict).forEach(([pId, rList]: [string, any]) => {
-            if (Array.isArray(rList)) {
-              rList.forEach((c: any) => addReview({ ...c, productId: pId } as FirestoreProductReview));
-            }
-          });
-        }
-      }
-    } catch {}
 
     combined.sort((a, b) => {
       const timeA = a.createdAt ? new Date(a.createdAt).getTime() : (a.timestamp || 0);
@@ -421,6 +394,24 @@ export async function deleteProductReviewFromFirestore(reviewId: string): Promis
         dict[pId] = (dict[pId] || []).filter((r: any) => r.id !== reviewId);
       }
       localStorage.setItem('artified_custom_reviews_v1', JSON.stringify(dict));
+    }
+
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('artified_reviews_')) {
+        try {
+          const raw = localStorage.getItem(key);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) {
+              const filtered = parsed.filter((r: any) => r && r.id !== reviewId);
+              if (filtered.length !== parsed.length) {
+                localStorage.setItem(key, JSON.stringify(filtered));
+              }
+            }
+          }
+        } catch {}
+      }
     }
   } catch {}
 }

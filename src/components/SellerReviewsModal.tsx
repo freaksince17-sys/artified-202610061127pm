@@ -101,8 +101,7 @@ export const SellerReviewsModal: React.FC = () => {
       const authorLower = rev.author.trim().toLowerCase();
       if (
         deletedIds.has(cleanId) ||
-        deletedIds.has(`${rev.productId}::${authorLower}`) ||
-        deletedIds.has(`${rev.productId}::all_cleared`)
+        deletedIds.has(`${rev.productId}::${authorLower}`)
       ) {
         return;
       }
@@ -113,6 +112,13 @@ export const SellerReviewsModal: React.FC = () => {
           authorLower.includes('jenisha') ||
           cleanId === 'art-1793343690587-202g7-rev-1' ||
           cleanId === 'art-1793343690587-202g7-rev-3')
+      ) {
+        return;
+      }
+      const isClassicCape = rev.productId === 'art-1793354171215-n8r5d' || (rev.productTitle && rev.productTitle.toLowerCase().includes('classic woven collar pearl cape'));
+      if (
+        isClassicCape &&
+        (authorLower.includes('smarika') || cleanId === 'art-1793354171215-n8r5d-rev-1')
       ) {
         return;
       }

@@ -272,8 +272,8 @@ export const OrderTrackerSection: React.FC = () => {
                   {trackedOrder.estimatedDeliveryDate}
                 </span>
                 {orderBreakdown && (
-                  <span className="text-[10px] text-[#5E5955] dark:text-[#A69E96] font-medium block mt-0.5">
-                    🛠 {orderBreakdown.manufactureDaysText} manufacture ({orderBreakdown.categoryLabel}) + 🚚 {orderBreakdown.deliveryDaysText} delivery
+                  <span className="inline-block text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded font-semibold mt-1">
+                    Total: {orderBreakdown.totalEstimatedDaysText} ({orderBreakdown.manufactureDaysText} mfg + {orderBreakdown.deliveryDaysText} del)
                   </span>
                 )}
               </div>

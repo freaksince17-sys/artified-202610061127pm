@@ -912,24 +912,33 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
               }
             }
             setProducts((prev) => {
+              const delRaw = typeof localStorage !== 'undefined' ? localStorage.getItem('artified_deleted_review_ids') : null;
+              const delSet = new Set<string>(delRaw ? JSON.parse(delRaw) : []);
               return prev.map((p) => {
                 const prodRevs = byProd[p.id];
                 if (!prodRevs || prodRevs.length === 0) return p;
                 const existing = p.customReviews || [];
+                const tombstones = existing.filter((r: any) => r && r.isDeleted);
+                tombstones.forEach((t: any) => {
+                  if (t.id) delSet.add(String(t.id).trim());
+                  if (t.author) delSet.add(`${p.id}::${String(t.author).trim().toLowerCase()}`);
+                });
                 const seenIds = new Set<string>();
                 const seenSigs = new Set<string>();
                 const merged: any[] = [];
                 for (const r of [...prodRevs, ...existing]) {
                   if (!r || !r.id || !r.author || !r.comment || r.isDeleted) continue;
                   const cId = String(r.id).trim();
-                  const sig = `${String(r.author).trim().toLowerCase()}_${String(r.comment).trim().toLowerCase()}`;
+                  const al = String(r.author).trim().toLowerCase();
+                  if (delSet.has(cId) || delSet.has(`${p.id}::${al}`)) continue;
+                  const sig = `${al}_${String(r.comment).trim().toLowerCase()}`;
                   if (!seenIds.has(cId) && !seenSigs.has(sig)) {
                     seenIds.add(cId);
                     seenSigs.add(sig);
                     merged.push(r);
                   }
                 }
-                return { ...p, customReviews: merged };
+                return { ...p, customReviews: [...merged, ...tombstones] };
               });
             });
             invalidateReviewsCache();
@@ -1162,9 +1171,21 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const storedBuildVersion = localStorage.getItem('artified_catalog_build_version');
       if (storedBuildVersion !== CATALOG_BUILD_VERSION) {
         // Automatic cache purge on new release deployment:
-        // Any returning normal browser visitor immediately discards stale product caches from previous releases
+        // Discard stale product & review caches from previous releases so Royal & Classic each have their exact 1 review
         localStorage.removeItem('artified_products_custom');
         localStorage.removeItem('artified_products_v3');
+        localStorage.removeItem('artified_deleted_review_ids');
+        localStorage.removeItem('artified_custom_reviews_v1');
+        try {
+          const keysToRemove: string[] = [];
+          for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (k && k.startsWith('artified_reviews_')) {
+              keysToRemove.push(k);
+            }
+          }
+          keysToRemove.forEach((k) => localStorage.removeItem(k));
+        } catch {}
         localStorage.setItem('artified_catalog_build_version', CATALOG_BUILD_VERSION);
       }
 
@@ -1182,26 +1203,6 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
           } catch {}
         }
-      }
-
-      // Hydrate custom reviews from dedicated lightweight store
-      const reviewsDictRaw = localStorage.getItem('artified_custom_reviews_v1');
-      if (reviewsDictRaw) {
-        try {
-          const reviewsDict = JSON.parse(reviewsDictRaw);
-          baseList = baseList.map(p => {
-            const pReviews = reviewsDict[p.id];
-            if (Array.isArray(pReviews) && pReviews.length > 0) {
-              const existingCustom = p.customReviews || [];
-              const cleanExisting = existingCustom.filter(cr => !pReviews.some((pr: any) => pr.id === cr.id));
-              return {
-                ...p,
-                customReviews: [...pReviews, ...cleanExisting]
-              };
-            }
-            return p;
-          });
-        } catch {}
       }
 
       // Hydrate live Cloud Firestore overrides synchronously on boot so soldCount/price never flashes an older value
@@ -1404,6 +1405,14 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       result.sort((a, b) => a.title.localeCompare(b.title));
     } else if (sortBy === 'name-desc') {
       result.sort((a, b) => b.title.localeCompare(a.title));
+    } else if (sortBy === 'featured') {
+      // Best Seller: most sold item shown first
+      result.sort((a, b) => {
+        const soldA = calculateTotalSold(a);
+        const soldB = calculateTotalSold(b);
+        if (soldB !== soldA) return soldB - soldA;
+        return a.title.localeCompare(b.title);
+      });
     } else {
       result.sort((a, b) => {
         const soldA = calculateTotalSold(a);
@@ -1558,10 +1567,16 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       invalidateReviewsCache();
       const updatedProducts = products.map((prod) => {
         if (prod.id === productId) {
-          const existingReviews = prod.customReviews || [];
+          const existingReviews = (prod.customReviews || []).filter(
+            (r) => r.id !== sanitized.id && r.id !== `${productId}::all_cleared` && r.id !== 'all_cleared'
+          );
+          const nextCustom = [sanitized, ...existingReviews];
+          const visibleCount = nextCustom.filter((r: any) => !r.isDeleted).length;
           return {
             ...prod,
-            customReviews: [sanitized, ...existingReviews.filter((r) => r.id !== sanitized.id)]
+            reviewsCount: Math.max(1, visibleCount),
+            customReviews: nextCustom,
+            updatedAt: new Date().toISOString()
           };
         }
         return prod;
@@ -1732,40 +1747,65 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (matchingReview?.author) {
           addKey(`${productId}::${matchingReview.author.trim().toLowerCase()}`);
         }
-        // If this was the last visible review on the product, mark product reviews as cleared so default fallback won't regenerate
-        if (currentReviewsBeforeDelete.length <= 1) {
-          addKey(`${productId}::all_cleared`);
-          addKey(`${productId}-rev-1`);
-          addKey(`${productId}-rev-default`);
-        }
         localStorage.setItem('artified_deleted_review_ids', JSON.stringify(delList));
         localStorage.removeItem(`artified_reviews_${productId}`);
         invalidateReviewsCache();
       } catch {}
 
+      lastLocalProductEditRef.current[productId] = Date.now();
+      const nowIso = new Date().toISOString();
+      const nextReviewsCount = Math.max(0, currentReviewsBeforeDelete.length - 1);
+
       const updatedProducts = products.map((prod) => {
         if (prod.id === productId || prod.customReviews?.some(r => r.id === reviewId)) {
-          const existingCustom = (prod.customReviews || []).filter((r) => r.id !== reviewId && (!matchingReview || r.author !== matchingReview.author));
+          const existingCustom = (prod.customReviews || []).filter(
+            (r) => r.id !== reviewId && (!matchingReview || r.author !== matchingReview.author)
+          );
+          const newTombstones: any[] = [
+            { id: reviewId, author: matchingReview?.author || '', isDeleted: true }
+          ];
           return {
             ...prod,
-            reviewsCount: Math.max(0, currentReviewsBeforeDelete.length - 1),
-            customReviews: [...existingCustom, { id: reviewId, isDeleted: true } as any]
+            reviewsCount: nextReviewsCount,
+            customReviews: [...existingCustom, ...newTombstones],
+            updatedAt: nowIso
           };
         }
         return prod;
       });
 
+      latestProductsRef.current = updatedProducts;
       setProducts(updatedProducts);
       setQuickViewProduct((prev) => (prev && (prev.id === productId || prev.customReviews?.some(r => r.id === reviewId)) ? updatedProducts.find(p => p.id === prev.id) || prev : prev));
 
       try {
-        localStorage.setItem('artified_products_v3', JSON.stringify(updatedProducts));
+        const serialized = JSON.stringify(updatedProducts);
+        localStorage.setItem('artified_products_v3', serialized);
+        localStorage.setItem('artified_products_custom', serialized);
+      } catch {}
+
+      try {
+        fetch(`/api/products?v=${Date.now()}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updatedProducts),
+        }).catch(() => {});
       } catch {}
 
       try {
         const prodRef = doc(db, 'products', productId);
         const current = updatedProducts.find((p) => p.id === productId);
-        if (current) await setDoc(prodRef, sanitizeForFirestore({ customReviews: current.customReviews, reviewsCount: current.reviewsCount }), { merge: true });
+        if (current) {
+          await setDoc(
+            prodRef,
+            sanitizeForFirestore({
+              customReviews: current.customReviews,
+              reviewsCount: current.reviewsCount,
+              updatedAt: nowIso
+            }),
+            { merge: true }
+          );
+        }
       } catch (cloudErr) {
         console.warn('Review delete saved locally:', cloudErr);
       }

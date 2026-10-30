@@ -107,18 +107,18 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
+  overscroll-behavior-y: none;
 }
 
 *, *::before, *::after {
   box-sizing: border-box;
 }
 
-/* Hardware accelerate overlays, modals, and sticky bars */
-.fixed, .absolute, dialog, [role="dialog"] {
-  -webkit-transform: translateZ(0);
-  transform: translateZ(0);
-  backface-visibility: hidden;
+/* Hide scrollbars cleanly for horizontal pill bars on mobile & desktop */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
 }
-
-
-
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

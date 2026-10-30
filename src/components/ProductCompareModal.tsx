@@ -16,7 +16,7 @@ import {
   Plus
 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
-import { calculateTotalSold, calculateReviewsCount, isProductBestSeller, getProductReviews } from '../utils/productStats';
+import { calculateTotalSold, calculateReviewsCount, isProductBestSeller, getProductReviews, calculateTotalTimeEstimate } from '../utils/productStats';
 import { Product } from '../types';
 import { getRealProductImage, CAVIAR_PEARL_BAG_IMAGE } from '../utils/productImages';
 
@@ -390,14 +390,18 @@ const ComparisonColumn: React.FC<ComparisonColumnProps> = ({
             <span className="text-[10px] font-bold uppercase text-[#8C7A6B] block">
               Materials & Beads:
             </span>
-            <ul className="space-y-0.5 text-[#3C3835]">
-              {product.materials.map((m, idx) => (
-                <li key={idx} className="flex items-start gap-1.5">
-                  <span className="text-[#C5A880] mt-0.5">•</span>
-                  <span>{m}</span>
-                </li>
-              ))}
-            </ul>
+            {Array.isArray(product.materials) && product.materials.length > 0 ? (
+              <ul className="space-y-0.5 text-[#3C3835]">
+                {product.materials.map((m, idx) => (
+                  <li key={idx} className="flex items-start gap-1.5">
+                    <span className="text-[#C5A880] mt-0.5">•</span>
+                    <span>{m}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <span className="text-[#736C65] italic block">Handcrafted artisanal piece</span>
+            )}
           </div>
 
           {/* Dimensions */}
@@ -422,27 +426,42 @@ const ComparisonColumn: React.FC<ComparisonColumnProps> = ({
             </div>
           )}
 
-          {/* Handcrafting Time */}
-          <div className="py-2 flex items-center justify-between">
-            <span className="text-[10px] font-bold uppercase text-[#8C7A6B]">
-              Handcraft Time:
-            </span>
-            <span className="font-medium text-[#1C1B1A] flex items-center gap-1">
-              <Clock className="w-3 h-3 text-[#C5A880]" />
-              <span>{product.leadTime || '1–2 business days'}</span>
-            </span>
-          </div>
+          {/* Manufacturing & Delivery Calculation */}
+          {(() => {
+            const est = calculateTotalTimeEstimate(product);
+            return (
+              <>
+                <div className="py-2 flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase text-[#8C7A6B]">
+                    Manufacturing Time:
+                  </span>
+                  <span className="font-medium text-[#1C1B1A] flex items-center gap-1">
+                    <Clock className="w-3 h-3 text-[#C5A880]" />
+                    <span>{est.mfgLabel}</span>
+                  </span>
+                </div>
 
-          {/* Delivery & Exchange */}
-          <div className="py-2 flex items-center justify-between">
-            <span className="text-[10px] font-bold uppercase text-[#8C7A6B]">
-              Valley Delivery:
-            </span>
-            <span className="font-semibold text-emerald-700 flex items-center gap-1">
-              <Truck className="w-3 h-3 text-emerald-600" />
-              <span>1–2 business days</span>
-            </span>
-          </div>
+                <div className="py-2 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold uppercase text-[#8C7A6B]">
+                      Kathmandu Valley (1 to 2 days del):
+                    </span>
+                    <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
+                      {est.ktmBreakdown}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold uppercase text-[#8C7A6B]">
+                      Outside Valley (3 to 7 days del):
+                    </span>
+                    <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
+                      {est.outsideBreakdown}
+                    </span>
+                  </div>
+                </div>
+              </>
+            );
+          })()}
         </div>
       </div>
 

@@ -29,8 +29,8 @@ const FAQ_ITEMS: FAQItem[] = [
   {
     id: 'ship-1',
     category: 'shipping',
-    question: 'How long does delivery take inside Kathmandu Valley and across Nepal?',
-    answer: 'Kathmandu Valley: NPR 120 (1 to 2 days doorstep delivery). Outside Valley: NPR 250 to 300 (can increase depending on location/weight, 3 to 7 days delivery via express courier).',
+    question: 'How long does manufacturing and delivery take inside Kathmandu Valley and across Nepal?',
+    answer: 'Manufacturing Time is 1 to 2 days (necklaces, accessories & macrame) or 2 to 3 days (pearl bags). Delivery inside Kathmandu Valley is 1 to 2 days (NPR 120) — Total: 2 to 4 days (1 to 2 days mfg + 1 to 2 days del) or 3 to 5 days (2 to 3 days mfg + 1 to 2 days del). Delivery outside Kathmandu Valley is 3 to 7 days (NPR 250) — Total: 4 to 9 days (1 to 2 days mfg + 3 to 7 days del) or 5 to 10 days (2 to 3 days mfg + 3 to 7 days del).',
     badge: 'Fast Dispatch'
   },
   {

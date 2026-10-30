@@ -150,7 +150,9 @@ export const CheckoutModal: React.FC = () => {
     itemsToBuy.map((i) => ({
       productId: i.product?.id,
       title: i.product?.title || '',
-      category: i.product?.category
+      category: i.product?.category,
+      manufacturingTime: i.product?.manufacturingTime,
+      leadTime: i.product?.leadTime
     })),
     selectedDeliveryZone?.name,
     address
@@ -312,12 +314,14 @@ export const CheckoutModal: React.FC = () => {
       singleOrderItems.map((i) => ({
         productId: i.product?.id,
         title: i.product?.title || '',
-        category: i.product?.category
+        category: i.product?.category,
+        manufacturingTime: i.product?.manufacturingTime,
+        leadTime: i.product?.leadTime
       })),
       order.deliveryZone.name,
       order.address
     );
-    text += `🚚 *Delivery Zone:* ${order.deliveryZone.name} (Est. Total: ${orderBreakdown.totalEstimatedDaysText} — ${orderBreakdown.manufactureDaysText} manufacture + ${orderBreakdown.deliveryDaysText} delivery)\n`;
+    text += `🚚 *Delivery Zone:* ${order.deliveryZone.name} (Est. Total: ${orderBreakdown.totalEstimatedDaysText} — ${orderBreakdown.manufactureDaysText} mfg + ${orderBreakdown.deliveryDaysText} del)\n`;
     text += `\n🛒 *Items (${singleOrderItems.length}):*\n`;
     singleOrderItems.forEach((item, idx) => {
       text += `${idx + 1}. ${item.product.title} (Qty: ${item.quantity}) - NPR ${(item.product.price * item.quantity).toLocaleString()}\n`;
@@ -502,29 +506,31 @@ export const CheckoutModal: React.FC = () => {
                             : 'bg-white/60 border-[#E8DFD8] hover:border-[#C5A880]'
                         }`}
                       >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2.5">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <div className="flex items-start sm:items-center gap-2.5">
                             <input
                               type="radio"
                               name="deliveryZone"
                               checked={isSelected}
                               onChange={() => setSelectedDeliveryZone(zone)}
-                              className="accent-[#1C1B1A] cursor-pointer"
+                              className="accent-[#1C1B1A] cursor-pointer mt-0.5 sm:mt-0 shrink-0"
                             />
                             <div>
                               <span className="font-semibold text-xs text-[#1C1B1A] block">{zone.name}</span>
-                              <span className="text-[11px] text-[#736C65]">{zone.area}</span>
+                              <span className="text-[11px] text-[#736C65] leading-snug block">{zone.area}</span>
                             </div>
                           </div>
-                          <div className="text-right">
+                          <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center pl-6 sm:pl-0 shrink-0 gap-1">
                             <span className="text-xs font-bold text-[#1C1B1A] block">NPR {zone.fee}</span>
-                            <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded font-medium block">
+                            <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded font-medium block text-right">
                               {(() => {
                                 const zBd = getOrderManufactureDeliveryBreakdown(
                                   itemsToBuy.map((i) => ({
                                     productId: i.product?.id,
                                     title: i.product?.title || '',
-                                    category: i.product?.category
+                                    category: i.product?.category,
+                                    manufacturingTime: i.product?.manufacturingTime,
+                                    leadTime: i.product?.leadTime
                                   })),
                                   zone.name,
                                   ''

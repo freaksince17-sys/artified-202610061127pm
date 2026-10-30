@@ -19,7 +19,7 @@ import { SortOption } from '../types';
 
 const SORT_OPTIONS: { id: SortOption; label: string }[] = [
   { id: 'newest', label: 'New Arrivals' },
-  { id: 'featured', label: 'Featured' },
+  { id: 'featured', label: 'Best Seller' },
   { id: 'rating-desc', label: 'Product Rating' },
   { id: 'discount-desc', label: '% Discount' },
   { id: 'price-asc', label: 'Price (low to high)' },

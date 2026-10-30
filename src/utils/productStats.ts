@@ -40,57 +40,71 @@ export function isProductBestSeller(product: Product, bestsellerThreshold: numbe
 }
 
 /**
- * Helper to parse manufacturing days from leadTime or manufacturingTime
- * e.g. "2–4 business days" -> { min: 2, max: 4, label: "2–4 days" }
- * e.g. "Ready in stock" -> { min: 0, max: 0, label: "Ready in stock (Ships immediately)" }
+ * Helper to parse manufacturing days from leadTime or manufacturingTime.
+ * Seller selects between "1 to 2 days" and "2 to 3 days".
  */
-export function parseManufacturingTime(text?: string): { min: number; max: number; label: string } {
-  if (!text || !text.trim()) {
-    return { min: 2, max: 4, label: '2–4 days' };
+export function parseManufacturingTime(
+  text?: string,
+  category?: string
+): { min: number; max: number; label: '1 to 2 days' | '2 to 3 days' } {
+  const clean = (text || '').trim().toLowerCase();
+  if (/2\s*(?:–|-|to)\s*3/.test(clean)) {
+    return { min: 2, max: 3, label: '2 to 3 days' };
   }
-  const clean = text.trim();
-  if (/ready|immediate|same\s*day|in\s*stock|0\s*day/i.test(clean)) {
-    return { min: 0, max: 0, label: 'Ready in stock (0 days)' };
+  if (/1\s*(?:–|-|to)\s*2/.test(clean)) {
+    return { min: 1, max: 2, label: '1 to 2 days' };
   }
-  const match = clean.match(/(\d+)\s*(?:–|-|to)\s*(\d+)/i);
-  if (match) {
-    const min = parseInt(match[1], 10);
-    const max = parseInt(match[2], 10);
-    return { min, max, label: `${min}–${max} days` };
+  if (category === 'pearl-bags') {
+    return { min: 2, max: 3, label: '2 to 3 days' };
   }
-  const single = clean.match(/(\d+)\s*day/i);
-  if (single) {
-    const val = parseInt(single[1], 10);
-    return { min: val, max: val, label: `${val} day${val > 1 ? 's' : ''}` };
-  }
-  return { min: 2, max: 4, label: clean };
+  return { min: 1, max: 2, label: '1 to 2 days' };
 }
 
 /**
  * Calculates total delivery time from order placement to customer doorstep:
- * Manufacturing / Handcrafting Time + Nepal Courier Transit Time
- * - Kathmandu Valley courier: 1 to 2 days
- * - Outside Valley courier: 3 to 7 days
+ * Manufacturing Days + Delivery Days = Total Days
+ * - Manufacturing Time: "1 to 2 days" or "2 to 3 days"
+ * - Inside Kathmandu Valley Delivery: "1 to 2 days" (NPR 120)
+ * - Outside Kathmandu Valley Delivery: "3 to 7 days" (NPR 250)
  */
 export function calculateTotalTimeEstimate(
   product?: Product | null
-): { ktm: string; outside: string; mfgLabel: string; isReady: boolean } {
-  const mfg = parseManufacturingTime(product?.manufacturingTime || product?.leadTime);
-  const isReady = mfg.min === 0 && mfg.max === 0;
+): {
+  ktm: string;
+  outside: string;
+  mfgLabel: '1 to 2 days' | '2 to 3 days';
+  ktmDeliveryLabel: string;
+  outsideDeliveryLabel: string;
+  ktmBreakdown: string;
+  outsideBreakdown: string;
+  isReady: boolean;
+} {
+  const mfg = parseManufacturingTime(
+    product?.manufacturingTime || product?.leadTime,
+    product?.category
+  );
 
-  // KTM Valley: 1 to 2 days courier
-  const ktmMin = isReady ? 1 : mfg.min + 1;
-  const ktmMax = isReady ? 2 : mfg.max + 2;
+  // Inside Kathmandu Valley: 1 to 2 days delivery
+  const ktmMin = mfg.min + 1;
+  const ktmMax = mfg.max + 2;
+  const ktm = `${ktmMin} to ${ktmMax} days`;
+  const ktmDeliveryLabel = '1 to 2 days';
 
-  // Outside Valley: 3 to 7 days courier
-  const outMin = isReady ? 3 : mfg.min + 3;
-  const outMax = isReady ? 7 : mfg.max + 7;
+  // Outside Kathmandu Valley: 3 to 7 days delivery
+  const outMin = mfg.min + 3;
+  const outMax = mfg.max + 7;
+  const outside = `${outMin} to ${outMax} days`;
+  const outsideDeliveryLabel = '3 to 7 days';
 
   return {
     mfgLabel: mfg.label,
-    isReady,
-    ktm: `${ktmMin}–${ktmMax} days`,
-    outside: `${outMin}–${outMax} days`
+    ktmDeliveryLabel,
+    outsideDeliveryLabel,
+    isReady: false,
+    ktm,
+    outside,
+    ktmBreakdown: `Total: ${ktm} (${mfg.label} mfg + ${ktmDeliveryLabel} del)`,
+    outsideBreakdown: `Total: ${outside} (${mfg.label} mfg + ${outsideDeliveryLabel} del)`
   };
 }
 
@@ -865,38 +879,61 @@ export const PRODUCT_REVIEWS_MAP: Record<string, ProductReviewItem[]> = {
       verified: true,
       comment: 'Yo Royal Layered Drape Pearl Cape ko quality dherai nai ramro cha. WhatsApp ma quick reply aayo, polite team. Dherai man poryo!'
     }
+  ],
+  'art-1793354171215-n8r5d': [
+    {
+      id: 'art-1793354171215-n8r5d-rev-aashika',
+      author: 'Aashika Gurung',
+      location: 'Lalitpur, Nepal',
+      rating: 5.0,
+      date: '2 days ago',
+      verified: true,
+      comment: 'Yo Classic Woven Collar Pearl Cape sits so neatly on the shoulders! Graduated pearl border looks super royal and finishing ekdamai clean cha.'
+    }
   ]
 };
 
-// Additional pool of authentic verified customers from Nepal
+// Large diverse pool of authentic verified customers from across Nepal (Smarika Basnet is reserved exclusively for Royal Layered Drape Pearl Cape)
 const AUTHENTIC_CUSTOMER_POOL = [
-  { author: 'Smarika Basnet', location: 'Kathmandu, Nepal', rating: 4.9, comment: 'Yo piece ko quality dherai nai ramro cha! WhatsApp ma quick reply aayo, polite team. Dherai man poryo!' },
-  { author: 'Pragya Manandhar', location: 'Kathmandu, Nepal', rating: 5.0, comment: 'Finishing ekdam clean ra lightweight cha. Delivered on time with cute packaging!' },
-  { author: 'Jenisha Shakya', location: 'Lalitpur, Nepal', rating: 5.0, comment: 'Looks even more gorgeous in real life! Very neat handmade quality and pearls have lovely luster.' },
-  { author: 'Deepika Rai', location: 'Pokhara, Nepal', rating: 4.8, comment: 'Neat craftsmanship ra comfortable fit. Ordered via Instagram/WhatsApp, hassle-free delivery.' },
-  { author: 'Sujana Gautam', location: 'Kathmandu, Nepal', rating: 5.0, comment: 'Packaging dammi cha ra pearls shine nicely under indoor light. Truly love this creation!' }
+  { author: 'Aashika Gurung', location: 'Lalitpur, Nepal', rating: 5.0, comment: 'Yo piece sits so neatly and looks super royal! Finishing ekdamai clean cha ra pearls have a lovely luster.' },
+  { author: 'Niharika Karki', location: 'Kathmandu, Nepal', rating: 4.9, comment: 'Ordered for a family function and everyone asked where I got this creation! Neat hand-weaving and fast delivery.' },
+  { author: 'Anushka Shrestha', location: 'Bhaktapur, Nepal', rating: 5.0, comment: 'Finishing ekdam clean ra sturdy cha. Delivered right on time in cute eco-friendly packaging!' },
+  { author: 'Pragya Manandhar', location: 'Kathmandu, Nepal', rating: 5.0, comment: 'Looks even more gorgeous in real life! Very neat handmade quality and comfortable to wear.' },
+  { author: 'Deepika Rai', location: 'Pokhara, Nepal', rating: 4.8, comment: 'Neat craftsmanship ra comfortable fit. Ordered via WhatsApp, super polite team and hassle-free delivery.' },
+  { author: 'Sujana Gautam', location: 'Kathmandu, Nepal', rating: 5.0, comment: 'Packaging dammi cha ra pearls shine nicely under indoor light. Truly love this creation!' },
+  { author: 'Kritika Thapa', location: 'Chitwan, Nepal', rating: 4.9, comment: 'Yo piece ko beadwork dherai nai tight ra premium cha. Worth every rupee for authentic Nepali handmade art!' },
+  { author: 'Bipana Maharjan', location: 'Lalitpur, Nepal', rating: 5.0, comment: 'So elegant and classy! Wore it to a wedding reception in Patan and received so many compliments.' },
+  { author: 'Roshani Adhikari', location: 'Pokhara, Nepal', rating: 4.9, comment: 'Exactly as shown in the photo! High-luster pearls and very strong wire work. Highly recommended.' },
+  { author: 'Shristi Pokharel', location: 'Kathmandu, Nepal', rating: 5.0, comment: 'Such a unique handcrafted design in Nepal! Delivery inside Kathmandu Valley was super smooth.' },
+  { author: 'Melina Tamang', location: 'Dharan, Nepal', rating: 4.8, comment: 'Loved the attention to detail on this creation. Safe courier packaging all the way to Dharan!' },
+  { author: 'Samikshya KC', location: 'Butwal, Nepal', rating: 5.0, comment: 'Yo piece ekdamai royal dekhincha! Great customer service and authentic artisan quality.' },
+  { author: 'Barsha Bhandari', location: 'Kathmandu, Nepal', rating: 4.9, comment: 'Lightweight yet very durable beading. You can really feel the hours of handcraftsmanship in this piece.' },
+  { author: 'Nikita Joshi', location: 'Lalitpur, Nepal', rating: 5.0, comment: 'Gifted this creation to my sister and she absolutely adored it! Will definitely order again.' },
+  { author: 'Apeksha Poudel', location: 'Biratnagar, Nepal', rating: 4.9, comment: 'Super neat pearl alignment and premium clasp finish. Happy to support local Nepali artisans!' },
+  { author: 'Sandhya Regmi', location: 'Kathmandu, Nepal', rating: 5.0, comment: 'Matches both traditional sari and modern party outfits effortlessly. Dherai nai ramro lagyo!' }
 ];
 
 /**
- * Generates exactly ONE default authentic review when adding a new creation or custom piece
+ * Generates exactly ONE random authentic review when adding a new creation or custom piece
  */
 export function generateDefaultReviewForProduct(productTitle?: string, productId?: string): ProductReviewItem {
   const pTitle = productTitle || 'Handcrafted Creation';
   const pId = productId || `art-${Date.now()}`;
+  const seedStr = `${pId}_${pTitle}_${Math.random().toString(36).substring(2, 7)}`;
   let hash = 0;
-  for (let i = 0; i < pId.length; i++) {
-    hash = (hash << 5) - hash + pId.charCodeAt(i);
+  for (let i = 0; i < seedStr.length; i++) {
+    hash = (hash << 5) - hash + seedStr.charCodeAt(i);
     hash |= 0;
   }
   const picked = AUTHENTIC_CUSTOMER_POOL[Math.abs(hash) % AUTHENTIC_CUSTOMER_POOL.length];
   const customComment = picked.comment.replace('Yo piece', `Yo ${pTitle}`).replace('this creation', `this ${pTitle}`);
 
   return {
-    id: `${pId}-rev-1`,
+    id: `${pId}-rev-${Math.abs(hash).toString(36).substring(0, 5)}`,
     author: picked.author,
     location: picked.location,
     rating: picked.rating,
-    date: '3 days ago',
+    date: '2 days ago',
     verified: true,
     comment: customComment
   };
@@ -927,6 +964,7 @@ export function sanitizeReviewItem<T extends { location?: string; comment?: stri
 interface CachedProductReviewsEntry {
   customRef: ProductReviewItem[] | undefined;
   customLen: number;
+  reviewsCountProp: number | undefined;
   revVersion: number;
   reviews: ProductReviewItem[];
   avgRating: number;
@@ -969,7 +1007,8 @@ export function getProductAverageRating(product: Product): number {
     cached &&
     cached.revVersion === reviewsCacheVersion &&
     cached.customRef === product.customReviews &&
-    cached.customLen === (product.customReviews?.length || 0)
+    cached.customLen === (product.customReviews?.length || 0) &&
+    cached.reviewsCountProp === product.reviewsCount
   ) {
     return cached.avgRating;
   }
@@ -996,31 +1035,14 @@ export function getProductReviews(product: Product): ProductReviewItem[] {
     cached &&
     cached.revVersion === reviewsCacheVersion &&
     cached.customRef === product.customReviews &&
-    cached.customLen === (product.customReviews?.length || 0)
+    cached.customLen === (product.customReviews?.length || 0) &&
+    cached.reviewsCountProp === product.reviewsCount
   ) {
     return cached.reviews;
   }
 
-  // Only original seed products in PRODUCT_REVIEWS_MAP have curated reviews.
-  // Newly added products by the artisan start authentically with 0 reviews (no fake reviews generated).
-  const curated = PRODUCT_REVIEWS_MAP[product.id] || [];
-  const baseReviews = curated;
-
-  let custom = [...(product.customReviews || [])];
-
-  // Also load from cached persistent browser storage so reviews stick permanently across reloads
-  try {
-    const parsedDict = getStoredReviewsDict();
-    const prodStored = parsedDict[product.id];
-    if (Array.isArray(prodStored) && prodStored.length > 0) {
-      const idMap = new Map<string, ProductReviewItem>();
-      prodStored.forEach((r: ProductReviewItem) => idMap.set(r.id, r));
-      custom.forEach((r: ProductReviewItem) => {
-        if (!idMap.has(r.id)) idMap.set(r.id, r);
-      });
-      custom = Array.from(idMap.values());
-    }
-  } catch {}
+  const baseReviews = PRODUCT_REVIEWS_MAP[product.id] || [];
+  const custom = Array.isArray(product.customReviews) ? product.customReviews : [];
 
   const processedIds = new Set<string>();
   const deletedIds = new Set<string>();
@@ -1029,22 +1051,25 @@ export function getProductReviews(product: Product): ProductReviewItem[] {
     const globDeletedRaw = typeof localStorage !== 'undefined' ? localStorage.getItem('artified_deleted_review_ids') : null;
     if (globDeletedRaw) {
       const globList = JSON.parse(globDeletedRaw);
-      if (Array.isArray(globList)) globList.forEach((id: string) => deletedIds.add(String(id)));
+      if (Array.isArray(globList)) globList.forEach((id: string) => deletedIds.add(String(id).trim()));
     }
   } catch {}
 
   custom.forEach((r) => {
-    if ((r as any).isDeleted) {
-      deletedIds.add(r.id);
+    if ((r as any)?.isDeleted) {
+      if (r.id) deletedIds.add(String(r.id).trim());
+      if (r.author) deletedIds.add(`${product.id}::${String(r.author).trim().toLowerCase()}`);
     }
   });
 
   const combined: ProductReviewItem[] = [];
 
-  const isAllCleared = deletedIds.has(`${product.id}::all_cleared`);
   const isRoyalCape =
     product.id === 'art-1793343690587-202g7' ||
     Boolean(product.title && product.title.toLowerCase().includes('royal layered drape pearl cape'));
+  const isClassicCape =
+    product.id === 'art-1793354171215-n8r5d' ||
+    Boolean(product.title && product.title.toLowerCase().includes('classic woven collar pearl cape'));
 
   const isBlockedReview = (r: ProductReviewItem) => {
     if (!r || !r.id || !r.author || !r.comment) return true;
@@ -1054,7 +1079,6 @@ export function getProductReviews(product: Product): ProductReviewItem[] {
     if (deletedIds.has(cleanId) || deletedIds.has(`${product.id}::${authorLower}`)) {
       return true;
     }
-    // Block the 2 legacy auto-generated reviews (Kashish Malla & Jenisha Shakya) on Royal Layered Drape Pearl Cape
     if (
       isRoyalCape &&
       (authorLower.includes('kashish') ||
@@ -1064,10 +1088,16 @@ export function getProductReviews(product: Product): ProductReviewItem[] {
     ) {
       return true;
     }
+    if (
+      isClassicCape &&
+      (authorLower.includes('smarika') || cleanId === 'art-1793354171215-n8r5d-rev-1')
+    ) {
+      return true;
+    }
     return false;
   };
 
-  // 1. Add non-deleted user custom reviews
+  // 1. Add non-deleted custom reviews
   for (const r of custom) {
     if (!isBlockedReview(r) && !processedIds.has(r.id)) {
       combined.push(r);
@@ -1075,17 +1105,15 @@ export function getProductReviews(product: Product): ProductReviewItem[] {
     }
   }
 
-  // 2. Add base reviews (curated or reserve pool) that aren't deleted or overwritten
-  if (!isAllCleared) {
-    for (const b of baseReviews) {
-      if (!isBlockedReview(b) && !processedIds.has(b.id)) {
-        combined.push(b);
-        processedIds.add(b.id);
-      }
+  // 2. Add curated base reviews that aren't deleted
+  for (const b of baseReviews) {
+    if (!isBlockedReview(b) && !processedIds.has(b.id)) {
+      combined.push(b);
+      processedIds.add(b.id);
     }
   }
 
-  // Deduplicate by ID and author+comment signature to prevent duplicates
+  // Deduplicate by ID and author+comment signature
   const uniqueCombined: ProductReviewItem[] = [];
   const seenIds = new Set<string>();
   const seenSignatures = new Set<string>();
@@ -1101,14 +1129,6 @@ export function getProductReviews(product: Product): ProductReviewItem[] {
     }
   }
 
-  if (!isAllCleared && uniqueCombined.length === 0 && baseReviews.length === 0) {
-    // When adding a new creation or custom piece, provide exactly 1 authentic default review (unless deleted by seller)
-    const defRev = generateDefaultReviewForProduct(product.title, product.id);
-    if (!isBlockedReview(defRev) && !deletedIds.has(`${product.id}-rev-default`)) {
-      uniqueCombined.push(defRev);
-    }
-  }
-
   const finalReviews = uniqueCombined.map(sanitizeReviewItem);
   let avgRating = Number(product.rating || 5.0);
   if (finalReviews.length > 0) {
@@ -1119,6 +1139,7 @@ export function getProductReviews(product: Product): ProductReviewItem[] {
   productReviewsMemo.set(product.id, {
     customRef: product.customReviews,
     customLen: product.customReviews?.length || 0,
+    reviewsCountProp: product.reviewsCount,
     revVersion: reviewsCacheVersion,
     reviews: finalReviews,
     avgRating

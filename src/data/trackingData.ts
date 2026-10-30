@@ -263,17 +263,36 @@ export function isOrderItemPearlBag(item?: { productId?: string; title?: string;
  * - Outside Valley delivery: 3 to 7 days courier time -> Total: 4 to 9 days (Necklace/Acc/Macrame) or 5 to 10 days (Pearl Bags)
  */
 export function getOrderManufactureDeliveryBreakdown(
-  items?: Array<{ productId?: string; title?: string; category?: string }> | null,
+  items?: Array<{ productId?: string; title?: string; category?: string; manufacturingTime?: string; leadTime?: string }> | null,
   deliveryZoneName?: string,
   deliveryAddress?: string
 ): OrderManufactureDeliveryBreakdown {
   const safeItems = Array.isArray(items) && items.length > 0 ? items : [{ title: '' }];
-  const hasPearlBag = safeItems.some((it) => isOrderItemPearlBag(it));
 
-  const manufactureMinDays = hasPearlBag ? 2 : 1;
-  const manufactureMaxDays = hasPearlBag ? 3 : 2;
-  const manufactureDaysText = hasPearlBag ? '2 to 3 days' : '1 to 2 days';
-  const categoryLabel = hasPearlBag ? 'Pearl Bag' : 'Necklace / Accessories / Macrame';
+  // Check if any item explicitly specifies 2 to 3 days or 1 to 2 days manufacturing time
+  const hasTwoToThreeDaysMfg = safeItems.some((it) => {
+    const rawMfg = (it.manufacturingTime || it.leadTime || '').toLowerCase();
+    if (/2\s*(?:–|-|to)\s*3/.test(rawMfg)) return true;
+    if (/1\s*(?:–|-|to)\s*2/.test(rawMfg)) return false;
+
+    const titleLower = (it.title || '').toLowerCase().trim();
+    const matched =
+      (it.productId && Array.isArray(PRODUCTS) ? PRODUCTS.find((p) => p.id === it.productId) : undefined) ||
+      (titleLower && Array.isArray(PRODUCTS) ? PRODUCTS.find((p) => (p.title || '').toLowerCase().trim() === titleLower) : undefined);
+
+    if (matched) {
+      const pMfg = (matched.manufacturingTime || matched.leadTime || '').toLowerCase();
+      if (/2\s*(?:–|-|to)\s*3/.test(pMfg)) return true;
+      if (/1\s*(?:–|-|to)\s*2/.test(pMfg)) return false;
+    }
+
+    return isOrderItemPearlBag(it);
+  });
+
+  const manufactureMinDays = hasTwoToThreeDaysMfg ? 2 : 1;
+  const manufactureMaxDays = hasTwoToThreeDaysMfg ? 3 : 2;
+  const manufactureDaysText = hasTwoToThreeDaysMfg ? '2 to 3 days' : '1 to 2 days';
+  const categoryLabel = hasTwoToThreeDaysMfg ? 'Pearl Bag' : 'Necklace / Accessories / Macrame';
 
   const locText = `${deliveryZoneName || ''} ${deliveryAddress || ''}`.toLowerCase();
   const isOutsideValley =
@@ -307,7 +326,7 @@ export function getOrderManufactureDeliveryBreakdown(
   const detailedSummaryText = `${totalMinDays} to ${totalMaxDays} days (${manufactureDaysText} manufacture + ${deliveryDaysText} delivery)`;
 
   return {
-    isPearlBag: hasPearlBag,
+    isPearlBag: hasTwoToThreeDaysMfg,
     categoryLabel,
     manufactureMinDays,
     manufactureMaxDays,
