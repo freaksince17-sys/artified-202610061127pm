@@ -1,54 +1,54 @@
 [
   {
-    "id": "rev_1792401169611_vblea",
-    "location": "KMC 23",
-    "verified": true,
+    "date": "Oct 19, 2026",
     "productTitle": "Pearl Cascade Graduated Beaded Choker",
     "rating": 5,
-    "createdAt": "2026-10-19T09:12:49.611Z",
-    "date": "Oct 19, 2026",
     "comment": "Nice Design and Good Quality Pearl",
     "author": "Nisha",
+    "productId": "art-1790326308284-gd3uy",
     "timestamp": 1792401169618,
-    "productId": "art-1790326308284-gd3uy"
+    "id": "rev_1792401169611_vblea",
+    "verified": true,
+    "createdAt": "2026-10-19T09:12:49.611Z",
+    "location": "KMC 23"
   },
   {
-    "productTitle": "Red Pearl Beaded Bag",
-    "createdAt": "2026-10-21T14:06:26.058Z",
     "id": "rev_1792591583581_zh5ao",
-    "rating": 5,
     "date": "Oct 21, 2026",
-    "verified": true,
-    "location": "KMC 06",
     "timestamp": 1792591586064,
     "productId": "maya-aurelia-pearl-bag",
+    "author": "Sara",
+    "location": "KMC 06",
+    "productTitle": "Red Pearl Beaded Bag",
+    "verified": true,
     "comment": "Loved the color and design",
-    "author": "Sara"
+    "rating": 5,
+    "createdAt": "2026-10-21T14:06:26.058Z"
   },
   {
-    "date": "Oct 21, 2026",
-    "id": "rev_1792595756148_acgxh",
-    "author": "Saru",
+    "createdAt": "2026-10-21T15:15:56.885Z",
     "comment": "Very Premium Quality Bag",
-    "location": "KMC 04",
-    "verified": true,
-    "productTitle": "Caviar Pearl Bag",
     "timestamp": 1792595756885,
     "productId": "apsara-layered-pearl-collar",
-    "rating": 5,
-    "createdAt": "2026-10-21T15:15:56.885Z"
+    "location": "KMC 04",
+    "author": "Saru",
+    "verified": true,
+    "productTitle": "Caviar Pearl Bag",
+    "date": "Oct 21, 2026",
+    "id": "rev_1792595756148_acgxh",
+    "rating": 5
   },
   {
-    "date": "Oct 22, 2026",
-    "productTitle": "Round Pearl Bag",
-    "id": "rev_1792671804864_phuwq",
     "author": "Kajal",
-    "rating": 5,
+    "productTitle": "Round Pearl Bag",
     "productId": "art-1790321852789-zvpym",
+    "rating": 5,
     "timestamp": 1792671805695,
-    "createdAt": "2026-10-22T12:23:25.694Z",
+    "comment": "Style statement as mobile holder",
     "verified": true,
-    "location": "KMC 22",
-    "comment": "Style statement as mobile holder"
+    "date": "Oct 22, 2026",
+    "createdAt": "2026-10-22T12:23:25.694Z",
+    "id": "rev_1792671804864_phuwq",
+    "location": "KMC 22"
   }
 ]

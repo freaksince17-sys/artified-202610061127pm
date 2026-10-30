@@ -5,7 +5,7 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
-      "source": "/(.*)",
+      "source": "/((?!api/|products/|workshops/|instagram_videos/|tiktok_videos/|nepal_media/|icons/|assets/).*)",
       "destination": "/index.html"
     }
   ],

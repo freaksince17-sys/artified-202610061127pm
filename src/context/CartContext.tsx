@@ -4,6 +4,7 @@ import {
   DELIVERY_ZONES, 
   PRODUCTS, 
   reconcileProductCatalog,
+  selectBestProductImages,
   CATALOG_BUILD_VERSION,
   TIKTOK_REELS, 
   DEFAULT_CRAFT_STORY,
@@ -757,10 +758,12 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
             if (data && pid) {
               cloudMap.set(pid, { ...data, id: pid });
               const baseProd = PRODUCTS.find((p) => p.id === pid);
+              const bestImages = selectBestProductImages(data.images, baseProd?.images, true);
               const mergedProd = {
                 ...(baseProd || {}),
                 ...data,
                 id: pid,
+                images: bestImages,
                 title: data.title || baseProd?.title || 'Handmade Craft',
                 category: data.category || baseProd?.category || 'pearl-bags',
                 price: typeof data.price === 'number' && data.price > 0 ? data.price : (baseProd?.price || 1500),
@@ -792,6 +795,23 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (cloudProducts.length > 0) {
             setProducts((prev) => {
               const reconciled = reconcileProductCatalog(cloudProducts, prev);
+              try {
+                const overrides: Record<string, any> = {};
+                reconciled.forEach((p) => {
+                  overrides[p.id] = {
+                    soldCount: p.soldCount,
+                    onlineSalesCount: p.onlineSalesCount,
+                    totalSold: p.totalSold,
+                    price: p.price,
+                    originalPrice: p.originalPrice,
+                    stockCount: p.stockCount,
+                    inventoryCount: p.inventoryCount,
+                    inStock: p.inStock,
+                    updatedAt: p.updatedAt
+                  };
+                });
+                localStorage.setItem('artified_cloud_live_overrides_v1', JSON.stringify(overrides));
+              } catch {}
               return reconciled;
             });
             setQuickViewProduct((prevQuick) => {
@@ -801,6 +821,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 return {
                   ...prevQuick,
                   ...found,
+                  images: selectBestProductImages(found.images, prevQuick.images, true),
                   onlineSalesCount: typeof found.onlineSalesCount === 'number' ? found.onlineSalesCount : prevQuick.onlineSalesCount,
                   totalSold: typeof found.totalSold === 'number' ? found.totalSold : prevQuick.totalSold,
                   soldCount: typeof found.soldCount === 'number' ? found.soldCount : prevQuick.soldCount
@@ -1180,6 +1201,31 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
             return p;
           });
+        } catch {}
+      }
+
+      // Hydrate live Cloud Firestore overrides synchronously on boot so soldCount/price never flashes an older value
+      const liveOverridesRaw = localStorage.getItem('artified_cloud_live_overrides_v1');
+      if (liveOverridesRaw) {
+        try {
+          const liveOverrides = JSON.parse(liveOverridesRaw);
+          if (liveOverrides && typeof liveOverrides === 'object') {
+            baseList = baseList.map((p) => {
+              const ov = liveOverrides[p.id];
+              if (!ov) return p;
+              return {
+                ...p,
+                soldCount: typeof ov.soldCount === 'number' ? ov.soldCount : p.soldCount,
+                onlineSalesCount: typeof ov.onlineSalesCount === 'number' ? Math.max(p.onlineSalesCount || 0, ov.onlineSalesCount) : p.onlineSalesCount,
+                totalSold: typeof ov.totalSold === 'number' ? ov.totalSold : p.totalSold,
+                price: typeof ov.price === 'number' && ov.price > 0 ? ov.price : p.price,
+                originalPrice: typeof ov.originalPrice === 'number' ? ov.originalPrice : p.originalPrice,
+                stockCount: typeof ov.stockCount === 'number' ? ov.stockCount : p.stockCount,
+                inventoryCount: typeof ov.inventoryCount === 'number' ? ov.inventoryCount : p.inventoryCount,
+                inStock: typeof ov.inStock === 'boolean' ? ov.inStock : p.inStock
+              };
+            });
+          }
         } catch {}
       }
 
@@ -1568,7 +1614,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const prodRef = doc(db, 'products', productId);
         const current = updatedProducts.find((p) => p.id === productId);
         if (current) {
-          await setDoc(prodRef, current, { merge: true });
+          await setDoc(prodRef, sanitizeForFirestore({ customReviews: current.customReviews, reviewsCount: current.reviewsCount }), { merge: true });
         }
       } catch (cloudErr) {
         console.warn('Review saved locally:', cloudErr);
@@ -1638,16 +1684,16 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         localStorage.setItem('artified_products_v3', JSON.stringify(updatedProducts));
       } catch {}
 
-      // Sync Firestore
+      // Sync Firestore (only customReviews so product images/fields are never overwritten)
       try {
         const prodRef = doc(db, 'products', currentProductId);
         const current = updatedProducts.find((p) => p.id === currentProductId);
-        if (current) await setDoc(prodRef, current, { merge: true });
+        if (current) await setDoc(prodRef, sanitizeForFirestore({ customReviews: current.customReviews }), { merge: true });
 
         if (isMovingProduct) {
           const targetRef = doc(db, 'products', targetProductId);
           const targetProd = updatedProducts.find((p) => p.id === targetProductId);
-          if (targetProd) await setDoc(targetRef, targetProd, { merge: true });
+          if (targetProd) await setDoc(targetRef, sanitizeForFirestore({ customReviews: targetProd.customReviews }), { merge: true });
         }
       } catch (cloudErr) {
         console.warn('Review update saved locally:', cloudErr);
@@ -1719,7 +1765,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         const prodRef = doc(db, 'products', productId);
         const current = updatedProducts.find((p) => p.id === productId);
-        if (current) await setDoc(prodRef, current, { merge: true });
+        if (current) await setDoc(prodRef, sanitizeForFirestore({ customReviews: current.customReviews, reviewsCount: current.reviewsCount }), { merge: true });
       } catch (cloudErr) {
         console.warn('Review delete saved locally:', cloudErr);
       }

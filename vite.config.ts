@@ -100,17 +100,17 @@ export default defineConfig(() => {
               },
             },
             {
-              // Cache local images, chokers, avatars, and bags
+              // Cache local images, chokers, avatars, and bags with StaleWhileRevalidate and fresh v2 cache bucket
               urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp|ico)$/i,
-              handler: 'CacheFirst',
+              handler: 'StaleWhileRevalidate',
               options: {
-                cacheName: 'artified-local-images',
+                cacheName: 'artified-local-images-v2',
                 expiration: {
-                  maxEntries: 80,
-                  maxAgeSeconds: 60 * 60 * 24 * 60, // 60 days
+                  maxEntries: 100,
+                  maxAgeSeconds: 60 * 60 * 24 * 30, // 30 days
                 },
                 cacheableResponse: {
-                  statuses: [0, 200],
+                  statuses: [200],
                 },
               },
             },

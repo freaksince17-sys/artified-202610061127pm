@@ -36,13 +36,63 @@ export const PRODUCTS: Product[] = (SAVED_PRODUCTS as unknown as Product[]).map(
   customReviews: p.customReviews || PRODUCT_REVIEWS_MAP[p.id] || []
 }));
 
-export const CATALOG_BUILD_TIMESTAMP = '2026-10-30T08:15:00.000Z';
-export const CATALOG_BUILD_VERSION = 'artified_v_2026_10_30_smarika_basnet_only';
+export const CATALOG_BUILD_TIMESTAMP = '2026-10-30T09:40:00.000Z';
+export const CATALOG_BUILD_VERSION = 'artified_v_2026_10_30_royal_cape_photo_restored';
+
+const GENERIC_FALLBACK_SUBSTRINGS = [
+  'photo-1566150905458-1bf1fc113f0d',
+  'photo-1599643478518-a784e5dc4c8f',
+  'photo-1544816155-12df9643f363',
+  'photo-1611085583191-a3b181a88401',
+  'photo-1590874103328-eac38a683ce7'
+];
+
+export function isGenericFallbackImage(url?: string): boolean {
+  if (!url || typeof url !== 'string') return true;
+  const trimmed = url.trim();
+  if (!trimmed || trimmed.startsWith('/uploads/')) return true;
+  return GENERIC_FALLBACK_SUBSTRINGS.some((sub) => trimmed.includes(sub));
+}
+
+export function selectBestProductImages(
+  candidateImages?: string[],
+  bundledImages?: string[],
+  isCandidateNewer?: boolean
+): string[] {
+  const validCandidate = (candidateImages || []).filter(
+    (img) => typeof img === 'string' && img.trim() !== '' && !isGenericFallbackImage(img)
+  );
+  const validBundled = (bundledImages || []).filter(
+    (img) => typeof img === 'string' && img.trim() !== '' && !isGenericFallbackImage(img)
+  );
+
+  // 1. Always prefer self-contained data:image/ base64 uploads so creations never 404 before GitHub deployment
+  const candidateHasDataUri = validCandidate.some((img) => img.startsWith('data:image/'));
+  const bundledHasDataUri = validBundled.some((img) => img.startsWith('data:image/'));
+
+  if (candidateHasDataUri && (!bundledHasDataUri || isCandidateNewer)) {
+    return validCandidate;
+  }
+  if (bundledHasDataUri && !candidateHasDataUri) {
+    return validBundled;
+  }
+
+  // 2. If candidate was updated more recently by the seller and has valid non-fallback images, honor it
+  if (isCandidateNewer && validCandidate.length > 0) {
+    return validCandidate;
+  }
+
+  // 3. Otherwise prefer valid non-fallback bundled images, then valid candidate images
+  if (validBundled.length > 0) return validBundled;
+  if (validCandidate.length > 0) return validCandidate;
+
+  return (bundledImages && bundledImages.length > 0) ? bundledImages : (candidateImages || []);
+}
 
 /**
  * Reconciles candidate products (from localStorage, Firestore, or API) against the authoritative bundled PRODUCTS.
  * - Bundled products with their updated prices/names/images always take precedence over stale cached products.
- * - Stale localStorage candidate prices can NEVER overwrite official bundled prices for buyers.
+ * - Self-contained data:image/ photos and newly uploaded creation photos are strictly protected from reverting to placeholders.
  * - Custom reviews, verified sales counts, and custom products created by the artisan are preserved.
  */
 export function reconcileProductCatalog(candidateProducts?: Product[] | null, bundled: Product[] = PRODUCTS): Product[] {
@@ -72,8 +122,6 @@ export function reconcileProductCatalog(candidateProducts?: Product[] | null, bu
       if (Array.isArray(globList)) globList.forEach((id: string) => deletedRevIds.add(String(id).trim()));
     }
   } catch {}
-
-  const buildTimestampMs = new Date(CATALOG_BUILD_TIMESTAMP).getTime();
 
   // 2. Process candidate products
   if (Array.isArray(candidateProducts) && candidateProducts.length > 0) {
@@ -151,30 +199,34 @@ export function reconcileProductCatalog(candidateProducts?: Product[] | null, bu
           ? (candidate.inStock && nextStockCount > 0)
           : (nextStockCount > 0 && bundledItem.inStock !== false);
 
-        // Authoritative bundled properties (price, originalPrice, title, description, category, images)
-        // are ALWAYS protected so updates deployed in code/git immediately take effect for all buyers.
+        const candidateTime = candidate.updatedAt ? new Date(candidate.updatedAt).getTime() : 0;
+        const bundledTime = bundledItem.updatedAt ? new Date(bundledItem.updatedAt).getTime() : 0;
+        const isCandidateNewer = candidateTime > bundledTime;
+
+        const resolvedImages = selectBestProductImages(candidate.images, bundledItem.images, isCandidateNewer);
+
         const nextProd: Product = {
           ...bundledItem,
-          price: bundledItem.price,
-          originalPrice: bundledItem.originalPrice,
-          title: bundledItem.title,
-          subtitle: bundledItem.subtitle || candidate.subtitle,
-          description: bundledItem.description || candidate.description,
-          category: bundledItem.category,
-          images: (bundledItem.images && bundledItem.images.length > 0) ? bundledItem.images : (candidate.images || []),
+          price: isCandidateNewer && typeof candidate.price === 'number' && candidate.price > 0 ? candidate.price : bundledItem.price,
+          originalPrice: isCandidateNewer && typeof candidate.originalPrice === 'number' ? candidate.originalPrice : bundledItem.originalPrice,
+          title: isCandidateNewer && candidate.title ? candidate.title : bundledItem.title,
+          subtitle: (isCandidateNewer && candidate.subtitle) ? candidate.subtitle : (bundledItem.subtitle || candidate.subtitle),
+          description: (isCandidateNewer && candidate.description) ? candidate.description : (bundledItem.description || candidate.description),
+          category: (isCandidateNewer && candidate.category) ? candidate.category : bundledItem.category,
+          images: resolvedImages,
           materials: Array.isArray(candidate.materials) ? candidate.materials : (bundledItem.materials || []),
           leadTime: candidate.leadTime || bundledItem.leadTime,
           manufacturingTime: candidate.manufacturingTime || bundledItem.manufacturingTime,
           stockCount: nextStockCount,
           inventoryCount: nextInventoryCount,
           inStock: nextInStock,
-          isNewArrival: bundledItem.isNewArrival,
+          isNewArrival: typeof candidate.isNewArrival === 'boolean' && isCandidateNewer ? candidate.isNewArrival : bundledItem.isNewArrival,
           isBestSeller: bundledItem.isBestSeller || (mergedTotalSold >= 50),
           customReviews: mergedReviews,
           soldCount: mergedSoldCount,
           onlineSalesCount: mergedOnlineSales,
           totalSold: mergedTotalSold,
-          updatedAt: bundledItem.updatedAt || CATALOG_BUILD_TIMESTAMP,
+          updatedAt: isCandidateNewer ? candidate.updatedAt : (bundledItem.updatedAt || CATALOG_BUILD_TIMESTAMP),
           ...(candidate.rating !== undefined ? { rating: candidate.rating } : {})
         };
 

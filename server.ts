@@ -593,10 +593,12 @@ async function startServer() {
               const cloud = cloudProdMap.get(p.id);
               if (!cloud) return p;
               const online = typeof cloud.onlineSalesCount === 'number' ? Math.max(p.onlineSalesCount || 0, cloud.onlineSalesCount) : (p.onlineSalesCount || 0);
-              const base = typeof cloud.soldCount === 'number' ? cloud.soldCount : (p.soldCount !== undefined ? p.soldCount : 54);
+              const base = typeof cloud.soldCount === 'number' ? cloud.soldCount : (p.soldCount !== undefined ? p.soldCount : 0);
               const total = typeof cloud.totalSold === 'number' ? Math.max(p.totalSold || 0, cloud.totalSold, base + online) : Math.max(p.totalSold || 0, base + online);
+              const cloudHasDataImg = Array.isArray(cloud.images) && cloud.images.some((img: any) => typeof img === 'string' && img.startsWith('data:image/'));
               return {
                 ...p,
+                ...(cloudHasDataImg ? { images: cloud.images } : {}),
                 onlineSalesCount: online,
                 totalSold: total,
                 soldCount: base,
@@ -767,7 +769,8 @@ async function startServer() {
     }
   });
 
-  // Helper to sanitize images and extract base64 into static /products/ files so products.json stays < 60KB
+  // Helper to sanitize images and save a static copy in /public/products/ while keeping data:image/ intact
+  // so Cloud Firestore and artified.com.np never 404 on newly added creations before GitHub deployment
   const processImages = (images: string[], productId = 'item'): string[] => {
     const publicProductsDir = path.resolve(process.cwd(), 'public/products');
     if (!fs.existsSync(publicProductsDir)) {
@@ -786,7 +789,7 @@ async function startServer() {
           const safeId = String(productId || 'item').replace(/[^a-zA-Z0-9_-]/g, '_');
           const fileName = `${safeId}_${idx}.jpg`;
           fs.writeFileSync(path.join(publicProductsDir, fileName), buf);
-          return `/products/${fileName}`;
+          return imgUrl;
         } catch {
           return imgUrl;
         }
