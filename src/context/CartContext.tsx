@@ -351,7 +351,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [activeReel, setActiveReel] = useState<TikTokReel | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [sortBy, setSortBy] = useState<SortOption>('featured');
+  const [sortBy, setSortBy] = useState<SortOption>('newest');
   const [completedOrder, setCompletedOrderState] = useState<OrderDetails | null>(null);
 
   // Smooth Non-Intrusive Add-to-Cart Visual Feedback State
@@ -765,8 +765,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 category: data.category || baseProd?.category || 'pearl-bags',
                 price: typeof data.price === 'number' && data.price > 0 ? data.price : (baseProd?.price || 1500),
                 onlineSalesCount: typeof data.onlineSalesCount === 'number' ? data.onlineSalesCount : (baseProd?.onlineSalesCount || 0),
-                soldCount: typeof data.soldCount === 'number' ? data.soldCount : (baseProd?.soldCount !== undefined ? baseProd.soldCount : 54),
-                totalSold: typeof data.totalSold === 'number' ? data.totalSold : Math.max(Number(baseProd?.totalSold || 0), (baseProd?.soldCount || 54) + (data.onlineSalesCount || 0))
+                soldCount: typeof data.soldCount === 'number' ? data.soldCount : (baseProd?.soldCount !== undefined ? baseProd.soldCount : 0),
+                totalSold: typeof data.totalSold === 'number' ? data.totalSold : ((typeof data.soldCount === 'number' ? data.soldCount : (baseProd?.soldCount || 0)) + (typeof data.onlineSalesCount === 'number' ? data.onlineSalesCount : (baseProd?.onlineSalesCount || 0)))
               };
               const cleaned = sanitizeProduct(mergedProd as Product);
               cloudProducts.push(cleaned);
@@ -849,9 +849,9 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
               if (!prevQuick) return prevQuick;
               const addSales = verifiedSalesByProduct[prevQuick.id];
               if (typeof addSales === 'number' && addSales > 0) {
-                const base = prevQuick.soldCount !== undefined ? prevQuick.soldCount : 54;
+                const base = prevQuick.soldCount !== undefined ? prevQuick.soldCount : 0;
                 const newOnline = Math.max(prevQuick.onlineSalesCount || 0, addSales);
-                const newTotal = Math.max(prevQuick.totalSold || 0, base + newOnline);
+                const newTotal = base + newOnline;
                 return { ...prevQuick, onlineSalesCount: newOnline, totalSold: newTotal };
               }
               return prevQuick;
@@ -1321,8 +1321,34 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
     } else if (sortBy === 'newest') {
       result.sort((a, b) => {
-        if (a.isNewArrival === b.isNewArrival) return a.title.localeCompare(b.title);
-        return a.isNewArrival ? -1 : 1;
+        // Priority 1: New Arrival status
+        const isNewA = a.isNewArrival ? 1 : 0;
+        const isNewB = b.isNewArrival ? 1 : 0;
+        if (isNewB !== isNewA) {
+          return isNewB - isNewA;
+        }
+
+        // Priority 2: Creation or update ISO date/timestamp
+        const timeA = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+        const timeB = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+        if (timeB !== timeA) {
+          return timeB - timeA;
+        }
+
+        // Priority 3: Timestamp embedded in product ID (e.g. art-1793343690587-...)
+        const matchA = a.id?.match(/^art-(\d+)/);
+        const matchB = b.id?.match(/^art-(\d+)/);
+        if (matchA && matchB) {
+          const numA = parseInt(matchA[1], 10);
+          const numB = parseInt(matchB[1], 10);
+          if (numB !== numA) return numB - numA;
+        } else if (matchB) {
+          return 1;
+        } else if (matchA) {
+          return -1;
+        }
+
+        return a.title.localeCompare(b.title);
       });
     } else if (sortBy === 'price-asc') {
       result.sort((a, b) => a.price - b.price);
@@ -1385,8 +1411,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const newlySold = Math.max(0, nextOnline - prevOnline);
 
           if (newlySold > 0 || addedQty > 0 || verifiedOnline > prevOnline) {
-            const baseSold = prod.soldCount !== undefined ? prod.soldCount : 54;
-            const nextTotal = Math.max(prod.totalSold || 0, baseSold + nextOnline);
+            const baseSold = prod.soldCount !== undefined ? prod.soldCount : 0;
+            const nextTotal = baseSold + nextOnline;
             const currentStock = typeof prod.stockCount === 'number' ? prod.stockCount : (prod.inventoryCount ?? 8);
             const nextStock = Math.max(0, currentStock - (newlySold > 0 ? newlySold : addedQty));
             lastLocalProductEditRef.current[prod.id] = Date.now();
@@ -1499,6 +1525,18 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setQuickViewProduct((prev) => (prev && prev.id === productId ? updatedProducts.find(p => p.id === productId) || prev : prev));
 
       try {
+        // Unblock if this product or author was previously cleared/deleted
+        const delRaw = localStorage.getItem('artified_deleted_review_ids');
+        if (delRaw) {
+          const delList: string[] = JSON.parse(delRaw);
+          if (Array.isArray(delList)) {
+            const authorKey = `${productId}::${sanitized.author.trim().toLowerCase()}`;
+            const clearKey = `${productId}::all_cleared`;
+            const nextDel = delList.filter((k) => k !== sanitized.id && k !== authorKey && k !== clearKey);
+            localStorage.setItem('artified_deleted_review_ids', JSON.stringify(nextDel));
+          }
+        }
+
         const dictRaw = localStorage.getItem('artified_custom_reviews_v1');
         const dict = dictRaw ? JSON.parse(dictRaw) : {};
         const currentProd = dict[productId] || [];
@@ -1622,14 +1660,49 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Delete a review (or hide curated default)
   const deleteProductReview = async (productId: string, reviewId: string) => {
     try {
+      const targetProd = products.find((p) => p.id === productId);
+      const currentReviewsBeforeDelete = targetProd ? getProductReviews(targetProd) : [];
+      const matchingReview = currentReviewsBeforeDelete.find((r) => r.id === reviewId);
+
       await deleteProductReviewFromFirestore(reviewId);
       invalidateReviewsCache();
 
+      try {
+        const dictRaw = localStorage.getItem('artified_custom_reviews_v1');
+        if (dictRaw) {
+          const dict = JSON.parse(dictRaw);
+          if (dict[productId]) {
+            dict[productId] = dict[productId].filter((r: any) => r.id !== reviewId && (!matchingReview || r.author !== matchingReview.author));
+            localStorage.setItem('artified_custom_reviews_v1', JSON.stringify(dict));
+          }
+        }
+
+        const delRaw = localStorage.getItem('artified_deleted_review_ids');
+        const delList: string[] = delRaw ? JSON.parse(delRaw) : [];
+        const addKey = (k: string) => {
+          if (k && !delList.includes(k)) delList.push(k);
+        };
+        addKey(reviewId);
+        if (matchingReview?.author) {
+          addKey(`${productId}::${matchingReview.author.trim().toLowerCase()}`);
+        }
+        // If this was the last visible review on the product, mark product reviews as cleared so default fallback won't regenerate
+        if (currentReviewsBeforeDelete.length <= 1) {
+          addKey(`${productId}::all_cleared`);
+          addKey(`${productId}-rev-1`);
+          addKey(`${productId}-rev-default`);
+        }
+        localStorage.setItem('artified_deleted_review_ids', JSON.stringify(delList));
+        localStorage.removeItem(`artified_reviews_${productId}`);
+        invalidateReviewsCache();
+      } catch {}
+
       const updatedProducts = products.map((prod) => {
         if (prod.id === productId || prod.customReviews?.some(r => r.id === reviewId)) {
-          const existingCustom = (prod.customReviews || []).filter((r) => r.id !== reviewId);
+          const existingCustom = (prod.customReviews || []).filter((r) => r.id !== reviewId && (!matchingReview || r.author !== matchingReview.author));
           return {
             ...prod,
+            reviewsCount: Math.max(0, currentReviewsBeforeDelete.length - 1),
             customReviews: [...existingCustom, { id: reviewId, isDeleted: true } as any]
           };
         }
@@ -1638,18 +1711,6 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       setProducts(updatedProducts);
       setQuickViewProduct((prev) => (prev && (prev.id === productId || prev.customReviews?.some(r => r.id === reviewId)) ? updatedProducts.find(p => p.id === prev.id) || prev : prev));
-
-      try {
-        const dictRaw = localStorage.getItem('artified_custom_reviews_v1');
-        if (dictRaw) {
-          const dict = JSON.parse(dictRaw);
-          if (dict[productId]) {
-            dict[productId] = dict[productId].filter((r: any) => r.id !== reviewId);
-            localStorage.setItem('artified_custom_reviews_v1', JSON.stringify(dict));
-          }
-        }
-        invalidateReviewsCache();
-      } catch {}
 
       try {
         localStorage.setItem('artified_products_v3', JSON.stringify(updatedProducts));
@@ -1759,10 +1820,10 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 const sp = serverProducts.find((p: any) => p.id === prod.id);
                 if (!sp) return prod;
                 const spOnline = Number(sp.onlineSalesCount) || 0;
-                const baseSold = prod.soldCount !== undefined ? Number(prod.soldCount) : 54;
-                const spTotal = Math.max(Number(sp.totalSold) || 0, baseSold + spOnline);
+                const baseSold = prod.soldCount !== undefined ? Number(prod.soldCount) : 0;
+                const spTotal = baseSold + spOnline;
                 const mergedOnline = Math.max(prod.onlineSalesCount || 0, spOnline);
-                const mergedTotal = Math.max(prod.totalSold || 0, spTotal, baseSold + mergedOnline);
+                const mergedTotal = baseSold + mergedOnline;
 
                 const spUpdatedTime = sp.updatedAt ? new Date(sp.updatedAt).getTime() : 0;
                 const prodUpdatedTime = prod.updatedAt ? new Date(prod.updatedAt).getTime() : 0;

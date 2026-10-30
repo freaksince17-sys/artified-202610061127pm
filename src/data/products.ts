@@ -36,8 +36,8 @@ export const PRODUCTS: Product[] = (SAVED_PRODUCTS as unknown as Product[]).map(
   customReviews: p.customReviews || PRODUCT_REVIEWS_MAP[p.id] || []
 }));
 
-export const CATALOG_BUILD_TIMESTAMP = '2026-10-26T12:00:00.000Z';
-export const CATALOG_BUILD_VERSION = 'artified_v_2026_10_26_cache_bust';
+export const CATALOG_BUILD_TIMESTAMP = '2026-10-30T08:15:00.000Z';
+export const CATALOG_BUILD_VERSION = 'artified_v_2026_10_30_smarika_basnet_only';
 
 /**
  * Reconciles candidate products (from localStorage, Firestore, or API) against the authoritative bundled PRODUCTS.
@@ -64,6 +64,15 @@ export function reconcileProductCatalog(candidateProducts?: Product[] | null, bu
     }
   } catch {}
 
+  const deletedRevIds = new Set<string>();
+  try {
+    const globDeletedRaw = typeof localStorage !== 'undefined' ? localStorage.getItem('artified_deleted_review_ids') : null;
+    if (globDeletedRaw) {
+      const globList = JSON.parse(globDeletedRaw);
+      if (Array.isArray(globList)) globList.forEach((id: string) => deletedRevIds.add(String(id).trim()));
+    }
+  } catch {}
+
   const buildTimestampMs = new Date(CATALOG_BUILD_TIMESTAMP).getTime();
 
   // 2. Process candidate products
@@ -86,6 +95,9 @@ export function reconcileProductCatalog(candidateProducts?: Product[] | null, bu
         const bundledItem = map.get(candidate.id)!;
 
         const extraReviews = Array.isArray(storedReviewsDict[candidate.id]) ? storedReviewsDict[candidate.id] : [];
+        const isRoyalCape =
+          candidate.id === 'art-1793343690587-202g7' ||
+          Boolean(candidate.title && candidate.title.toLowerCase().includes('royal layered drape pearl cape'));
 
         const seenRevIds = new Set<string>();
         const seenRevSigs = new Set<string>();
@@ -94,7 +106,18 @@ export function reconcileProductCatalog(candidateProducts?: Product[] | null, bu
         const addMerged = (r: any) => {
           if (!r || !r.id || !r.author || !r.comment || r.isDeleted) return;
           const cleanId = String(r.id).trim();
-          const sig = `${String(r.author).trim().toLowerCase()}_${String(r.comment).trim().toLowerCase()}`;
+          const authorLower = String(r.author).trim().toLowerCase();
+          if (deletedRevIds.has(cleanId) || deletedRevIds.has(`${candidate.id}::${authorLower}`)) return;
+          if (
+            isRoyalCape &&
+            (authorLower.includes('kashish') ||
+              authorLower.includes('jenisha') ||
+              cleanId === 'art-1793343690587-202g7-rev-1' ||
+              cleanId === 'art-1793343690587-202g7-rev-3')
+          ) {
+            return;
+          }
+          const sig = `${authorLower}_${String(r.comment).trim().toLowerCase()}`;
           if (!seenRevIds.has(cleanId) && !seenRevSigs.has(sig)) {
             seenRevIds.add(cleanId);
             seenRevSigs.add(sig);
@@ -102,23 +125,21 @@ export function reconcileProductCatalog(candidateProducts?: Product[] | null, bu
           }
         };
 
-        extraReviews.forEach(addMerged);
-        (bundledItem.customReviews || []).forEach(addMerged);
-        (candidate.customReviews || []).forEach(addMerged);
+        if (!deletedRevIds.has(`${candidate.id}::all_cleared`)) {
+          extraReviews.forEach(addMerged);
+          (bundledItem.customReviews || []).forEach(addMerged);
+          (candidate.customReviews || []).forEach(addMerged);
+        }
 
         const mergedOnlineSales = Math.max(
           candidate.onlineSalesCount || 0,
           bundledItem.onlineSalesCount || 0
         );
         const mergedSoldCount =
-          candidate.soldCount !== undefined && candidate.soldCount > (bundledItem.soldCount || 0)
+          candidate.soldCount !== undefined
             ? candidate.soldCount
-            : bundledItem.soldCount;
-        const mergedTotalSold = Math.max(
-          candidate.totalSold || 0,
-          bundledItem.totalSold || 0,
-          (mergedSoldCount !== undefined ? mergedSoldCount : 54) + mergedOnlineSales
-        );
+            : (bundledItem.soldCount !== undefined ? bundledItem.soldCount : 0);
+        const mergedTotalSold = mergedSoldCount + mergedOnlineSales;
 
         const nextStockCount = typeof candidate.stockCount === 'number'
           ? Math.max(0, candidate.stockCount)
@@ -141,6 +162,9 @@ export function reconcileProductCatalog(candidateProducts?: Product[] | null, bu
           description: bundledItem.description || candidate.description,
           category: bundledItem.category,
           images: (bundledItem.images && bundledItem.images.length > 0) ? bundledItem.images : (candidate.images || []),
+          materials: Array.isArray(candidate.materials) ? candidate.materials : (bundledItem.materials || []),
+          leadTime: candidate.leadTime || bundledItem.leadTime,
+          manufacturingTime: candidate.manufacturingTime || bundledItem.manufacturingTime,
           stockCount: nextStockCount,
           inventoryCount: nextInventoryCount,
           inStock: nextInStock,

@@ -25,10 +25,11 @@ import {
   Scale,
   Ruler,
   Bell,
-  RefreshCw
+  RefreshCw,
+  Trash2
 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
-import { calculateTotalSold, isProductBestSeller, calculateReviewsCount, getProductReviews } from '../utils/productStats';
+import { calculateTotalSold, isProductBestSeller, calculateReviewsCount, getProductReviews, calculateTotalTimeEstimate } from '../utils/productStats';
 import { ProductReviewItem } from '../types';
 import { useLanguage } from '../context/LanguageContext';
 import { RestockNotifyModal } from './RestockNotifyModal';
@@ -49,6 +50,7 @@ export const ProductDetailModal: React.FC = () => {
     openProductEditor,
     bestsellerThreshold,
     addProductReview,
+    deleteProductReview,
     products,
     selectedCategory,
     openReviewsManager,
@@ -100,14 +102,47 @@ export const ProductDetailModal: React.FC = () => {
 
     // Immediately hydrate cached reviews from local storage so reviews stick instantly with zero flash
     try {
-      const cached = localStorage.getItem(`artified_reviews_${quickViewProduct.id}`);
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setFirestoreReviews(parsed);
-        }
+      const deletedIds = new Set<string>();
+      const globDeletedRaw = localStorage.getItem('artified_deleted_review_ids');
+      if (globDeletedRaw) {
+        const globList = JSON.parse(globDeletedRaw);
+        if (Array.isArray(globList)) globList.forEach((id: string) => deletedIds.add(String(id).trim()));
       }
-    } catch {}
+      const isAllCleared = deletedIds.has(`${quickViewProduct.id}::all_cleared`);
+      const isRoyalCape =
+        quickViewProduct.id === 'art-1793343690587-202g7' ||
+        (quickViewProduct.title && quickViewProduct.title.toLowerCase().includes('royal layered drape pearl cape'));
+      const cached = localStorage.getItem(`artified_reviews_${quickViewProduct.id}`);
+      if (cached && !isAllCleared) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed)) {
+          const filtered = parsed.filter((r: any) => {
+            if (!r || !r.id || !r.author || r.isDeleted) return false;
+            const cid = String(r.id).trim();
+            const al = String(r.author).trim().toLowerCase();
+            if (deletedIds.has(cid) || deletedIds.has(`${quickViewProduct.id}::${al}`)) return false;
+            if (
+              isRoyalCape &&
+              (al.includes('kashish') ||
+                al.includes('jenisha') ||
+                cid === 'art-1793343690587-202g7-rev-1' ||
+                cid === 'art-1793343690587-202g7-rev-3')
+            ) {
+              return false;
+            }
+            return true;
+          });
+          if (filtered.length !== parsed.length) {
+            localStorage.setItem(`artified_reviews_${quickViewProduct.id}`, JSON.stringify(filtered));
+          }
+          setFirestoreReviews(filtered);
+        }
+      } else {
+        setFirestoreReviews([]);
+      }
+    } catch {
+      setFirestoreReviews([]);
+    }
 
     const initial = getProductReviews(quickViewProduct);
     const unsubscribe = subscribeToProductReviews(
@@ -275,13 +310,40 @@ export const ProductDetailModal: React.FC = () => {
   const reviewsList = React.useMemo(() => {
     const seenIds = new Set<string>();
     const seenSignatures = new Set<string>();
+    const deletedIds = new Set<string>();
+    try {
+      const globDeletedRaw = typeof localStorage !== 'undefined' ? localStorage.getItem('artified_deleted_review_ids') : null;
+      if (globDeletedRaw) {
+        const globList = JSON.parse(globDeletedRaw);
+        if (Array.isArray(globList)) globList.forEach((id: string) => deletedIds.add(String(id).trim()));
+      }
+    } catch {}
+
+    const isAllCleared = quickViewProduct?.id ? deletedIds.has(`${quickViewProduct.id}::all_cleared`) : false;
+    const isRoyalCape =
+      quickViewProduct?.id === 'art-1793343690587-202g7' ||
+      Boolean(quickViewProduct?.title && quickViewProduct.title.toLowerCase().includes('royal layered drape pearl cape'));
+
     const list: ProductReviewItem[] = [];
 
     const addReview = (r: ProductReviewItem) => {
       if (!r || !r.id || !r.author || !r.comment) return;
       if ((r as any).isDeleted) return;
       const cleanId = String(r.id).trim();
-      const sig = `${r.author.trim().toLowerCase()}_${r.comment.trim().toLowerCase()}`;
+      const authorLower = r.author.trim().toLowerCase();
+      if (isAllCleared || deletedIds.has(cleanId) || (quickViewProduct?.id && deletedIds.has(`${quickViewProduct.id}::${authorLower}`))) {
+        return;
+      }
+      if (
+        isRoyalCape &&
+        (authorLower.includes('kashish') ||
+          authorLower.includes('jenisha') ||
+          cleanId === 'art-1793343690587-202g7-rev-1' ||
+          cleanId === 'art-1793343690587-202g7-rev-3')
+      ) {
+        return;
+      }
+      const sig = `${authorLower}_${r.comment.trim().toLowerCase()}`;
       if (!seenIds.has(cleanId) && !seenSignatures.has(sig)) {
         seenIds.add(cleanId);
         seenSignatures.add(sig);
@@ -293,7 +355,7 @@ export const ProductDetailModal: React.FC = () => {
     fallbackReviews.forEach(addReview);
 
     return list;
-  }, [firestoreReviews, fallbackReviews]);
+  }, [firestoreReviews, fallbackReviews, quickViewProduct?.id, quickViewProduct?.title]);
 
   if (!quickViewProduct) return null;
 
@@ -620,15 +682,21 @@ export const ProductDetailModal: React.FC = () => {
                     ))}
                   </div>
 
-                  {/* Craft Lead Time Floating Tag */}
-                  <div 
-                    className={`absolute bottom-3 left-3 bg-[#1C1B1A]/85 backdrop-blur-md text-white text-[11px] py-1 px-3 rounded-full flex items-center gap-1.5 shadow-sm transition-opacity duration-200 pointer-events-none ${
-                      isZoomed ? 'opacity-30' : 'opacity-100'
-                    }`}
-                  >
-                    <Clock className="w-3 h-3 text-[#D4AF37]" />
-                    <span>{product.leadTime}</span>
-                  </div>
+                  {/* Craft Manufacturing & Total Delivery Floating Tag */}
+                  {(() => {
+                    const timeEst = calculateTotalTimeEstimate(product);
+                    return (
+                      <div 
+                        className={`absolute bottom-3 left-3 bg-[#1C1B1A]/85 backdrop-blur-md text-white text-[11px] py-1 px-3 rounded-full flex items-center gap-1.5 shadow-sm transition-opacity duration-200 pointer-events-none ${
+                          isZoomed ? 'opacity-30' : 'opacity-100'
+                        }`}
+                        title="Artisan manufacturing time + Nepal courier transit"
+                      >
+                        <Clock className="w-3 h-3 text-[#D4AF37]" />
+                        <span>Making: {timeEst.mfgLabel} • KTM Doorstep: {timeEst.ktm}</span>
+                      </div>
+                    );
+                  })()}
                 </div>
 
               {/* Thumbnail Strip */}
@@ -688,13 +756,21 @@ export const ProductDetailModal: React.FC = () => {
               <div>
                 {/* Title & Star Rating */}
                 <div className="flex items-center gap-1.5 text-xs text-[#736C65] mb-1.5 flex-wrap">
-                  <div className="flex items-center text-amber-400">
-                    {[...Array(5)].map((_, i) => (
-                      <Star key={i} className="w-3.5 h-3.5 fill-amber-400" />
-                    ))}
-                  </div>
-                  <span className="font-semibold text-[#1C1B1A]">{averageRating}</span>
-                  <span className="text-[#A69E96]">({dynamicReviewsCount} customer reviews)</span>
+                  {dynamicReviewsCount > 0 ? (
+                    <>
+                      <div className="flex items-center text-amber-400">
+                        {[...Array(5)].map((_, i) => (
+                          <Star key={i} className="w-3.5 h-3.5 fill-amber-400" />
+                        ))}
+                      </div>
+                      <span className="font-semibold text-[#1C1B1A]">{averageRating}</span>
+                      <span className="text-[#A69E96]">({dynamicReviewsCount} customer review{dynamicReviewsCount === 1 ? '' : 's'})</span>
+                    </>
+                  ) : (
+                    <span className="text-amber-800 bg-amber-50 px-2 py-0.5 rounded text-[11px] font-semibold border border-amber-200">
+                      ✦ New Creation • 0 reviews
+                    </span>
+                  )}
                   <span className="text-zinc-300">•</span>
                   <span className="text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded text-[11px] border border-emerald-200/70">
                     {isNe ? `${t('soldCount')}: ${totalSold}` : `Sold: ${totalSold}`}
@@ -880,16 +956,21 @@ export const ProductDetailModal: React.FC = () => {
                     </button>
                     {activeAccordion === 'materials' && (
                       <div className="pb-3 text-xs text-[#5E5955] space-y-1.5 animate-in fade-in">
-                        <p><strong className="text-[#1C1B1A]">Dimensions:</strong> {product.dimensions}</p>
+                        {product.dimensions && <p><strong className="text-[#1C1B1A]">Dimensions:</strong> {product.dimensions}</p>}
                         {product.weight && <p><strong className="text-[#1C1B1A]">Weight:</strong> {product.weight}</p>}
-                        <div>
-                          <strong className="text-[#1C1B1A] block mb-1">Materials:</strong>
-                          <ul className="list-disc pl-4 space-y-0.5 text-[#736C65]">
-                            {product.materials.map((m, idx) => (
-                              <li key={idx}>{m}</li>
-                            ))}
-                          </ul>
-                        </div>
+                        {product.materials && Array.isArray(product.materials) && product.materials.length > 0 && (
+                          <div>
+                            <strong className="text-[#1C1B1A] block mb-1">Materials:</strong>
+                            <ul className="list-disc pl-4 space-y-0.5 text-[#736C65]">
+                              {product.materials.map((m, idx) => (
+                                <li key={idx}>{m}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {!product.dimensions && !product.weight && (!product.materials || product.materials.length === 0) && (
+                          <p className="text-[#736C65] italic">Handcrafted artisanal piece. Material specifications available upon request via WhatsApp.</p>
+                        )}
                       </div>
                     )}
                   </div>
@@ -929,13 +1010,35 @@ export const ProductDetailModal: React.FC = () => {
                         <ChevronDown className="w-4 h-4 text-[#8C7A6B]" />
                       )}
                     </button>
-                    {activeAccordion === 'delivery' && (
-                      <div className="pb-3 text-xs text-[#5E5955] space-y-1 animate-in fade-in">
-                        <p>• <strong>Kathmandu Valley:</strong> NPR 120 (1 to 2 days)</p>
-                        <p>• <strong>Outside Valley:</strong> NPR 250 to 300 (can increase) (3 to 7 days)</p>
-                        <p>• <strong>Payment Methods:</strong> Cash on Delivery (COD), eSewa QR.</p>
-                      </div>
-                    )}
+                    {activeAccordion === 'delivery' && (() => {
+                      const est = calculateTotalTimeEstimate(product);
+                      return (
+                        <div className="pb-3 text-xs text-[#5E5955] space-y-2 animate-in fade-in">
+                          {/* Manufacturing + Delivery Total Time Card */}
+                          <div className="p-2.5 bg-[#FAF6F0] rounded-xl border border-[#E8DFD8] space-y-1">
+                            <div className="font-bold text-[#1C1B1A] flex items-center gap-1.5 text-[11px]">
+                              <Clock className="w-3.5 h-3.5 text-[#D4AF37]" />
+                              <span>Total Estimated Delivery to Doorstep:</span>
+                            </div>
+                            <div className="text-[11px] text-[#4A4541] flex items-center justify-between pt-0.5">
+                              <span>⏱️ Handcrafting / Making Time:</span>
+                              <strong>{est.mfgLabel}</strong>
+                            </div>
+                            <div className="text-[11px] text-[#4A4541] flex items-center justify-between">
+                              <span>🚚 Kathmandu Valley Doorstep:</span>
+                              <strong className="text-emerald-800">{est.ktm} (NPR 120)</strong>
+                            </div>
+                            <div className="text-[11px] text-[#4A4541] flex items-center justify-between">
+                              <span>🚚 Outside Valley Doorstep:</span>
+                              <strong className="text-emerald-800">{est.outside} (NPR 250)</strong>
+                            </div>
+                          </div>
+                          <p className="text-[11px]">
+                            • <strong>Payment Methods:</strong> Cash on Delivery (COD), eSewa QR, Fonepay.
+                          </p>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
 
@@ -1239,15 +1342,29 @@ export const ProductDetailModal: React.FC = () => {
 
                       <div className="flex items-center gap-1.5 shrink-0">
                         {isSellerMode && (
-                          <button
-                            type="button"
-                            onClick={() => openReviewsManager(product.id)}
-                            className="px-2 py-0.5 text-[10px] font-semibold text-amber-900 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/60 border border-amber-300 dark:border-amber-800 rounded shadow-2xs transition-colors cursor-pointer flex items-center gap-1"
-                            title="Edit review in Seller Studio"
-                          >
-                            <Edit3 className="w-2.5 h-2.5 text-amber-700 dark:text-amber-400" />
-                            <span>Edit</span>
-                          </button>
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => openReviewsManager(product.id)}
+                              className="px-2 py-0.5 text-[10px] font-semibold text-amber-900 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/60 border border-amber-300 dark:border-amber-800 rounded shadow-2xs transition-colors cursor-pointer flex items-center gap-1"
+                              title="Edit review in Seller Studio"
+                            >
+                              <Edit3 className="w-2.5 h-2.5 text-amber-700 dark:text-amber-400" />
+                              <span>Edit</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                await deleteProductReview(product.id, rev.id);
+                                setFirestoreReviews((prev) => prev.filter((item) => item.id !== rev.id));
+                              }}
+                              className="px-2 py-0.5 text-[10px] font-semibold text-rose-800 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/60 border border-rose-300 dark:border-rose-800 rounded shadow-2xs transition-colors cursor-pointer flex items-center gap-1"
+                              title="Delete this review immediately"
+                            >
+                              <Trash2 className="w-2.5 h-2.5 text-rose-600 dark:text-rose-400" />
+                              <span>Delete</span>
+                            </button>
+                          </>
                         )}
                         {rev.verified && (
                           <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 px-1.5 py-0.5 rounded">

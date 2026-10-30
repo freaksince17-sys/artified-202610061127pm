@@ -28,6 +28,7 @@ export interface Product {
   stockCount: number;
   inventoryCount?: number;
   leadTime: string; // e.g. "Handmade to order: 2–4 business days"
+  manufacturingTime?: string; // e.g. "2–4 days", "1–2 days", or "Ready in Stock (0 days)"
   materials: string[];
   dimensions: string;
   weight?: string;

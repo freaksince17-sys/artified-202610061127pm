@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Heart, Eye, Star, Edit3, Scale, Bell } from 'lucide-react';
+import { Heart, Eye, Star, Edit3, Scale, Bell, Sparkles } from 'lucide-react';
 import { Product } from '../types';
 import { useCart } from '../context/CartContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -238,20 +238,29 @@ export const ProductCard: React.FC<ProductCardProps> = React.memo(({ product, is
 
           {/* Rating stars & review count row */}
           <div className="flex items-center gap-1 mt-0.5">
-            <div className="flex items-center text-amber-600 dark:text-amber-400">
-              {[1, 2, 3, 4, 5].map((star) => (
-                <Star
-                  key={star}
-                  className={`w-2.5 h-2.5 ${star <= Math.round(averageRatingVal) ? 'fill-current' : 'text-zinc-300 dark:text-zinc-600'}`}
-                />
-              ))}
-            </div>
-            <span className="text-[9px] sm:text-[10px] font-extrabold text-[#111111] dark:text-[#E8E2D9]">
-              {averageRatingStr}
-            </span>
-            <span className="text-[9px] sm:text-[10px] font-semibold text-[#433E39] dark:text-[#A8A096]">
-              ({dynamicReviewsCount})
-            </span>
+            {dynamicReviewsCount > 0 ? (
+              <>
+                <div className="flex items-center text-amber-600 dark:text-amber-400">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <Star
+                      key={star}
+                      className={`w-2.5 h-2.5 ${star <= Math.round(averageRatingVal) ? 'fill-current' : 'text-zinc-300 dark:text-zinc-600'}`}
+                    />
+                  ))}
+                </div>
+                <span className="text-[9px] sm:text-[10px] font-extrabold text-[#111111] dark:text-[#E8E2D9]">
+                  {averageRatingStr}
+                </span>
+                <span className="text-[9px] sm:text-[10px] font-semibold text-[#433E39] dark:text-[#A8A096]">
+                  ({dynamicReviewsCount})
+                </span>
+              </>
+            ) : (
+              <span className="text-[9px] font-bold text-[#8C7A6B] flex items-center gap-1">
+                <Sparkles className="w-2.5 h-2.5 text-[#C5A880]" />
+                <span>New • 0 reviews</span>
+              </span>
+            )}
           </div>
         </div>
 

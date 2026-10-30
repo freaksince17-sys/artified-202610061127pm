@@ -14,8 +14,8 @@
       "Occasion: Suitable for all occasions"
     ],
     "id": "apsara-layered-pearl-collar",
-    "stockCount": 7,
-    "onlineSalesCount": 7,
+    "stockCount": 5,
+    "onlineSalesCount": 9,
     "careNotes": [
       "Wipe clean with a damp lint-free cloth after celebratory evenings.",
       "Keep clasped when stored to prevent tangling."
@@ -36,20 +36,20 @@
     "isNewArrival": true,
     "leadTime": "Handmade to order: 2 business days",
     "updatedAt": "2026-10-21T03:13:30.506Z",
-    "inventoryCount": 7,
-    "totalSold": 46,
+    "inventoryCount": 5,
+    "totalSold": 48,
     "customReviews": [
       {
-        "rating": 5,
-        "productTitle": "Caviar Pearl Bag",
-        "date": "Oct 21, 2026",
         "author": "Saru",
-        "timestamp": 1792595756885,
-        "location": "KMC 04",
         "productId": "apsara-layered-pearl-collar",
+        "date": "Oct 21, 2026",
+        "location": "KMC 04",
+        "id": "rev_1792595756148_acgxh",
+        "productTitle": "Caviar Pearl Bag",
+        "rating": 5,
         "createdAt": "2026-10-21T15:15:56.885Z",
         "verified": true,
-        "id": "rev_1792595756148_acgxh",
+        "timestamp": 1792595756885,
         "comment": "Very Premium Quality Bag"
       },
       {
@@ -112,14 +112,14 @@
     ],
     "isNewArrival": false,
     "originalPrice": 750,
-    "stockCount": 7,
+    "stockCount": 6,
     "isBestSeller": true,
     "subtitle": "Multi-strand necklace featuring cascading white pearls of varying elegant sizes.",
-    "onlineSalesCount": 2,
+    "onlineSalesCount": 3,
     "inStock": true,
     "updatedAt": "2026-10-21T03:13:30.506Z",
-    "inventoryCount": 7,
-    "totalSold": 81,
+    "inventoryCount": 6,
+    "totalSold": 82,
     "customReviews": [
       {
         "id": "chandra-baroque-pearl-choker-rev-1",
@@ -263,16 +263,16 @@
     "customReviews": [
       {
         "timestamp": 1792591586064,
-        "productTitle": "Red Pearl Beaded Bag",
-        "createdAt": "2026-10-21T14:06:26.058Z",
-        "productId": "maya-aurelia-pearl-bag",
-        "rating": 5,
-        "comment": "Loved the color and design",
-        "location": "KMC 06",
         "author": "Sara",
-        "date": "Oct 21, 2026",
         "verified": true,
-        "id": "rev_1792591583581_zh5ao"
+        "createdAt": "2026-10-21T14:06:26.058Z",
+        "id": "rev_1792591583581_zh5ao",
+        "location": "KMC 06",
+        "date": "Oct 21, 2026",
+        "comment": "Loved the color and design",
+        "productTitle": "Red Pearl Beaded Bag",
+        "productId": "maya-aurelia-pearl-bag",
+        "rating": 5
       },
       {
         "id": "maya-aurelia-pearl-bag-rev-1",
@@ -1461,17 +1461,17 @@
     "totalSold": 134,
     "customReviews": [
       {
+        "author": "Nisha",
         "productTitle": "Pearl Cascade Graduated Beaded Choker",
+        "productId": "art-1790326308284-gd3uy",
+        "comment": "Nice Design and Good Quality Pearl",
+        "verified": true,
+        "createdAt": "2026-10-19T09:12:49.611Z",
+        "location": "KMC 23",
+        "rating": 5,
         "date": "Oct 19, 2026",
         "timestamp": 1792401169618,
-        "rating": 5,
-        "createdAt": "2026-10-19T09:12:49.611Z",
-        "productId": "art-1790326308284-gd3uy",
-        "verified": true,
-        "comment": "Nice Design and Good Quality Pearl",
-        "author": "Nisha",
-        "id": "rev_1792401169611_vblea",
-        "location": "KMC 23"
+        "id": "rev_1792401169611_vblea"
       },
       {
         "id": "art-1790326308284-gd3uy-rev-1",
@@ -1808,7 +1808,7 @@
     ],
     "isBestSeller": false,
     "subtitle": "Delicate beaded pearl choker combining minimalist charm with effortless elegance.",
-    "stockCount": 7,
+    "stockCount": 6,
     "rating": 4.6,
     "description": "Add a subtle touch of elegance to your look with the Pearl Whisper Minimalist Choker. Featuring a delicate beaded design, this handmade necklace blends simplicity with a charming boho-inspired aesthetic. Its lightweight and durable construction makes it comfortable for everyday styling, while the lobster-claw closure provides a secure and convenient fit. Perfect for layering or wearing on its own.",
     "soldCount": 3,
@@ -1831,13 +1831,13 @@
     ],
     "originalPrice": 300,
     "isHandmade": true,
-    "onlineSalesCount": 3,
+    "onlineSalesCount": 4,
     "images": [
       "/products/art-1790340220660-1ix2y_0.jpg"
     ],
     "updatedAt": "2026-10-21T03:13:30.506Z",
-    "inventoryCount": 7,
-    "totalSold": 6,
+    "inventoryCount": 6,
+    "totalSold": 7,
     "customReviews": [
       {
         "id": "art-1790340220660-1ix2y-rev-1",
@@ -1901,17 +1901,17 @@
     "totalSold": 47,
     "customReviews": [
       {
-        "comment": "Style statement as mobile holder",
-        "id": "rev_1792671804864_phuwq",
-        "author": "Kajal",
-        "timestamp": 1792671805695,
         "location": "KMC 22",
-        "createdAt": "2026-10-22T12:23:25.694Z",
         "productId": "art-1790321852789-zvpym",
+        "author": "Kajal",
         "date": "Oct 22, 2026",
-        "rating": 5,
         "verified": true,
-        "productTitle": "Round Pearl Bag"
+        "rating": 5,
+        "id": "rev_1792671804864_phuwq",
+        "createdAt": "2026-10-22T12:23:25.694Z",
+        "comment": "Style statement as mobile holder",
+        "productTitle": "Round Pearl Bag",
+        "timestamp": 1792671805695
       },
       {
         "id": "art-1790321852789-zvpym-rev-1",
@@ -2124,5 +2124,53 @@
         "comment": "Collarbone ma flat baschha, western tops ra traditional saree dubai ma ekdam ramro dekhincha."
       }
     ]
+  },
+  {
+    "id": "art-1793343690587-202g7",
+    "title": "Royal Layered Drape Pearl Cape",
+    "subtitle": "A beautiful multi-layered pearl shoulder cape with hanging pearl loops, perfect for brides, parties, and special events.",
+    "category": "pearl-necklaces",
+    "price": 3500,
+    "originalPrice": 4200,
+    "rating": 4.9,
+    "reviewsCount": 1,
+    "soldCount": 36,
+    "totalSold": 36,
+    "onlineSalesCount": 0,
+    "isHandmade": true,
+    "isBestSeller": false,
+    "isNewArrival": true,
+    "inStock": true,
+    "stockCount": 7,
+    "inventoryCount": 7,
+    "leadTime": "2–4 days",
+    "manufacturingTime": "2–4 days",
+    "materials": [],
+    "dimensions": "",
+    "weight": "",
+    "description": "Make any simple dress or top stand out with the Royal Layered Drape Pearl Cape. Made from shiny white pearls, this piece has multiple layers that hang gracefully across your chest and shoulders. Small gold-colored bars hold the pearl strings in place to create a lovely curved pattern. Because of the open gaps between the strings, your outfit underneath stays visible while the pearls add a classic, rich look. It is comfortable to wear and perfect for weddings, photoshoots, or evening parties.",
+    "careNotes": [
+      "Avoid direct perfumes or alcohol sprays on pearls.",
+      "Wipe gently with soft cloth after wearing.",
+      "Store inside breathable dust bag."
+    ],
+    "images": [
+      "/products/art-1793343690587-202g7_0.jpg"
+    ],
+    "tags": [
+      "Handcrafted"
+    ],
+    "customReviews": [
+      {
+        "id": "art-1793343690587-202g7-rev-smarika",
+        "author": "Smarika Basnet",
+        "location": "Kathmandu, Nepal",
+        "rating": 4.9,
+        "date": "1 week ago",
+        "verified": true,
+        "comment": "Yo Royal Layered Drape Pearl Cape ko quality dherai nai ramro cha. WhatsApp ma quick reply aayo, polite team. Dherai man poryo!"
+      }
+    ],
+    "updatedAt": "2026-10-30T08:00:26.474Z"
   }
 ]

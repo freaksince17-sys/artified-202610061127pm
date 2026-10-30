@@ -164,6 +164,21 @@ export function subscribeToProductReviews(
   const processAndEmit = async (firestoreReviews: FirestoreProductReview[]) => {
     const serverReviews = await fetchServerReviews();
 
+    const deletedIds = new Set<string>();
+    try {
+      const globDeletedRaw = typeof localStorage !== 'undefined' ? localStorage.getItem('artified_deleted_review_ids') : null;
+      if (globDeletedRaw) {
+        const globList = JSON.parse(globDeletedRaw);
+        if (Array.isArray(globList)) globList.forEach((id: string) => deletedIds.add(String(id).trim()));
+      }
+    } catch {}
+
+    const isAllCleared = deletedIds.has(`${productId}::all_cleared`);
+    const isRoyalCapeProduct =
+      productId === 'art-1793343690587-202g7' ||
+      targetId.includes('art-1793343690587-202g7') ||
+      targetId.includes('royal-layered-drape-pearl-cape');
+
     const seenIds = new Set<string>();
     const seenSignatures = new Set<string>();
     const combined: FirestoreProductReview[] = [];
@@ -172,7 +187,25 @@ export function subscribeToProductReviews(
       if (!r || !r.id || !r.author || !r.comment) return;
       if ((r as any).isDeleted) return;
       const cleanId = String(r.id).trim();
-      const sig = `${r.author.trim().toLowerCase()}_${r.comment.trim().toLowerCase()}`;
+      const authorLower = r.author.trim().toLowerCase();
+      if (isAllCleared || deletedIds.has(cleanId) || deletedIds.has(`${productId}::${authorLower}`)) return;
+
+      const isRoyalCapeItem =
+        isRoyalCapeProduct ||
+        r.productId === 'art-1793343690587-202g7' ||
+        (r.productTitle && r.productTitle.toLowerCase().includes('royal layered drape pearl cape'));
+
+      if (
+        isRoyalCapeItem &&
+        (authorLower.includes('kashish') ||
+          authorLower.includes('jenisha') ||
+          cleanId === 'art-1793343690587-202g7-rev-1' ||
+          cleanId === 'art-1793343690587-202g7-rev-3')
+      ) {
+        return;
+      }
+
+      const sig = `${authorLower}_${r.comment.trim().toLowerCase()}`;
       if (!seenIds.has(cleanId) && !seenSignatures.has(sig)) {
         seenIds.add(cleanId);
         seenSignatures.add(sig);
@@ -199,6 +232,18 @@ export function subscribeToProductReviews(
         if (Array.isArray(prodCustom)) {
           prodCustom.forEach((c: any) => addReview({ ...c, productId } as FirestoreProductReview));
         }
+        // Clean up stale legacy reviews in artified_custom_reviews_v1 for Royal Cape
+        if (isRoyalCapeProduct && Array.isArray(prodCustom)) {
+          const cleanedCustom = prodCustom.filter((c: any) => {
+            if (!c || !c.author) return false;
+            const al = String(c.author).toLowerCase();
+            return !al.includes('kashish') && !al.includes('jenisha');
+          });
+          if (cleanedCustom.length !== prodCustom.length) {
+            parsedDict[productId] = cleanedCustom;
+            localStorage.setItem('artified_custom_reviews_v1', JSON.stringify(parsedDict));
+          }
+        }
       }
     } catch {}
 
@@ -215,9 +260,7 @@ export function subscribeToProductReviews(
     onReviews(combined);
 
     try {
-      if (combined.length > 0) {
-        localStorage.setItem(`artified_reviews_${productId}`, JSON.stringify(combined));
-      }
+      localStorage.setItem(`artified_reviews_${productId}`, JSON.stringify(combined));
     } catch {}
   };
 
@@ -264,6 +307,15 @@ export function subscribeToAllProductReviews(
 
   const processAndEmitAll = async (firestoreReviews: FirestoreProductReview[]) => {
     const serverReviews = await fetchServerAllReviews();
+    const deletedIds = new Set<string>();
+    try {
+      const globDeletedRaw = typeof localStorage !== 'undefined' ? localStorage.getItem('artified_deleted_review_ids') : null;
+      if (globDeletedRaw) {
+        const globList = JSON.parse(globDeletedRaw);
+        if (Array.isArray(globList)) globList.forEach((id: string) => deletedIds.add(String(id).trim()));
+      }
+    } catch {}
+
     const seenIds = new Set<string>();
     const seenSignatures = new Set<string>();
     const combined: FirestoreProductReview[] = [];
@@ -272,7 +324,24 @@ export function subscribeToAllProductReviews(
       if (!r || !r.id || !r.author || !r.comment) return;
       if ((r as any).isDeleted) return;
       const cleanId = String(r.id).trim();
-      const sig = `${r.author.trim().toLowerCase()}_${r.comment.trim().toLowerCase()}`;
+      const authorLower = r.author.trim().toLowerCase();
+      const pId = String(r.productId || '').trim();
+      if (deletedIds.has(cleanId) || (pId && (deletedIds.has(`${pId}::${authorLower}`) || deletedIds.has(`${pId}::all_cleared`)))) {
+        return;
+      }
+      const isRoyalCape =
+        pId === 'art-1793343690587-202g7' ||
+        (r.productTitle && r.productTitle.toLowerCase().includes('royal layered drape pearl cape'));
+      if (
+        isRoyalCape &&
+        (authorLower.includes('kashish') ||
+          authorLower.includes('jenisha') ||
+          cleanId === 'art-1793343690587-202g7-rev-1' ||
+          cleanId === 'art-1793343690587-202g7-rev-3')
+      ) {
+        return;
+      }
+      const sig = `${authorLower}_${r.comment.trim().toLowerCase()}`;
       if (!seenIds.has(cleanId) && !seenSignatures.has(sig)) {
         seenIds.add(cleanId);
         seenSignatures.add(sig);

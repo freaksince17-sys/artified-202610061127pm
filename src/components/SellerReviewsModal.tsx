@@ -83,13 +83,40 @@ export const SellerReviewsModal: React.FC = () => {
   const allReviewsWithProduct: ReviewWithProduct[] = useMemo(() => {
     const seenIds = new Set<string>();
     const seenSignatures = new Set<string>();
+    const deletedIds = new Set<string>();
+    try {
+      const globDeletedRaw = typeof localStorage !== 'undefined' ? localStorage.getItem('artified_deleted_review_ids') : null;
+      if (globDeletedRaw) {
+        const globList = JSON.parse(globDeletedRaw);
+        if (Array.isArray(globList)) globList.forEach((id: string) => deletedIds.add(String(id).trim()));
+      }
+    } catch {}
+
     const combined: ReviewWithProduct[] = [];
 
     const addReview = (rev: ReviewWithProduct) => {
       if (!rev || !rev.id || !rev.author || !rev.comment) return;
       if ((rev as any).isDeleted) return;
       const cleanId = String(rev.id).trim();
-      const sig = `${rev.author.trim().toLowerCase()}_${rev.comment.trim().toLowerCase()}`;
+      const authorLower = rev.author.trim().toLowerCase();
+      if (
+        deletedIds.has(cleanId) ||
+        deletedIds.has(`${rev.productId}::${authorLower}`) ||
+        deletedIds.has(`${rev.productId}::all_cleared`)
+      ) {
+        return;
+      }
+      const isRoyalCape = rev.productId === 'art-1793343690587-202g7' || (rev.productTitle && rev.productTitle.toLowerCase().includes('royal layered drape pearl cape'));
+      if (
+        isRoyalCape &&
+        (authorLower.includes('kashish') ||
+          authorLower.includes('jenisha') ||
+          cleanId === 'art-1793343690587-202g7-rev-1' ||
+          cleanId === 'art-1793343690587-202g7-rev-3')
+      ) {
+        return;
+      }
+      const sig = `${authorLower}_${rev.comment.trim().toLowerCase()}`;
       if (!seenIds.has(cleanId) && !seenSignatures.has(sig)) {
         seenIds.add(cleanId);
         seenSignatures.add(sig);
@@ -216,6 +243,16 @@ export const SellerReviewsModal: React.FC = () => {
     await deleteProductReview(productId, reviewId);
     setDeleteConfirmId(null);
     setSaveNotice('Review deleted.');
+    setTimeout(() => setSaveNotice(null), 3000);
+  };
+
+  const handleClearAllForProduct = async (pId: string) => {
+    if (!pId || pId === 'all') return;
+    const toDelete = allReviewsWithProduct.filter(r => r.productId === pId);
+    for (const r of toDelete) {
+      await deleteProductReview(pId, r.id);
+    }
+    setSaveNotice('All reviews cleared for this piece (0 reviews).');
     setTimeout(() => setSaveNotice(null), 3000);
   };
 
@@ -509,13 +546,26 @@ export const SellerReviewsModal: React.FC = () => {
                   Showing <strong>{filteredReviews.length}</strong> of <strong>{allReviewsWithProduct.length}</strong> reviews
                 </span>
                 {selectedProductFilter !== 'all' && (
-                  <button
-                    type="button"
-                    onClick={() => setSelectedProductFilter('all')}
-                    className="text-[#C5A880] hover:underline font-medium"
-                  >
-                    View all products
-                  </button>
+                  <div className="flex items-center gap-3">
+                    {filteredReviews.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => handleClearAllForProduct(selectedProductFilter)}
+                        className="text-rose-600 hover:text-rose-700 font-medium hover:underline flex items-center gap-1 cursor-pointer"
+                        title="Remove all reviews from this product so it has 0 reviews"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        <span>Clear All Reviews for Piece</span>
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setSelectedProductFilter('all')}
+                      className="text-[#C5A880] hover:underline font-medium cursor-pointer"
+                    >
+                      View all products
+                    </button>
+                  </div>
                 )}
               </div>
 

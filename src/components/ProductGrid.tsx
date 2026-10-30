@@ -18,10 +18,10 @@ import { GlobalSearchBar } from './GlobalSearchBar';
 import { SortOption } from '../types';
 
 const SORT_OPTIONS: { id: SortOption; label: string }[] = [
-  { id: 'featured', label: 'Sort by' },
+  { id: 'newest', label: 'New Arrivals' },
+  { id: 'featured', label: 'Featured' },
   { id: 'rating-desc', label: 'Product Rating' },
   { id: 'discount-desc', label: '% Discount' },
-  { id: 'newest', label: 'Newest' },
   { id: 'price-asc', label: 'Price (low to high)' },
   { id: 'price-desc', label: 'Price (high to low)' },
   { id: 'name-asc', label: 'Name A-Z' },
@@ -76,7 +76,7 @@ export const ProductGrid: React.FC = () => {
     { id: 'best-sellers', label: 'Best Sellers', isSpecial: true },
   ];
 
-  const currentSortLabel = SORT_OPTIONS.find((opt) => opt.id === sortBy)?.label || 'Sort by';
+  const currentSortLabel = SORT_OPTIONS.find((opt) => opt.id === sortBy)?.label || 'New Arrivals';
   const currentCategoryLabel = 
     categories.find((cat) => cat.id === selectedCategory)?.label || 'All Creations';
 
