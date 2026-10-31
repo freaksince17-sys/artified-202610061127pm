@@ -17,6 +17,21 @@
     <link rel="canonical" href="https://www.artified.com.np/" />
     <meta name="description" content="Handcrafted Elegance & Wearable Art. Handmade pearl bags, pearl necklaces, and macrame accessories in Nepal." />
     
+    <!-- SPA Redirect URL Restoration for GitHub Pages Static Hosting -->
+    <script>
+      (function() {
+        try {
+          var redirect = sessionStorage.getItem('artified_spa_fallback_url');
+          if (redirect) {
+            sessionStorage.removeItem('artified_spa_fallback_url');
+            if (redirect !== window.location.pathname + window.location.search + window.location.hash) {
+              window.history.replaceState(null, '', redirect);
+            }
+          }
+        } catch (e) {}
+      })();
+    </script>
+    
     <!-- OpenGraph Social Sharing Meta Tags -->
     <meta property="og:site_name" content="Artified_np | Art made with love" />
     <meta property="og:type" content="website" />
@@ -62,24 +77,280 @@
     <meta name="DC.Language" content="en" />
     <meta name="DC.Coverage" content="Kathmandu, Nepal" />
 
-    <!-- Product Category Rich Schema Markup for Pearl Bags and Macrame Accessories -->
+    <!-- Product Collections Rich Schema Markup with AggregateRating, Reviews & BreadcrumbList -->
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
       "@graph": [
         {
           "@type": "CollectionPage",
-          "@id": "https://artified.com.np/#pearl-bags",
-          "name": "Handcrafted Pearl Bags - Kathmandu, Nepal",
-          "description": "Luxurious, individually hand-knotted pearl handbags and evening bags handcrafted by founder and creator Sahina Shrestha in Kathmandu.",
-          "url": "https://artified.com.np/?category=Pearl%20Bags"
+          "@id": "https://www.artified.com.np/#collection",
+          "name": "Artified Nepal Handcrafted Creations & Wearable Art",
+          "url": "https://www.artified.com.np/",
+          "description": "Individually hand-knotted pearl handbags, chokers, capes, and macrame accessories in Kathmandu, Nepal.",
+          "hasPart": [
+            {
+              "@type": "CollectionPage",
+              "@id": "https://www.artified.com.np/pearl-bags#page",
+              "name": "Handcrafted Pearl Bags Nepal",
+              "url": "https://www.artified.com.np/pearl-bags",
+              "description": "Hand-knotted caviar pearl bags, sphere totes, and evening clutches handcrafted in Kathmandu."
+            },
+            {
+              "@type": "CollectionPage",
+              "@id": "https://www.artified.com.np/pearl-necklaces#page",
+              "name": "Handmade Pearl Necklaces & Pearl Capes Nepal",
+              "url": "https://www.artified.com.np/pearl-necklaces",
+              "description": "Royal layered drape pearl capes, classic woven collars, and freshwater baroque chokers."
+            },
+            {
+              "@type": "CollectionPage",
+              "@id": "https://www.artified.com.np/macrame#page",
+              "name": "Sustainable Macrame Accessories Nepal",
+              "url": "https://www.artified.com.np/macrame",
+              "description": "Hand-woven sustainable macrame wristlets, shoulder totes, plant hangers, and boho accessories."
+            },
+            {
+              "@type": "Course",
+              "@id": "https://www.artified.com.np/workshops#page",
+              "name": "Handmade Pearl & Macrame Craft Workshops in Kathmandu",
+              "url": "https://www.artified.com.np/workshops",
+              "description": "Hands-on beading and macrame masterclasses conducted by founder Sahina Shrestha in Kathmandu.",
+              "provider": {
+                "@type": "Organization",
+                "name": "Artified Nepal",
+                "sameAs": "https://www.artified.com.np"
+              }
+            }
+          ]
         },
         {
-          "@type": "CollectionPage",
-          "@id": "https://artified.com.np/#macrame-accessories",
-          "name": "Sustainable Macrame Accessories - Kathmandu, Nepal",
-          "description": "Hand-woven sustainable macrame bags, accessories, and wearable art crafted with ancestral techniques in Kathmandu.",
-          "url": "https://artified.com.np/?category=Macrame%20Accessories"
+          "@type": "BreadcrumbList",
+          "@id": "https://www.artified.com.np/#breadcrumbs",
+          "itemListElement": [
+            {
+              "@type": "ListItem",
+              "position": 1,
+              "name": "Home",
+              "item": "https://www.artified.com.np/"
+            },
+            {
+              "@type": "ListItem",
+              "position": 2,
+              "name": "Pearl Bags",
+              "item": "https://www.artified.com.np/pearl-bags"
+            },
+            {
+              "@type": "ListItem",
+              "position": 3,
+              "name": "Pearl Necklaces",
+              "item": "https://www.artified.com.np/pearl-necklaces"
+            },
+            {
+              "@type": "ListItem",
+              "position": 4,
+              "name": "Macrame",
+              "item": "https://www.artified.com.np/macrame"
+            },
+            {
+              "@type": "ListItem",
+              "position": 5,
+              "name": "Workshops",
+              "item": "https://www.artified.com.np/workshops"
+            }
+          ]
+        },
+        {
+          "@type": "Product",
+          "@id": "https://www.artified.com.np/#product-royal-cape",
+          "name": "Royal Layered Drape Pearl Cape",
+          "image": "https://www.artified.com.np/products/royal-layered-drape-pearl-cape_0.jpg",
+          "description": "Regal multi-strand cascading pearl cape hand-draped with high-luster pearls and reinforced woven neckline for weddings and celebrations in Nepal.",
+          "brand": {
+            "@type": "Brand",
+            "name": "Artified Nepal"
+          },
+          "category": "Pearl Necklaces",
+          "offers": {
+            "@type": "Offer",
+            "url": "https://www.artified.com.np/pearl-necklaces",
+            "priceCurrency": "NPR",
+            "price": "3800",
+            "priceValidUntil": "2027-12-31",
+            "itemCondition": "https://schema.org/NewCondition",
+            "availability": "https://schema.org/InStock",
+            "seller": {
+              "@type": "Organization",
+              "name": "Artified Nepal"
+            }
+          },
+          "aggregateRating": {
+            "@type": "AggregateRating",
+            "ratingValue": "4.9",
+            "reviewCount": "1",
+            "bestRating": "5",
+            "worstRating": "1"
+          },
+          "review": [
+            {
+              "@type": "Review",
+              "author": {
+                "@type": "Person",
+                "name": "Smarika Basnet"
+              },
+              "datePublished": "2026-10-23",
+              "reviewRating": {
+                "@type": "Rating",
+                "ratingValue": "4.9",
+                "bestRating": "5"
+              },
+              "reviewBody": "Yo Royal Layered Drape Pearl Cape ko quality dherai nai ramro cha. WhatsApp ma quick reply aayo, polite team. Dherai man poryo!"
+            }
+          ]
+        },
+        {
+          "@type": "Product",
+          "@id": "https://www.artified.com.np/#product-classic-cape",
+          "name": "Classic Woven Collar Pearl Cape",
+          "image": "https://www.artified.com.np/products/classic-woven-collar-pearl-cape_0.jpg",
+          "description": "Architectural grid-woven pearl cape collar with graduated fringed drops handcrafted in Kathmandu.",
+          "brand": {
+            "@type": "Brand",
+            "name": "Artified Nepal"
+          },
+          "category": "Pearl Necklaces",
+          "offers": {
+            "@type": "Offer",
+            "url": "https://www.artified.com.np/pearl-necklaces",
+            "priceCurrency": "NPR",
+            "price": "3500",
+            "priceValidUntil": "2027-12-31",
+            "itemCondition": "https://schema.org/NewCondition",
+            "availability": "https://schema.org/InStock",
+            "seller": {
+              "@type": "Organization",
+              "name": "Artified Nepal"
+            }
+          },
+          "aggregateRating": {
+            "@type": "AggregateRating",
+            "ratingValue": "5.0",
+            "reviewCount": "1",
+            "bestRating": "5",
+            "worstRating": "1"
+          },
+          "review": [
+            {
+              "@type": "Review",
+              "author": {
+                "@type": "Person",
+                "name": "Aashika Gurung"
+              },
+              "datePublished": "2026-10-28",
+              "reviewRating": {
+                "@type": "Rating",
+                "ratingValue": "5.0",
+                "bestRating": "5"
+              },
+              "reviewBody": "Yo Classic Woven Collar Pearl Cape sits so neatly on the shoulders! Graduated pearl border looks super royal and finishing ekdamai clean cha."
+            }
+          ]
+        },
+        {
+          "@type": "Product",
+          "@id": "https://www.artified.com.np/#product-caviar-bag",
+          "name": "Caviar Pearl Bag",
+          "image": "https://www.artified.com.np/products/apsara-layered-pearl-collar_0.jpg",
+          "description": "Versatile top-handle pearl beaded bag with satin interior lining offering timeless elegance for day and night in Nepal.",
+          "brand": {
+            "@type": "Brand",
+            "name": "Artified Nepal"
+          },
+          "category": "Pearl Bags",
+          "offers": {
+            "@type": "Offer",
+            "url": "https://www.artified.com.np/pearl-bags",
+            "priceCurrency": "NPR",
+            "price": "3000",
+            "priceValidUntil": "2027-12-31",
+            "itemCondition": "https://schema.org/NewCondition",
+            "availability": "https://schema.org/InStock",
+            "seller": {
+              "@type": "Organization",
+              "name": "Artified Nepal"
+            }
+          },
+          "aggregateRating": {
+            "@type": "AggregateRating",
+            "ratingValue": "4.8",
+            "reviewCount": "15",
+            "bestRating": "5",
+            "worstRating": "1"
+          },
+          "review": [
+            {
+              "@type": "Review",
+              "author": {
+                "@type": "Person",
+                "name": "Subeksha Tuladhar"
+              },
+              "datePublished": "2026-10-27",
+              "reviewRating": {
+                "@type": "Rating",
+                "ratingValue": "5.0",
+                "bestRating": "5"
+              },
+              "reviewBody": "Yo Caviar Pearl Bag ekdamai ramro cha! Phone, lipstick ra cardholder sabai majale atyo. Handbag ko top handle pani dherai strong ra neat cha."
+            }
+          ]
+        },
+        {
+          "@type": "Product",
+          "@id": "https://www.artified.com.np/#product-chandra-choker",
+          "name": "Chandra Baroque Pearl Choker",
+          "image": "https://www.artified.com.np/products/chandra-baroque-pearl-choker_0.jpg",
+          "description": "Luminous freshwater baroque pearl choker with adjustable gold finish clasp, handcrafted in Kathmandu.",
+          "brand": {
+            "@type": "Brand",
+            "name": "Artified Nepal"
+          },
+          "category": "Pearl Necklaces",
+          "offers": {
+            "@type": "Offer",
+            "url": "https://www.artified.com.np/pearl-necklaces",
+            "priceCurrency": "NPR",
+            "price": "2200",
+            "priceValidUntil": "2027-12-31",
+            "itemCondition": "https://schema.org/NewCondition",
+            "availability": "https://schema.org/InStock",
+            "seller": {
+              "@type": "Organization",
+              "name": "Artified Nepal"
+            }
+          },
+          "aggregateRating": {
+            "@type": "AggregateRating",
+            "ratingValue": "4.8",
+            "reviewCount": "3",
+            "bestRating": "5",
+            "worstRating": "1"
+          },
+          "review": [
+            {
+              "@type": "Review",
+              "author": {
+                "@type": "Person",
+                "name": "Pooja Shakya"
+              },
+              "datePublished": "2026-10-28",
+              "reviewRating": {
+                "@type": "Rating",
+                "ratingValue": "5.0",
+                "bestRating": "5"
+              },
+              "reviewBody": "Baroque pearls ko natural shine ekdam babal cha! Back side ma extension chain bhako le neck ma fit garna sajilo bhayo."
+            }
+          ]
         }
       ]
     }

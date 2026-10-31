@@ -26,17 +26,23 @@ async function run() {
 
   fs.writeFileSync(sitemapOutputPath, xml, 'utf-8');
 
+  // Also write to dist/sitemap.xml if dist directory exists
+  const distSitemapPath = path.resolve(rootDir, 'dist/sitemap.xml');
+  if (fs.existsSync(path.resolve(rootDir, 'dist'))) {
+    fs.writeFileSync(distSitemapPath, xml, 'utf-8');
+  }
+
   // Also ensure public/products.json is synced for static hosting (e.g. GitHub Pages)
   const publicProductsPath = path.resolve(rootDir, 'public/products.json');
   fs.writeFileSync(publicProductsPath, raw, 'utf-8');
 
   console.log(`✅ [Sitemap Generator] Successfully generated ${sitemapOutputPath}!`);
   console.log(`📊 Indexed:`);
-  console.log(`   - 1 Storefront Homepage`);
-  console.log(`   - 7 Curated Collection Pages`);
-  console.log(`   - 3 Atelier & Review Sections`);
+  console.log(`   - 1 Storefront Homepage (/)`);
+  console.log(`   - 4 Clean Static Landing Pages (/pearl-bags, /pearl-necklaces, /macrame, /workshops)`);
+  console.log(`   - 3 Atelier & Review Sections (#meet-artisan, #customer-reviews, #instagram-journal)`);
   console.log(`   - ${products.length} Individual Handcrafted Products with Google Image metadata`);
-  console.log(`   - Total URLs: ${1 + 7 + 3 + products.length}`);
+  console.log(`   - Total Clean URLs: ${1 + 4 + 3 + products.length}`);
 }
 
 run().catch((err) => {

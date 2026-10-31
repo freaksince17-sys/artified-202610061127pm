@@ -7,14 +7,20 @@ export interface SitemapCategory {
   priority: number;
 }
 
-export const SITEMAP_COLLECTIONS: SitemapCategory[] = [
-  { id: 'all', label: 'All Handcrafted Creations', changefreq: 'daily', priority: 0.9 },
-  { id: 'pearl-bags', label: 'Handcrafted Pearl Bags', changefreq: 'daily', priority: 0.9 },
-  { id: 'pearl-necklaces', label: 'Handcrafted Pearl Necklaces & Chokers', changefreq: 'daily', priority: 0.9 },
-  { id: 'macrame', label: 'Sustainable Macrame Accessories', changefreq: 'daily', priority: 0.9 },
-  { id: 'accessories', label: 'Artisan Accessories & Bracelets', changefreq: 'daily', priority: 0.8 },
-  { id: 'new-arrivals', label: 'New Arrivals', changefreq: 'daily', priority: 0.8 },
-  { id: 'best-sellers', label: 'Bestselling Creations', changefreq: 'daily', priority: 0.8 },
+export interface SitemapCategory {
+  id: string;
+  path: string;
+  label: string;
+  changefreq: 'daily' | 'weekly' | 'monthly';
+  priority: number;
+}
+
+export const SITEMAP_STATIC_ROUTES: SitemapCategory[] = [
+  { id: 'home', path: '/', label: 'Storefront Homepage', changefreq: 'daily', priority: 1.0 },
+  { id: 'pearl-bags', path: '/pearl-bags', label: 'Handcrafted Pearl Bags Nepal', changefreq: 'daily', priority: 0.9 },
+  { id: 'pearl-necklaces', path: '/pearl-necklaces', label: 'Handcrafted Pearl Necklaces & Capes Nepal', changefreq: 'daily', priority: 0.9 },
+  { id: 'macrame', path: '/macrame', label: 'Sustainable Macrame Accessories Nepal', changefreq: 'daily', priority: 0.9 },
+  { id: 'workshops', path: '/workshops', label: 'Artisan Beading & Macrame Workshops Kathmandu', changefreq: 'weekly', priority: 0.9 },
 ];
 
 /**
@@ -58,35 +64,27 @@ export function generateSitemapXml(
     '        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1"',
     '        xmlns:xhtml="http://www.w3.org/1999/xhtml">',
     '',
-    '  <!-- 1. Primary Storefront Homepage -->',
-    '  <url>',
-    `    <loc>${baseUrl}/</loc>`,
-    `    <lastmod>${today}</lastmod>`,
-    '    <changefreq>daily</changefreq>',
-    '    <priority>1.0</priority>',
-    '  </url>',
-    '',
-    '  <!-- 2. Curated Product Collections / Categories -->',
+    '  <!-- 1. Primary Clean URLs & Landings -->',
   ];
 
-  // Collection pages
-  for (const cat of SITEMAP_COLLECTIONS) {
+  // Static clean canonical routes
+  for (const route of SITEMAP_STATIC_ROUTES) {
+    const loc = route.path === '/' ? `${baseUrl}/` : `${baseUrl}${route.path}`;
     lines.push('  <url>');
-    lines.push(`    <loc>${baseUrl}/?category=${encodeURIComponent(cat.id)}</loc>`);
+    lines.push(`    <loc>${loc}</loc>`);
     lines.push(`    <lastmod>${today}</lastmod>`);
-    lines.push(`    <changefreq>${cat.changefreq}</changefreq>`);
-    lines.push(`    <priority>${cat.priority.toFixed(1)}</priority>`);
+    lines.push(`    <changefreq>${route.changefreq}</changefreq>`);
+    lines.push(`    <priority>${route.priority.toFixed(1)}</priority>`);
     lines.push('  </url>');
   }
 
-  // Key atelier and customer sections
+  // Key atelier and brand story sections
   lines.push('');
-  lines.push('  <!-- 3. Key Brand Story & Customer Care Sections -->');
+  lines.push('  <!-- 2. Atelier Brand Story & Customer Care -->');
   const sections = [
-    { hash: '#meet-artisan', priority: 0.7 },
-    { hash: '#customer-reviews', priority: 0.7 },
+    { hash: '#meet-artisan', priority: 0.8 },
+    { hash: '#customer-reviews', priority: 0.8 },
     { hash: '#instagram-journal', priority: 0.7 },
-    { hash: '#workshops', priority: 0.8 },
   ];
   for (const s of sections) {
     lines.push('  <url>');
@@ -98,11 +96,20 @@ export function generateSitemapXml(
   }
 
   lines.push('');
-  lines.push('  <!-- 4. Individual Handcrafted Products (With Google Image Metadata) -->');
+  lines.push('  <!-- 3. Individual Handcrafted Products (With Google Image Metadata) -->');
 
   // Individual products
   for (const product of products) {
-    const productUrl = `${baseUrl}/?product=${encodeURIComponent(product.id)}`;
+    // Route to category page or query parameter
+    let productUrl = `${baseUrl}/?product=${encodeURIComponent(product.id)}`;
+    if (product.category === 'pearl-bags') {
+      productUrl = `${baseUrl}/pearl-bags?product=${encodeURIComponent(product.id)}`;
+    } else if (product.category === 'pearl-necklaces') {
+      productUrl = `${baseUrl}/pearl-necklaces?product=${encodeURIComponent(product.id)}`;
+    } else if (product.category === 'macrame') {
+      productUrl = `${baseUrl}/macrame?product=${encodeURIComponent(product.id)}`;
+    }
+
     const productTitle = escapeXml(product.title);
     const productDesc = escapeXml(product.description || product.subtitle || 'Handcrafted pearl and macrame creation in Nepal');
     const primaryImgUrl = resolveProductImageUrl(product.images?.[0], baseUrl);
@@ -139,3 +146,4 @@ export function generateSitemapXml(
 
   return lines.join('\n');
 }
+

@@ -3906,7 +3906,12 @@ Do NOT use the words "masterclass", "cohort", or "atelier". Return ONLY valid JS
     // Only intercept for external crawler bots requesting social cards
     if (isBot) {
       try {
-        const indexPath = path.resolve(process.cwd(), isProd ? 'dist/index.html' : 'index.html');
+        const cleanPath = req.path.toLowerCase().replace(/\/+$/, '').replace(/^\//, '');
+        const specificRoutePath = cleanPath ? path.resolve(process.cwd(), `dist/${cleanPath}/index.html`) : null;
+        const indexPath = (specificRoutePath && fs.existsSync(specificRoutePath))
+          ? specificRoutePath
+          : path.resolve(process.cwd(), isProd ? 'dist/index.html' : 'index.html');
+
         if (fs.existsSync(indexPath)) {
           let html = fs.readFileSync(indexPath, 'utf-8');
           const proto = req.headers['x-forwarded-proto'] || req.protocol || 'https';

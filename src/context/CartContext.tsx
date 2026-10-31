@@ -314,6 +314,55 @@ const sanitizeProduct = (prod: Product): Product => {
   };
 };
 
+/**
+ * Parses initial URL path or query params for clean URLs:
+ * /pearl-bags, /pearl-necklaces, /macrame, /workshops, /accessories
+ */
+export const getInitialRouteState = (): { navTab: AppNavTab; category: string } => {
+  if (typeof window === 'undefined') {
+    return { navTab: 'home', category: 'all' };
+  }
+  const rawPath = window.location.pathname.toLowerCase().replace(/\/+$/, '') || '/';
+  const params = new URLSearchParams(window.location.search);
+  const hash = (window.location.hash || '').replace('#', '').toLowerCase();
+
+  // 1. Direct clean URL routing:
+  if (rawPath === '/workshops') {
+    return { navTab: 'workshops', category: 'all' };
+  }
+  if (rawPath === '/pearl-bags') {
+    return { navTab: 'home', category: 'pearl-bags' };
+  }
+  if (rawPath === '/pearl-necklaces') {
+    return { navTab: 'home', category: 'pearl-necklaces' };
+  }
+  if (rawPath === '/macrame') {
+    return { navTab: 'home', category: 'macrame' };
+  }
+  if (rawPath === '/accessories') {
+    return { navTab: 'home', category: 'accessories' };
+  }
+
+  // 2. Query parameter and hash routing fallbacks:
+  const tabParam = params.get('tab') || params.get('section');
+  if (tabParam && ['home', 'artisan', 'workshops', 'tiktok', 'journal', 'track', 'orders'].includes(tabParam)) {
+    return { navTab: tabParam as AppNavTab, category: params.get('category') || 'all' };
+  }
+  if (hash && ['home', 'artisan', 'workshops', 'tiktok', 'journal', 'track', 'orders'].includes(hash)) {
+    return { navTab: hash as AppNavTab, category: 'all' };
+  }
+  if (hash === 'meet-artisan') {
+    return { navTab: 'artisan', category: 'all' };
+  }
+
+  const catParam = params.get('category') || params.get('cat');
+  if (catParam) {
+    return { navTab: 'home', category: catParam };
+  }
+
+  return { navTab: 'home', category: 'all' };
+};
+
 export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [cart, setCart] = useState<CartItem[]>(() => {
     try {
@@ -351,7 +400,13 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null);
   const [activeReel, setActiveReel] = useState<TikTokReel | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedCategory, setSelectedCategory] = useState<string>(() => {
+    try {
+      return getInitialRouteState().category;
+    } catch {
+      return 'all';
+    }
+  });
   const [sortBy, setSortBy] = useState<SortOption>('newest');
   const [completedOrder, setCompletedOrderState] = useState<OrderDetails | null>(null);
 
@@ -1144,23 +1199,70 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
   const [isCraftStoryModalOpen, setIsCraftStoryModalOpen] = useState<boolean>(false);
 
-  // Main Application Multi-Tab Horizontal Navigation
+  // Main Application Multi-Tab Horizontal Navigation with clean URL routing
   const [activeNavTab, setActiveNavTab] = useState<AppNavTab>(() => {
     try {
-      if (typeof window !== 'undefined') {
-        const params = new URLSearchParams(window.location.search);
-        const tab = params.get('tab') || params.get('section');
-        if (tab && ['home', 'artisan', 'workshops', 'tiktok', 'journal', 'track', 'orders'].includes(tab)) {
-          return tab as AppNavTab;
-        }
-        const hash = window.location.hash.replace('#', '').toLowerCase();
-        if (hash && ['home', 'artisan', 'workshops', 'tiktok', 'journal', 'track', 'orders'].includes(hash)) {
-          return hash as AppNavTab;
-        }
-      }
-    } catch {}
-    return 'home';
+      return getInitialRouteState().navTab;
+    } catch {
+      return 'home';
+    }
   });
+
+  // Synchronize browser URL pathname and document title with activeNavTab and selectedCategory smoothly without reloading
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    let targetPath = '/';
+    let targetTitle = 'Artified_np | Handcrafted Elegance & Wearable Art Nepal';
+
+    if (activeNavTab === 'workshops') {
+      targetPath = '/workshops';
+      targetTitle = 'Workshops & Training Gallery | Artified Nepal';
+    } else if (activeNavTab === 'home') {
+      if (selectedCategory === 'pearl-bags') {
+        targetPath = '/pearl-bags';
+        targetTitle = 'Handcrafted Pearl Bags | Artified Nepal';
+      } else if (selectedCategory === 'pearl-necklaces') {
+        targetPath = '/pearl-necklaces';
+        targetTitle = 'Handmade Pearl Necklaces & Pearl Capes | Artified Nepal';
+      } else if (selectedCategory === 'macrame') {
+        targetPath = '/macrame';
+        targetTitle = 'Sustainable Macrame Accessories | Artified Nepal';
+      } else if (selectedCategory === 'accessories') {
+        targetPath = '/accessories';
+        targetTitle = 'Artisan Accessories | Artified Nepal';
+      } else {
+        targetPath = '/';
+      }
+    } else if (activeNavTab === 'artisan') {
+      targetTitle = 'Meet the Founder & Creator • Sahina Shrestha | Artified Nepal';
+    } else if (activeNavTab === 'tiktok') {
+      targetTitle = 'As Seen on TikTok (@artified_np) | Artified Nepal';
+    } else if (activeNavTab === 'journal') {
+      targetTitle = 'Follow on Instagram (@artified_np) | Artified Nepal';
+    } else if (activeNavTab === 'track') {
+      targetTitle = 'Track Your Order | Artified Nepal';
+    }
+
+    const currentPath = window.location.pathname.toLowerCase().replace(/\/+$/, '') || '/';
+    const isCleanRoute = ['/pearl-bags', '/pearl-necklaces', '/macrame', '/workshops', '/accessories'].includes(currentPath);
+    if (currentPath !== targetPath && (targetPath !== '/' || isCleanRoute)) {
+      window.history.pushState({ navTab: activeNavTab, category: selectedCategory }, '', targetPath);
+    }
+    document.title = targetTitle;
+  }, [activeNavTab, selectedCategory]);
+
+  // Handle browser Back / Forward buttons (popstate)
+  useEffect(() => {
+    const handlePopState = () => {
+      const { navTab, category } = getInitialRouteState();
+      setActiveNavTab(navTab);
+      setSelectedCategory(category);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   // Social Media Showcase Tab State ('tiktok' | 'journal')
   const [activeSocialTab, setActiveSocialTab] = useState<'tiktok' | 'journal'>('tiktok');
