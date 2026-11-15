@@ -13,9 +13,38 @@
     <link rel="icon" href="/favicon.ico" sizes="48x48" />
     <link rel="icon" type="image/svg+xml" href="/artified-favicon.svg" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <!-- Apple iOS Safari & PWA Integration -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Artified Nepal" />
+    <meta name="apple-itunes-app" property="apple-itunes-app" content="app-id=6740000000, app-clip-bundle-id=np.com.artified.pwa, app-argument=https://www.artified.com.np/" />
+    <meta name="ga-measurement-id" content="%VITE_GA_MEASUREMENT_ID%" />
     <link rel="manifest" href="/site.webmanifest" />
     <link rel="canonical" href="https://www.artified.com.np/" />
     <meta name="description" content="Handcrafted Elegance & Wearable Art. Handmade pearl bags, pearl necklaces, and macrame accessories in Nepal." />
+
+    <!-- Google Analytics 4 (GA4) -->
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){window.dataLayer.push(arguments);}
+      gtag('js', new Date());
+      (function() {
+        try {
+          var metaEl = document.querySelector('meta[name="ga-measurement-id"]');
+          var metaId = metaEl ? (metaEl.getAttribute('content') || '').trim() : '';
+          var storedId = '';
+          try { storedId = (localStorage.getItem('artified_ga_measurement_id') || '').trim(); } catch (e) {}
+          var gaId = /^G-[A-Z0-9]+$/i.test(metaId) ? metaId : (/^G-[A-Z0-9]+$/i.test(storedId) ? storedId : '');
+          if (gaId) {
+            var s = document.createElement('script');
+            s.async = true;
+            s.src = 'https://www.googletagmanager.com/gtag/js?id=' + encodeURIComponent(gaId);
+            document.head.appendChild(s);
+            gtag('config', gaId, { send_page_view: false });
+          }
+        } catch (e) {}
+      })();
+    </script>
     
     <!-- SPA Redirect URL Restoration for GitHub Pages Static Hosting -->
     <script>
@@ -371,14 +400,14 @@
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
-      "@type": ["OnlineStore", "ClothingStore", "Organization"],
-      "@id": "https://www.artified.com.np/#organization",
+      "@type": ["LocalBusiness", "JewelryStore", "OnlineStore", "ClothingStore", "Organization"],
+      "@id": "https://www.artified.com.np/#local-business",
       "name": "Artified Nepal",
       "alternateName": ["Artified_np", "artified_np", "Artified"],
       "url": "https://www.artified.com.np",
       "logo": "https://www.artified.com.np/favicon-192x192.png",
       "image": "https://www.artified.com.np/og-image.jpg",
-      "description": "Handcrafted pearl evening bags, freshwater baroque chokers, and macrame creations woven with patient mastery in Kathmandu, Nepal.",
+      "description": "Handcrafted pearl evening bags, pearl necklaces, freshwater baroque chokers, pearl capes, and macrame creations woven with patient mastery in Kathmandu, Nepal.",
       "telephone": "+9779767573721",
       "priceRange": "NPR 1,200 - NPR 4,500",
       "address": {
@@ -394,6 +423,12 @@
         "latitude": 27.70076,
         "longitude": 85.30820
       },
+      "areaServed": [
+        { "@type": "City", "name": "Kathmandu" },
+        { "@type": "City", "name": "Lalitpur" },
+        { "@type": "City", "name": "Bhaktapur" },
+        { "@type": "Country", "name": "Nepal" }
+      ],
       "founder": {
         "@type": "Person",
         "name": "Sahina Shrestha"

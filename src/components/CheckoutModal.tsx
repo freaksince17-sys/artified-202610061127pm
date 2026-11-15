@@ -268,7 +268,7 @@ export const CheckoutModal: React.FC = () => {
     // 2. Build tracked order and save to tracking storage + Firestore + Seller Studio (await cloud sync with 3.5s max bound)
     const trackedOrder = buildTrackedOrderFromOrderDetails(order);
     await Promise.race([
-      saveTrackedOrder(trackedOrder),
+      saveTrackedOrder(trackedOrder, { skipSalesTracking: true }),
       new Promise((resolve) => setTimeout(resolve, 3500))
     ]);
 

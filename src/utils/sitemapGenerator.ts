@@ -2,13 +2,6 @@ import { Product } from '../types';
 
 export interface SitemapCategory {
   id: string;
-  label: string;
-  changefreq: 'daily' | 'weekly' | 'monthly';
-  priority: number;
-}
-
-export interface SitemapCategory {
-  id: string;
   path: string;
   label: string;
   changefreq: 'daily' | 'weekly' | 'monthly';
@@ -38,14 +31,16 @@ function escapeXml(unsafe: string): string {
 /**
  * Resolves a full absolute URL for an image (handles base64 or relative images safely for Googlebot)
  */
-function resolveProductImageUrl(img?: string, baseUrl = 'https://www.artified.com.np'): string {
-  if (!img) return `${baseUrl}/og-image.jpg`;
+function resolveProductImageUrl(
+  img: string | undefined,
+  productId: string,
+  baseUrl = 'https://www.artified.com.np'
+): string {
+  if (!img || img.startsWith('data:')) {
+    return `${baseUrl}/og/products/${encodeURIComponent(productId)}.jpg`;
+  }
   if (img.startsWith('http://') || img.startsWith('https://')) return img;
   if (img.startsWith('/')) return `${baseUrl}${img}`;
-  if (img.startsWith('data:')) {
-    // Search engine crawlers require a reachable HTTP URL for Google Image indexing
-    return `${baseUrl}/og-image.jpg`;
-  }
   return `${baseUrl}/${img}`;
 }
 
@@ -61,10 +56,9 @@ export function generateSitemapXml(
   const lines: string[] = [
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"',
-    '        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1"',
-    '        xmlns:xhtml="http://www.w3.org/1999/xhtml">',
+    '        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">',
     '',
-    '  <!-- 1. Primary Clean URLs & Landings -->',
+    '  <!-- 1. Primary Clean URLs & Category Landing Pages -->',
   ];
 
   // Static clean canonical routes
@@ -78,41 +72,17 @@ export function generateSitemapXml(
     lines.push('  </url>');
   }
 
-  // Key atelier and brand story sections
   lines.push('');
-  lines.push('  <!-- 2. Atelier Brand Story & Customer Care -->');
-  const sections = [
-    { hash: '#meet-artisan', priority: 0.8 },
-    { hash: '#customer-reviews', priority: 0.8 },
-    { hash: '#instagram-journal', priority: 0.7 },
-  ];
-  for (const s of sections) {
-    lines.push('  <url>');
-    lines.push(`    <loc>${baseUrl}/${s.hash}</loc>`);
-    lines.push(`    <lastmod>${today}</lastmod>`);
-    lines.push('    <changefreq>weekly</changefreq>');
-    lines.push(`    <priority>${s.priority.toFixed(1)}</priority>`);
-    lines.push('  </url>');
-  }
-
-  lines.push('');
-  lines.push('  <!-- 3. Individual Handcrafted Products (With Google Image Metadata) -->');
+  lines.push('  <!-- 2. Individual Handcrafted Products (Canonical URLs + Google Image Metadata) -->');
 
   // Individual products
   for (const product of products) {
-    // Route to category page or query parameter
-    let productUrl = `${baseUrl}/?product=${encodeURIComponent(product.id)}`;
-    if (product.category === 'pearl-bags') {
-      productUrl = `${baseUrl}/pearl-bags?product=${encodeURIComponent(product.id)}`;
-    } else if (product.category === 'pearl-necklaces') {
-      productUrl = `${baseUrl}/pearl-necklaces?product=${encodeURIComponent(product.id)}`;
-    } else if (product.category === 'macrame') {
-      productUrl = `${baseUrl}/macrame?product=${encodeURIComponent(product.id)}`;
-    }
-
+    const productUrl = `${baseUrl}/product/${encodeURIComponent(product.id)}/`;
     const productTitle = escapeXml(product.title);
-    const productDesc = escapeXml(product.description || product.subtitle || 'Handcrafted pearl and macrame creation in Nepal');
-    const primaryImgUrl = resolveProductImageUrl(product.images?.[0], baseUrl);
+    const productDesc = escapeXml(
+      product.description || product.subtitle || 'Handcrafted pearl and macrame creation in Kathmandu, Nepal'
+    );
+    const primaryImgUrl = resolveProductImageUrl(product.images?.[0], product.id, baseUrl);
 
     lines.push('  <url>');
     lines.push(`    <loc>${productUrl}</loc>`);
@@ -131,7 +101,7 @@ export function generateSitemapXml(
         const extraImg = product.images[i];
         if (extraImg && !extraImg.startsWith('data:')) {
           lines.push('    <image:image>');
-          lines.push(`      <image:loc>${escapeXml(resolveProductImageUrl(extraImg, baseUrl))}</image:loc>`);
+          lines.push(`      <image:loc>${escapeXml(resolveProductImageUrl(extraImg, product.id, baseUrl))}</image:loc>`);
           lines.push(`      <image:title>${productTitle} - Angle ${i + 1}</image:title>`);
           lines.push('    </image:image>');
         }

@@ -28,5 +28,10 @@
   "theme_color": "#FAF8F5",
   "background_color": "#FAF8F5",
   "display": "standalone",
+  "display_override": [
+    "window-controls-overlay",
+    "standalone",
+    "minimal-ui"
+  ],
   "start_url": "/"
 }

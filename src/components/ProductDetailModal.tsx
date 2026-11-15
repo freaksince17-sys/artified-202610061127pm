@@ -26,7 +26,8 @@ import {
   Ruler,
   Bell,
   RefreshCw,
-  Trash2
+  Trash2,
+  Download
 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { calculateTotalSold, isProductBestSeller, calculateReviewsCount, getProductReviews, calculateTotalTimeEstimate } from '../utils/productStats';
@@ -37,6 +38,12 @@ import { isProductWaitlisted } from '../utils/waitlistService';
 import { submitProductReviewToFirestore, subscribeToProductReviews, FirestoreProductReview } from '../services/reviewService';
 import { getRealProductImage, CAVIAR_PEARL_BAG_IMAGE } from '../utils/productImages';
 import { applyProductSeo } from '../utils/productSeo';
+import {
+  generateProductOgImageDataUrl,
+  generateProductOgImageFile,
+  getProductShareUrl
+} from '../utils/ogImageGenerator';
+import { LocalBusinessSchema } from '../utils/LocalBusinessSchema';
 
 export const ProductDetailModal: React.FC = () => {
   const { 
@@ -90,6 +97,8 @@ export const ProductDetailModal: React.FC = () => {
   const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
   const [shareCopied, setShareCopied] = useState(false);
   const [showStoryModal, setShowStoryModal] = useState(false);
+  const [ogCardPreviewUrl, setOgCardPreviewUrl] = useState<string | null>(null);
+  const [isGeneratingOgCard, setIsGeneratingOgCard] = useState(false);
   const [isNotifyModalOpen, setIsNotifyModalOpen] = useState(false);
   const [waitlistRefreshKey, setWaitlistRefreshKey] = useState(0);
 
@@ -128,24 +137,59 @@ export const ProductDetailModal: React.FC = () => {
   const isOutOfStock = quickViewProduct ? (quickViewProduct.inStock === false || (typeof quickViewProduct.stockCount === 'number' && quickViewProduct.stockCount <= 0)) : false;
   const isWaitlisted = quickViewProduct ? isProductWaitlisted(quickViewProduct.id) : false;
 
+  // Auto-generate 1200x630 OpenGraph preview card whenever Social Share Assistant opens
+  useEffect(() => {
+    let active = true;
+    if (!showStoryModal || !quickViewProduct) {
+      setOgCardPreviewUrl(null);
+      return;
+    }
+    setIsGeneratingOgCard(true);
+    generateProductOgImageDataUrl(quickViewProduct)
+      .then((url) => {
+        if (active) setOgCardPreviewUrl(url);
+      })
+      .finally(() => {
+        if (active) setIsGeneratingOgCard(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [showStoryModal, quickViewProduct]);
+
   // Social Share Handlers
+  const getActiveShareUrl = () => {
+    if (!quickViewProduct) return window.location.href;
+    return getProductShareUrl(quickViewProduct, window.location.origin);
+  };
+
   const handleShareWhatsApp = () => {
     if (!quickViewProduct) return;
-    const shareUrl = window.location.href;
-    const text = `Look at this stunning handmade ${quickViewProduct.title} from Artified Nepal! ✨\nPrice: NPR ${quickViewProduct.price.toLocaleString()}\nHandcrafted with pearls in Kathmandu, Nepal 🌸\nTake a look: ${shareUrl}`;
+    const shareUrl = getActiveShareUrl();
+    const text = `Look at this stunning handmade ${quickViewProduct.title} from Artified Nepal! ✨\nPrice: NPR ${quickViewProduct.price.toLocaleString()}\nHandcrafted with pearls in Kathmandu, Nepal 🌸\nBuy Now: ${shareUrl}`;
     const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
     window.open(url, '_blank');
   };
 
   const handleShareInstagramStory = async () => {
     if (!quickViewProduct) return;
-    const shareUrl = window.location.href;
+    const shareUrl = getActiveShareUrl();
     const shareTitle = `${quickViewProduct.title} | Artified Nepal`;
-    const shareText = `Adoring this handmade ${quickViewProduct.title} by @artified_np ✨ Price: NPR ${quickViewProduct.price.toLocaleString()} • Handcrafted in Kathmandu: ${shareUrl}`;
+    const shareText = `Adoring this handmade ${quickViewProduct.title} by @artified_np ✨ NPR ${quickViewProduct.price.toLocaleString()} • Buy Now: ${shareUrl}`;
 
-    // On mobile devices with native share support
+    // On mobile devices with native share support (attach generated Buy Now OG image card when supported)
     if (navigator.share) {
       try {
+        const ogFile = await generateProductOgImageFile(quickViewProduct);
+        if (ogFile && navigator.canShare && navigator.canShare({ files: [ogFile] })) {
+          await navigator.share({
+            title: shareTitle,
+            text: shareText,
+            url: shareUrl,
+            files: [ogFile],
+          });
+          return;
+        }
         await navigator.share({
           title: shareTitle,
           text: shareText,
@@ -153,17 +197,30 @@ export const ProductDetailModal: React.FC = () => {
         });
         return;
       } catch {
-        // User cancelled or fallback
+        // User cancelled or fallback to assistant card
       }
     }
 
-    // Open Instagram Story helper card
+    // Open Instagram / TikTok Social Share Assistant card
     setShowStoryModal(true);
   };
 
+  const handleDownloadOgCard = async () => {
+    if (!quickViewProduct) return;
+    const url = ogCardPreviewUrl || (await generateProductOgImageDataUrl(quickViewProduct));
+    const link = document.createElement('a');
+    link.href = url;
+    const safeSlug = quickViewProduct.id.replace(/[^a-z0-9-_]/gi, '-').toLowerCase();
+    link.download = `artified-${safeSlug}-buy-now-card.jpg`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const handleCopyProductLink = () => {
+    const shareUrl = getActiveShareUrl();
     try {
-      navigator.clipboard.writeText(window.location.href);
+      navigator.clipboard.writeText(shareUrl);
       setShareCopied(true);
       setTimeout(() => setShareCopied(false), 2500);
     } catch {
@@ -460,6 +517,11 @@ export const ProductDetailModal: React.FC = () => {
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-3 sm:p-4 md:p-6 animate-fade-in">
+      <LocalBusinessSchema
+        product={product}
+        renderInline
+        scriptId="artified-product-local-business-jsonld"
+      />
       {/* Backdrop */}
       <div 
         className="fixed inset-0 bg-[#1C1B1A]/60 backdrop-blur-xs transition-opacity"
@@ -1016,6 +1078,17 @@ export const ProductDetailModal: React.FC = () => {
                 <div className="flex items-center justify-end gap-3 pt-2 border-t border-[#E8DFD8] text-[11px] text-[#736C65]">
                   <button
                     type="button"
+                    onClick={() => setShowStoryModal(true)}
+                    className="hover:text-[#1C1B1A] flex items-center gap-1 font-medium transition-colors cursor-pointer"
+                  >
+                    <Instagram className="w-3.5 h-3.5 text-[#E1306C]" />
+                    <span>IG / TikTok Card</span>
+                  </button>
+
+                  <span className="text-[#D8CFCA]">•</span>
+
+                  <button
+                    type="button"
                     onClick={handleCopyProductLink}
                     className="hover:text-[#1C1B1A] flex items-center gap-1 font-medium transition-colors cursor-pointer"
                   >
@@ -1027,7 +1100,7 @@ export const ProductDetailModal: React.FC = () => {
                     ) : (
                       <>
                         <Share2 className="w-3.5 h-3.5 text-[#C5A880]" />
-                        <span>Share Piece</span>
+                        <span>Copy Share Link</span>
                       </>
                     )}
                   </button>
@@ -1360,14 +1433,14 @@ export const ProductDetailModal: React.FC = () => {
       </div>
         </div>
 
-      {/* Instagram Story Share Assistant Modal */}
+      {/* Instagram & TikTok OpenGraph Share Assistant Modal */}
       {showStoryModal && product && (
         <div 
           className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200"
           onClick={() => setShowStoryModal(false)}
         >
           <div 
-            className="relative w-full max-w-sm rounded-3xl bg-[#1C1B1A] border-2 border-[#D4AF37]/50 p-5 sm:p-6 text-white shadow-2xl space-y-3.5"
+            className="relative w-full max-w-md rounded-3xl bg-[#1C1B1A] border-2 border-[#D4AF37]/50 p-5 sm:p-6 text-white shadow-2xl space-y-3.5"
             onClick={(e) => e.stopPropagation()}
           >
             <button
@@ -1380,44 +1453,27 @@ export const ProductDetailModal: React.FC = () => {
 
             <div className="flex items-center gap-2 text-xs text-[#D4AF37] font-bold uppercase tracking-wider">
               <Instagram className="w-4 h-4 text-[#E1306C]" />
-              <span>Share to Instagram Story</span>
+              <span>Social Preview Card (Instagram &amp; TikTok)</span>
             </div>
 
-            {/* Simulated Story Card Preview */}
-            <div className="relative aspect-[9/12] w-full rounded-2xl overflow-hidden border border-[#D4AF37]/40 bg-gradient-to-b from-[#282420] via-[#1E1C1A] to-[#151413] flex flex-col justify-between p-4 shadow-inner">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold tracking-widest text-[#D4AF37] uppercase bg-black/60 px-2 py-0.5 rounded-full border border-[#D4AF37]/30">
-                  @artified_np
-                </span>
-                <span className="text-[9px] text-[#C5A880] font-semibold bg-white/10 px-2 py-0.5 rounded-full">
-                  Kathmandu Atelier
-                </span>
+            {/* Auto-Generated 1200x630 OpenGraph Preview Card (Product Name + Buy Now CTA) */}
+            <div className="space-y-1.5">
+              <div className="relative aspect-[1200/630] w-full rounded-xl overflow-hidden border border-[#D4AF37]/40 bg-[#FAF8F5] flex items-center justify-center shadow-inner">
+                {ogCardPreviewUrl ? (
+                  <img
+                    src={ogCardPreviewUrl}
+                    alt={`${product.title} — Buy Now OpenGraph preview`}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="text-center p-4 text-xs text-[#5C534B] font-medium">
+                    {isGeneratingOgCard ? 'Generating OpenGraph preview card...' : `${product.title} — Buy Now`}
+                  </div>
+                )}
               </div>
-
-              <div className="my-auto text-center py-2 space-y-1.5">
-                <img
-                  src={product.images[0] || modalFallback}
-                  alt={product.title}
-                  loading="lazy"
-                  decoding="async"
-                  className="w-24 h-24 sm:w-28 sm:h-28 object-cover rounded-xl mx-auto shadow-md border border-[#E8DFD8]/20"
-                />
-                <h4 className="font-serif text-sm sm:text-base font-bold text-white leading-tight">
-                  {product.title}
-                </h4>
-                <p className="text-xs font-mono text-[#D4AF37] font-black">
-                  NPR {product.price.toLocaleString()}
-                </p>
-                <span className="text-[9px] text-[#A69E96] block">
-                  100% Handcrafted Pearls • Nepal
-                </span>
-              </div>
-
-              <div className="text-center pt-2 border-t border-white/10">
-                <span className="text-[9px] text-[#C5A880] tracking-wider uppercase block">
-                  Tap link in Story to shop
-                </span>
-              </div>
+              <p className="text-[10px] text-[#B8AFA6] text-center">
+                Auto-generated 1200×630 link card with product name &amp; Buy Now CTA
+              </p>
             </div>
 
             {/* Quick Actions */}
@@ -1430,29 +1486,39 @@ export const ProductDetailModal: React.FC = () => {
                 {shareCopied ? (
                   <>
                     <Check className="w-4 h-4 text-emerald-950" />
-                    <span>Story Link & Caption Copied!</span>
+                    <span>Product Share Link Copied!</span>
                   </>
                 ) : (
                   <>
                     <Copy className="w-4 h-4" />
-                    <span>Copy Story Link & Caption</span>
+                    <span>Copy Share Link for Bio / Story</span>
                   </>
                 )}
               </button>
 
-              <a
-                href="https://www.instagram.com/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-full py-2.5 px-4 bg-gradient-to-r from-[#833ab4] via-[#fd1d1d] to-[#fcb045] hover:opacity-95 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md"
-              >
-                <Instagram className="w-4 h-4 text-white" />
-                <span>Open Instagram App</span>
-              </a>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={handleDownloadOgCard}
+                  className="py-2.5 px-3 bg-white/10 hover:bg-white/20 text-white font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer border border-white/15"
+                >
+                  <Download className="w-3.5 h-3.5 text-[#D4AF37]" />
+                  <span>Save OG Card</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleShareInstagramStory}
+                  className="py-2.5 px-3 bg-gradient-to-r from-[#833ab4] via-[#fd1d1d] to-[#fcb045] hover:opacity-95 text-white font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-md"
+                >
+                  <Share2 className="w-3.5 h-3.5 text-white" />
+                  <span>Share Now</span>
+                </button>
+              </div>
             </div>
 
             <p className="text-[10px] text-[#8C847E] text-center leading-relaxed">
-              Tag <strong>@artified_np</strong> in your story and our atelier will repost you on our official journal!
+              Paste the link in Instagram Stories, TikTok bio, or WhatsApp to display the preview card for <strong>{product.title}</strong>.
             </p>
           </div>
         </div>

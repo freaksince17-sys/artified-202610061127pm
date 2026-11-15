@@ -720,7 +720,10 @@ export function generateUniqueOrderId(): string {
 /**
  * Persists an updated tracked order to browser storage, server disk, and Firestore.
  */
-export async function saveTrackedOrder(order: TrackedOrderData): Promise<void> {
+export async function saveTrackedOrder(
+  order: TrackedOrderData,
+  options?: { skipSalesTracking?: boolean }
+): Promise<void> {
   try {
     const norm = normalizeOrderId(order.orderId);
     const canonical = getCanonicalOrderKey(norm);
@@ -825,9 +828,9 @@ export async function saveTrackedOrder(order: TrackedOrderData): Promise<void> {
       });
     }
 
-    // 5. Track and increment product sold count in Firestore if order is confirmed & paid or completed
-    if (!isFirestoreQuotaExceeded) {
-      trackConfirmedOrderSalesInFirestore(sanitized).catch((err) => {
+    // 5. Ensure order appears in sales_history ledger without ever deducting stock (stock deduction only happens once on checkout submission)
+    if (!options?.skipSalesTracking && !isFirestoreQuotaExceeded) {
+      trackConfirmedOrderSalesInFirestore(sanitized, PRODUCTS, { deductInventory: false }).catch((err) => {
         detectQuotaError(err);
         console.warn('Notice: Product sales count sync:', err);
       });

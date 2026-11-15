@@ -1,6 +1,10 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import sharp from 'sharp';
+import { buildProductOgSvgMarkup } from '../src/utils/ogImageGenerator.ts';
+import { buildProductWithLocalBusinessSchema } from '../src/utils/LocalBusinessSchema.tsx';
+import { Product } from '../src/types.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -49,10 +53,19 @@ const STATIC_ROUTES: RouteConfig[] = [
   }
 ];
 
-function generateStaticRoutes() {
-  console.log('🚀 [Static Route Generator] Pre-rendering static HTML pages for GitHub Pages & Google SEO...');
+function escapeHtmlAttr(value: string): string {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+async function generateStaticRoutes() {
+  console.log('🚀 [Static Route Generator] Pre-rendering static HTML pages and OpenGraph product cards...');
   const rootDir = path.resolve(__dirname, '..');
   const distDir = path.resolve(rootDir, 'dist');
+  const publicDir = path.resolve(rootDir, 'public');
   const indexHtmlPath = path.resolve(distDir, 'index.html');
 
   if (!fs.existsSync(indexHtmlPath)) {
@@ -70,25 +83,21 @@ function generateStaticRoutes() {
 
     let routeHtml = baseHtml;
 
-    // 1. Replace Title
     routeHtml = routeHtml.replace(
       /<title>.*?<\/title>/i,
       `<title>${route.title}</title>`
     );
 
-    // 2. Replace Canonical Tag
     routeHtml = routeHtml.replace(
       /<link rel="canonical"[^>]*>/i,
       `<link rel="canonical" href="${route.canonicalUrl}" />`
     );
 
-    // 3. Replace Meta Description
     routeHtml = routeHtml.replace(
       /<meta name="description"[^>]*>/i,
       `<meta name="description" content="${route.description}" />`
     );
 
-    // 4. Replace OpenGraph Meta Tags
     routeHtml = routeHtml.replace(
       /<meta property="og:title"[^>]*>/i,
       `<meta property="og:title" content="${route.ogTitle}" />`
@@ -98,7 +107,6 @@ function generateStaticRoutes() {
       `<meta property="og:description" content="${route.ogDescription}" />`
     );
 
-    // Ensure og:url is present
     if (routeHtml.includes('property="og:url"')) {
       routeHtml = routeHtml.replace(
         /<meta property="og:url"[^>]*>/i,
@@ -111,7 +119,6 @@ function generateStaticRoutes() {
       );
     }
 
-    // 5. Replace Twitter Meta Tags
     routeHtml = routeHtml.replace(
       /<meta name="twitter:title"[^>]*>/i,
       `<meta name="twitter:title" content="${route.ogTitle}" />`
@@ -123,10 +130,107 @@ function generateStaticRoutes() {
 
     const outFilePath = path.join(routeDir, 'index.html');
     fs.writeFileSync(outFilePath, routeHtml, 'utf-8');
-    console.log(`  ✅ Generated: dist/${route.path}/index.html (HTTP 200 with unique SEO metadata)`);
+    console.log(`  ✅ Generated: dist/${route.path}/index.html`);
   }
 
-  // 6. Generate dist/404.html for GitHub Pages fallback
+  // Generate 1200x630 OpenGraph image cards and share HTML pages for each product
+  const productsJsonPath = path.resolve(rootDir, 'src/data/products.json');
+  if (fs.existsSync(productsJsonPath)) {
+    const products: Product[] = JSON.parse(fs.readFileSync(productsJsonPath, 'utf-8'));
+    const ogOutDir = path.resolve(distDir, 'og', 'products');
+    if (!fs.existsSync(ogOutDir)) {
+      fs.mkdirSync(ogOutDir, { recursive: true });
+    }
+
+    let ogGeneratedCount = 0;
+    for (const product of products) {
+      if (!product || !product.id) continue;
+
+      let embeddedImageDataUri: string | undefined;
+      const primaryImg = Array.isArray(product.images) ? product.images[0] : '';
+      if (primaryImg) {
+        try {
+          if (primaryImg.startsWith('data:image/')) {
+            const base64Part = primaryImg.split(',')[1];
+            if (base64Part) {
+              const buf = await sharp(Buffer.from(base64Part, 'base64'))
+                .resize(520, 520, { fit: 'cover' })
+                .jpeg({ quality: 82 })
+                .toBuffer();
+              embeddedImageDataUri = `data:image/jpeg;base64,${buf.toString('base64')}`;
+            }
+          } else if (primaryImg.startsWith('/')) {
+            const imgPath = path.resolve(publicDir, primaryImg.replace(/^\/+/, ''));
+            if (fs.existsSync(imgPath)) {
+              const buf = await sharp(imgPath)
+                .resize(520, 520, { fit: 'cover' })
+                .jpeg({ quality: 82 })
+                .toBuffer();
+              embeddedImageDataUri = `data:image/jpeg;base64,${buf.toString('base64')}`;
+            }
+          }
+        } catch {}
+      }
+
+      const svg = buildProductOgSvgMarkup(product, { embeddedImageDataUri });
+      const jpegOutPath = path.join(ogOutDir, `${product.id}.jpg`);
+      await sharp(Buffer.from(svg))
+        .resize(1200, 630)
+        .jpeg({ quality: 88, mozjpeg: true })
+        .toFile(jpegOutPath);
+      ogGeneratedCount++;
+
+      // Pre-render /product/<id>/index.html for rich link previews on Instagram, TikTok, and WhatsApp
+      const prodDir = path.resolve(distDir, 'product', product.id);
+      if (!fs.existsSync(prodDir)) {
+        fs.mkdirSync(prodDir, { recursive: true });
+      }
+      const priceText = `NPR ${Number(product.price || 0).toLocaleString('en-US')}`;
+      const prodTitle = escapeHtmlAttr(`${product.title} (${priceText}) | Buy Now | Artified Nepal`);
+      const prodDesc = escapeHtmlAttr(
+        `Shop handmade ${product.title} in Nepal for ${priceText}. Handcrafted in Kathmandu with doorstep delivery across Nepal.`
+      );
+      const prodUrl = `https://www.artified.com.np/product/${encodeURIComponent(product.id)}/`;
+      const prodOgImg = `https://www.artified.com.np/og/products/${encodeURIComponent(product.id)}.jpg`;
+      const prodAlt = escapeHtmlAttr(`${product.title} — Buy Now at Artified Nepal`);
+
+      let prodHtml = baseHtml
+        .replace(/<title>.*?<\/title>/i, `<title>${prodTitle}</title>`)
+        .replace(/<link rel="canonical"[^>]*>/i, `<link rel="canonical" href="${prodUrl}" />`)
+        .replace(/<meta name="description"[^>]*>/i, `<meta name="description" content="${prodDesc}" />`)
+        .replace(/<meta property="og:title"[^>]*>/i, `<meta property="og:title" content="${prodTitle}" />`)
+        .replace(/<meta property="og:description"[^>]*>/i, `<meta property="og:description" content="${prodDesc}" />`)
+        .replace(/<meta property="og:image"[^>]*>/i, `<meta property="og:image" content="${prodOgImg}" />`)
+        .replace(/<meta property="og:image:secure_url"[^>]*>/i, `<meta property="og:image:secure_url" content="${prodOgImg}" />`)
+        .replace(/<meta property="og:image:alt"[^>]*>/i, `<meta property="og:image:alt" content="${prodAlt}" />`)
+        .replace(/<meta name="twitter:title"[^>]*>/i, `<meta name="twitter:title" content="${prodTitle}" />`)
+        .replace(/<meta name="twitter:description"[^>]*>/i, `<meta name="twitter:description" content="${prodDesc}" />`)
+        .replace(/<meta name="twitter:image"[^>]*>/i, `<meta name="twitter:image" content="${prodOgImg}" />`)
+        .replace(/<meta name="twitter:image:alt"[^>]*>/i, `<meta name="twitter:image:alt" content="${prodAlt}" />`);
+
+      if (prodHtml.includes('property="og:url"')) {
+        prodHtml = prodHtml.replace(
+          /<meta property="og:url"[^>]*>/i,
+          `<meta property="og:url" content="${prodUrl}" />`
+        );
+      } else {
+        prodHtml = prodHtml.replace(
+          /<meta property="og:title"/i,
+          `<meta property="og:url" content="${prodUrl}" />\n    <meta property="og:title"`
+        );
+      }
+
+      const localBusinessProductLd = buildProductWithLocalBusinessSchema(product, 'https://www.artified.com.np');
+      const localBusinessScriptTag = `\n    <script id="product-local-business-jsonld" type="application/ld+json">${JSON.stringify(localBusinessProductLd)}</script>\n  </head>`;
+      prodHtml = prodHtml.replace('</head>', localBusinessScriptTag);
+
+      fs.writeFileSync(path.join(prodDir, 'index.html'), prodHtml, 'utf-8');
+    }
+
+    console.log(`  ✅ Generated ${ogGeneratedCount} product OpenGraph cards (dist/og/products/<id>.jpg) and /product/<id>/ preview pages`);
+  }
+
+  // Generate dist/404.html for GitHub Pages fallback
   const spaRedirectScript = `
     <!-- Single Page Application GitHub Pages 404 Redirection Protection -->
     <script>
@@ -145,7 +249,11 @@ function generateStaticRoutes() {
   fs.writeFileSync(path.resolve(distDir, '404.html'), notFoundHtml, 'utf-8');
   console.log('  ✅ Generated: dist/404.html (GitHub Pages SPA Fallback Safety Net)');
 
-  console.log('🎉 [Static Route Generator] All static routes and 404 safety nets pre-rendered successfully!');
+  console.log('🎉 [Static Route Generator] All static routes, product OpenGraph cards, and 404 fallbacks pre-rendered successfully!');
 }
 
-generateStaticRoutes();
+generateStaticRoutes().catch((err) => {
+  console.error('❌ Error in static route generator:', err);
+  process.exit(1);
+});
+

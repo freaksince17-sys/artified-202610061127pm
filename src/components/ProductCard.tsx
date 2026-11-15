@@ -6,6 +6,8 @@ import { useLanguage } from '../context/LanguageContext';
 import { calculateTotalSold, isProductBestSeller, calculateReviewsCount, getDisplayOriginalPrice, calculateDiscountPercent, getProductReviews, getProductAverageRating } from '../utils/productStats';
 import { RestockNotifyModal } from './RestockNotifyModal';
 import { isProductWaitlisted } from '../utils/waitlistService';
+import { getLocalProductAltText, LOCAL_BUSINESS_CITY } from '../utils/LocalBusinessSchema';
+import { trackProductClick } from '../hooks/useGoogleAnalytics';
 
 interface ProductCardProps {
   product: Product;
@@ -90,10 +92,16 @@ export const ProductCard: React.FC<ProductCardProps> = React.memo(({ product, is
   const displayOriginalPrice = getDisplayOriginalPrice(product);
   const discountPercent = calculateDiscountPercent(product);
 
+  const handleCardSelect = () => {
+    trackProductClick(product, { listName: product.category });
+    setQuickViewProduct(product);
+  };
+
   return (
     <div
       id={`product-card-${product.id}`}
-      onClick={() => setQuickViewProduct(product)}
+      data-atelier-location={LOCAL_BUSINESS_CITY}
+      onClick={handleCardSelect}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       className="group relative flex flex-col bg-white dark:bg-[#161514] rounded-lg overflow-hidden border-[1.5px] border-[#C4B5A3] dark:border-[#2D2B28] hover:border-[#1C1B1A] dark:hover:border-[#D4AF37] transition-all duration-200 shadow-xs hover:shadow-md cursor-pointer z-0"
@@ -191,7 +199,7 @@ export const ProductCard: React.FC<ProductCardProps> = React.memo(({ product, is
         <div className="relative h-full aspect-square mx-auto overflow-hidden">
           <img
             src={currentImg}
-            alt={product.title}
+            alt={getLocalProductAltText(product)}
             loading="lazy"
             decoding="async"
             onError={() => {
@@ -212,7 +220,7 @@ export const ProductCard: React.FC<ProductCardProps> = React.memo(({ product, is
           {currentSecImg && currentSecImg !== currentImg && (
             <img
               src={currentSecImg}
-              alt={`${product.title} alternate view`}
+              alt={`${getLocalProductAltText(product)} — alternate view`}
               loading="lazy"
               decoding="async"
               onError={() => setCurrentSecImg(currentImg)}

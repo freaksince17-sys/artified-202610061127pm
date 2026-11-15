@@ -40,9 +40,8 @@ async function run() {
   console.log(`📊 Indexed:`);
   console.log(`   - 1 Storefront Homepage (/)`);
   console.log(`   - 4 Clean Static Landing Pages (/pearl-bags, /pearl-necklaces, /macrame, /workshops)`);
-  console.log(`   - 3 Atelier & Review Sections (#meet-artisan, #customer-reviews, #instagram-journal)`);
-  console.log(`   - ${products.length} Individual Handcrafted Products with Google Image metadata`);
-  console.log(`   - Total Clean URLs: ${1 + 4 + 3 + products.length}`);
+  console.log(`   - ${products.length} Individual Handcrafted Products (/product/<id>/) with Google Image metadata`);
+  console.log(`   - Total Clean URLs: ${1 + 4 + products.length}`);
 }
 
 run().catch((err) => {

@@ -14,6 +14,7 @@ import { ProductCard } from './ProductCard';
 import { useCart } from '../context/CartContext';
 import { isProductBestSeller, calculateDiscountPercent, calculateTotalSold } from '../utils/productStats';
 import { GlobalSearchBar } from './GlobalSearchBar';
+import { LocalBusinessSchema } from '../utils/LocalBusinessSchema';
 
 import { SortOption } from '../types';
 
@@ -82,6 +83,11 @@ export const ProductGrid: React.FC = () => {
 
   return (
     <section id="shop-section" className="pt-0 sm:pt-1 pb-4 sm:pb-6 px-2 sm:px-3 lg:px-4 max-w-[1440px] mx-auto">
+      <LocalBusinessSchema
+        products={filteredProducts}
+        category={selectedCategory}
+        scriptId="artified-catalog-local-business-jsonld"
+      />
       {/* Category Dropdown (All Creations), Centered Search Bar, & Custom Sort Bar */}
       <div className="relative z-40 py-2 px-2.5 mb-3 bg-[#EFE9E0] dark:bg-[#181715] border border-[#C8B9A6] dark:border-[#2E2C29] rounded-xl shadow-xs flex items-center justify-between gap-1.5 sm:gap-2 w-full flex-wrap sm:flex-nowrap">
         {/* Left: Category Dropdown */}
@@ -266,7 +272,7 @@ export const ProductGrid: React.FC = () => {
               Reset Filters
             </button>
             <a
-              href="https://wa.me/9779767573721?text=Namaste!%20I%20am%20looking%20for%20a%20handcrafted%20piece%20from%20Kathmandu,%20Kathmandu."
+              href="https://wa.me/9779767573721?text=Namaste!%20I%20am%20looking%20for%20a%20handcrafted%20piece%20from%20Kathmandu,%20Nepal."
               target="_blank"
               rel="noopener noreferrer"
               className="px-5 py-2.5 bg-[#1C1B1A] text-white text-xs font-semibold uppercase tracking-wider rounded-full hover:bg-[#34312F] inline-flex items-center gap-1.5"

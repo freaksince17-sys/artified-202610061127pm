@@ -404,6 +404,9 @@ export const SellerProductModal: React.FC = () => {
     const newId = editingProduct?.id || `art-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
     const defaultReview = !isEditing ? generateDefaultReviewForProduct(title.trim(), newId) : null;
     const initialReviews = !isEditing && defaultReview ? [defaultReview] : (editingProduct?.customReviews || []);
+    const resolvedStockCount = inStock
+      ? Math.max(1, Number(inventoryCount) || Number(stockCount) || 1)
+      : 0;
 
     const productPayload: Product = {
       id: newId,
@@ -421,9 +424,9 @@ export const SellerProductModal: React.FC = () => {
       isHandmade: true,
       isBestSeller: ((Number(soldCount) || 0) + (editingProduct?.onlineSalesCount || 0)) >= bestsellerThreshold,
       isNewArrival,
-      inStock,
-      stockCount: Number(stockCount) || 0,
-      inventoryCount: Number(inventoryCount) >= 0 ? Number(inventoryCount) : Number(stockCount) || 0,
+      inStock: resolvedStockCount > 0,
+      stockCount: resolvedStockCount,
+      inventoryCount: resolvedStockCount,
       leadTime: leadTime || '1 to 2 days',
       manufacturingTime: leadTime || '1 to 2 days',
       materials: materials,
@@ -772,7 +775,17 @@ export const SellerProductModal: React.FC = () => {
                 </label>
                 <select
                   value={inStock ? 'true' : 'false'}
-                  onChange={(e) => setInStock(e.target.value === 'true')}
+                  onChange={(e) => {
+                    const nextInStock = e.target.value === 'true';
+                    setInStock(nextInStock);
+                    if (nextInStock && inventoryCount <= 0) {
+                      setInventoryCount(5);
+                      setStockCount(5);
+                    } else if (!nextInStock) {
+                      setInventoryCount(0);
+                      setStockCount(0);
+                    }
+                  }}
                   className="w-full text-xs px-3 py-2 border border-[#E8DFD8] rounded-lg bg-[#FAF8F5] focus:outline-none focus:border-[#C5A880]"
                 >
                   <option value="true">In Stock</option>

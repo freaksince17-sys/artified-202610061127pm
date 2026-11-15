@@ -1,17 +1,22 @@
 import { Product } from '../types';
-import { calculateReviewsCount, getProductReviews } from './productStats';
+import { getProductOgImageUrl, getProductShareUrl } from './ogImageGenerator';
+import { buildProductWithLocalBusinessSchema, resolveSchemaProductImages } from './LocalBusinessSchema';
 
 const DEFAULT_TITLE = 'Artified_np | Handcrafted Elegance & Wearable Art Nepal';
 const DEFAULT_DESCRIPTION = 'Handcrafted Elegance & Wearable Art. Handmade pearl bags, pearl necklaces, and macrame accessories in Nepal.';
 const DEFAULT_CANONICAL = 'https://www.artified.com.np/';
 const DEFAULT_IMAGE = 'https://www.artified.com.np/og-image.jpg';
+const DEFAULT_IMAGE_ALT = 'Artified_np Logo - Art made with love';
 const BASE_URL = 'https://www.artified.com.np';
 
 export interface ProductSeoData {
   title: string;
   description: string;
   canonicalUrl: string;
+  shareUrl: string;
   imageUrl: string;
+  ogImageUrl: string;
+  ogImageAlt: string;
   schemaJsonLd: Record<string, any>;
 }
 
@@ -33,76 +38,32 @@ export function buildProductSeoMetadata(product: Product): ProductSeoData {
     ? cleanSnippet.substring(0, 70).trim() + '...' 
     : cleanSnippet;
 
-  const description = `Shop handmade ${product.title} in Nepal for NPR ${formattedPrice}. ${shortSnippet} Handcrafted in Kathmandu with doorstep delivery across Nepal.`.substring(0, 160);
+  const rawDescription = `Shop handmade ${product.title} in Nepal for NPR ${formattedPrice}. ${shortSnippet} Handcrafted in Kathmandu with doorstep delivery across Nepal.`;
+  const description = rawDescription.length > 160
+    ? rawDescription.slice(0, 157).replace(/\s+\S*$/, '') + '...'
+    : rawDescription;
 
   const canonicalUrl = `${BASE_URL}/?product=${encodeURIComponent(product.id)}`;
+  const activeOrigin =
+    typeof window !== 'undefined' && window.location?.origin ? window.location.origin : BASE_URL;
+  const shareUrl = getProductShareUrl(product, activeOrigin);
+  const ogImageUrl = getProductOgImageUrl(product, activeOrigin);
+  const ogImageAlt = `${product.title} — Buy Now at Artified Nepal`;
   
-  let imageUrl = DEFAULT_IMAGE;
-  if (product.images && product.images[0]) {
-    const img = product.images[0];
-    if (img.startsWith('http://') || img.startsWith('https://')) {
-      imageUrl = img;
-    } else if (img.startsWith('/')) {
-      imageUrl = `${BASE_URL}${img}`;
-    }
-  }
+  const resolvedImages = resolveSchemaProductImages(product, BASE_URL);
+  const imageUrl = resolvedImages[0] || DEFAULT_IMAGE;
 
-  // 3. Authenticated customer review stats for Schema.org AggregateRating
-  const reviews = getProductReviews(product);
-  const totalReviews = reviews.length > 0 ? reviews.length : calculateReviewsCount(product);
-  const avgRating = reviews.length > 0 
-    ? (reviews.reduce((acc, r) => acc + (r.rating || 5), 0) / reviews.length).toFixed(1)
-    : '5.0';
-
-  // 4. Schema.org Product Structured Data (Google Merchant / Rich Results format)
-  const schemaJsonLd: Record<string, any> = {
-    '@context': 'https://schema.org',
-    '@type': 'Product',
-    '@id': `${canonicalUrl}#product`,
-    'name': product.title,
-    'image': product.images && product.images.length > 0
-      ? product.images.filter((img) => !img.startsWith('data:')).map((img) => (img.startsWith('http') ? img : `${BASE_URL}${img.startsWith('/') ? '' : '/'}${img}`))
-      : [imageUrl],
-    'description': cleanSnippet || description,
-    'category': product.category || 'Handcrafted Fashion Accessories',
-    'brand': {
-      '@type': 'Brand',
-      'name': 'Artified Nepal'
-    },
-    'material': product.materials && product.materials.length > 0
-      ? product.materials.join(', ')
-      : 'Handmade Pearls & Beads',
-    'offers': {
-      '@type': 'Offer',
-      'url': canonicalUrl,
-      'priceCurrency': 'NPR',
-      'price': product.price,
-      'priceValidUntil': '2027-12-31',
-      'itemCondition': 'https://schema.org/NewCondition',
-      'availability': product.inStock !== false ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
-      'seller': {
-        '@type': 'Organization',
-        'name': 'Artified Nepal',
-        'url': BASE_URL
-      }
-    }
-  };
-
-  if (totalReviews > 0) {
-    schemaJsonLd.aggregateRating = {
-      '@type': 'AggregateRating',
-      'ratingValue': avgRating,
-      'reviewCount': totalReviews,
-      'bestRating': 5,
-      'worstRating': 1
-    };
-  }
+  // Schema.org Product + Kathmandu LocalBusiness Structured Data (Google Rich Results format)
+  const schemaJsonLd = buildProductWithLocalBusinessSchema(product, BASE_URL);
 
   return {
     title,
     description,
     canonicalUrl,
+    shareUrl,
     imageUrl,
+    ogImageUrl,
+    ogImageAlt,
     schemaJsonLd
   };
 }
@@ -113,16 +74,18 @@ export function buildProductSeoMetadata(product: Product): ProductSeoData {
 export function applyProductSeo(product: Product | null): void {
   if (typeof document === 'undefined') return;
 
-  const titleEl = document.querySelector('title');
   let metaDesc = document.querySelector('meta[name="description"]');
   let canonicalEl = document.querySelector('link[rel="canonical"]');
   let ogTitle = document.querySelector('meta[property="og:title"]');
   let ogDesc = document.querySelector('meta[property="og:description"]');
   let ogImage = document.querySelector('meta[property="og:image"]');
+  let ogImageSecure = document.querySelector('meta[property="og:image:secure_url"]');
+  let ogImageAlt = document.querySelector('meta[property="og:image:alt"]');
   let ogUrl = document.querySelector('meta[property="og:url"]');
   let twitterTitle = document.querySelector('meta[name="twitter:title"]');
   let twitterDesc = document.querySelector('meta[name="twitter:description"]');
   let twitterImage = document.querySelector('meta[name="twitter:image"]');
+  let twitterImageAlt = document.querySelector('meta[name="twitter:image:alt"]');
 
   // Existing dynamic JSON-LD element
   let jsonLdEl = document.getElementById('product-seo-jsonld') as HTMLScriptElement | null;
@@ -149,16 +112,19 @@ export function applyProductSeo(product: Product | null): void {
     }
     canonicalEl.setAttribute('href', seo.canonicalUrl);
 
-    // 4. OpenGraph Tags
+    // 4. OpenGraph Tags (using auto-generated product OG card containing title + Buy Now CTA)
     if (ogTitle) ogTitle.setAttribute('content', seo.title);
     if (ogDesc) ogDesc.setAttribute('content', seo.description);
-    if (ogImage) ogImage.setAttribute('content', seo.imageUrl);
+    if (ogImage) ogImage.setAttribute('content', seo.ogImageUrl);
+    if (ogImageSecure) ogImageSecure.setAttribute('content', seo.ogImageUrl);
+    if (ogImageAlt) ogImageAlt.setAttribute('content', seo.ogImageAlt);
     if (ogUrl) ogUrl.setAttribute('content', seo.canonicalUrl);
 
     // 5. Twitter Card Tags
     if (twitterTitle) twitterTitle.setAttribute('content', seo.title);
     if (twitterDesc) twitterDesc.setAttribute('content', seo.description);
-    if (twitterImage) twitterImage.setAttribute('content', seo.imageUrl);
+    if (twitterImage) twitterImage.setAttribute('content', seo.ogImageUrl);
+    if (twitterImageAlt) twitterImageAlt.setAttribute('content', seo.ogImageAlt);
 
     // 6. Schema.org Product JSON-LD Injection
     if (!jsonLdEl) {
@@ -185,11 +151,14 @@ export function applyProductSeo(product: Product | null): void {
     if (ogTitle) ogTitle.setAttribute('content', DEFAULT_TITLE);
     if (ogDesc) ogDesc.setAttribute('content', DEFAULT_DESCRIPTION);
     if (ogImage) ogImage.setAttribute('content', DEFAULT_IMAGE);
+    if (ogImageSecure) ogImageSecure.setAttribute('content', DEFAULT_IMAGE);
+    if (ogImageAlt) ogImageAlt.setAttribute('content', DEFAULT_IMAGE_ALT);
     if (ogUrl) ogUrl.setAttribute('content', DEFAULT_CANONICAL);
 
     if (twitterTitle) twitterTitle.setAttribute('content', DEFAULT_TITLE);
     if (twitterDesc) twitterDesc.setAttribute('content', DEFAULT_DESCRIPTION);
     if (twitterImage) twitterImage.setAttribute('content', DEFAULT_IMAGE);
+    if (twitterImageAlt) twitterImageAlt.setAttribute('content', DEFAULT_IMAGE_ALT);
 
     // Remove product JSON-LD
     if (jsonLdEl && jsonLdEl.parentNode) {

@@ -213,15 +213,21 @@ export function reconcileProductCatalog(candidateProducts?: Product[] | null, bu
             : (bundledItem.soldCount !== undefined ? bundledItem.soldCount : 0);
         const mergedTotalSold = mergedSoldCount + mergedOnlineSales;
 
-        const nextStockCount = typeof candidate.stockCount === 'number'
+        const nextStockCount = isCandidateNewer && typeof candidate.stockCount === 'number'
           ? Math.max(0, candidate.stockCount)
-          : (typeof bundledItem.stockCount === 'number' ? bundledItem.stockCount : 8);
-        const nextInventoryCount = typeof candidate.inventoryCount === 'number'
+          : (typeof bundledItem.stockCount === 'number'
+            ? Math.max(0, bundledItem.stockCount)
+            : (typeof candidate.stockCount === 'number' ? Math.max(0, candidate.stockCount) : 8));
+        const nextInventoryCount = isCandidateNewer && typeof candidate.inventoryCount === 'number'
           ? Math.max(0, candidate.inventoryCount)
-          : (bundledItem.inventoryCount ?? nextStockCount);
-        const nextInStock = typeof candidate.inStock === 'boolean'
+          : (typeof bundledItem.inventoryCount === 'number'
+            ? Math.max(0, bundledItem.inventoryCount)
+            : (typeof candidate.inventoryCount === 'number' ? Math.max(0, candidate.inventoryCount) : nextStockCount));
+        const nextInStock = isCandidateNewer && typeof candidate.inStock === 'boolean'
           ? (candidate.inStock && nextStockCount > 0)
-          : (nextStockCount > 0 && bundledItem.inStock !== false);
+          : (typeof bundledItem.inStock === 'boolean'
+            ? (bundledItem.inStock && nextStockCount > 0)
+            : (nextStockCount > 0));
 
         const resolvedImages = selectBestProductImages(candidate.images, bundledItem.images, isCandidateNewer);
 
@@ -236,9 +242,9 @@ export function reconcileProductCatalog(candidateProducts?: Product[] | null, bu
           description: (isCandidateNewer && candidate.description) ? candidate.description : (bundledItem.description || candidate.description),
           category: (isCandidateNewer && candidate.category) ? candidate.category : bundledItem.category,
           images: resolvedImages,
-          materials: Array.isArray(candidate.materials) ? candidate.materials : (bundledItem.materials || []),
-          leadTime: candidate.leadTime || bundledItem.leadTime,
-          manufacturingTime: candidate.manufacturingTime || bundledItem.manufacturingTime,
+          materials: (isCandidateNewer && Array.isArray(candidate.materials)) ? candidate.materials : (bundledItem.materials || candidate.materials || []),
+          leadTime: (isCandidateNewer && candidate.leadTime) ? candidate.leadTime : (bundledItem.leadTime || candidate.leadTime),
+          manufacturingTime: (isCandidateNewer && candidate.manufacturingTime) ? candidate.manufacturingTime : (bundledItem.manufacturingTime || candidate.manufacturingTime),
           stockCount: nextStockCount,
           inventoryCount: nextInventoryCount,
           inStock: nextInStock,
@@ -250,7 +256,7 @@ export function reconcileProductCatalog(candidateProducts?: Product[] | null, bu
           onlineSalesCount: mergedOnlineSales,
           totalSold: mergedTotalSold,
           updatedAt: isCandidateNewer ? candidate.updatedAt : (bundledItem.updatedAt || CATALOG_BUILD_TIMESTAMP),
-          ...(candidate.rating !== undefined ? { rating: candidate.rating } : {})
+          ...(isCandidateNewer && candidate.rating !== undefined ? { rating: candidate.rating } : (bundledItem.rating !== undefined ? { rating: bundledItem.rating } : (candidate.rating !== undefined ? { rating: candidate.rating } : {})))
         };
 
         // Preserve exact object reference if nothing meaningful changed to prevent unnecessary React re-renders

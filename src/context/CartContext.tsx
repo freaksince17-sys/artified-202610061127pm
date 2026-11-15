@@ -788,6 +788,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const pendingCloudProductsRef = React.useRef<Map<string, Product>>(new Map());
   const persistDebounceTimerRef = React.useRef<number | null>(null);
   const isModalEditingRef = React.useRef<boolean>(false);
+  const deductedLocalOrderIdsRef = React.useRef<Set<string>>(new Set());
 
   // Fetch initial data from backend server database (products, reels, Instagram journal & settings)
   useEffect(() => {
@@ -873,12 +874,21 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
               if (!prevQuick) return prevQuick;
               const found = cloudMap.get(prevQuick.id);
               if (found) {
+                const foundTime = found.updatedAt ? new Date(found.updatedAt).getTime() : 0;
+                const prevTime = prevQuick.updatedAt ? new Date(prevQuick.updatedAt).getTime() : 0;
+                const isFoundNewer = foundTime > prevTime;
+                const nextStock = isFoundNewer && typeof found.stockCount === 'number' ? Math.max(0, found.stockCount) : prevQuick.stockCount;
+                const nextInv = isFoundNewer && typeof found.inventoryCount === 'number' ? Math.max(0, found.inventoryCount) : prevQuick.inventoryCount;
+                const nextInStock = isFoundNewer && typeof found.inStock === 'boolean' ? (found.inStock && nextStock > 0) : prevQuick.inStock;
                 return {
                   ...prevQuick,
                   ...found,
                   images: selectBestProductImages(found.images, prevQuick.images, true),
-                  onlineSalesCount: typeof found.onlineSalesCount === 'number' ? found.onlineSalesCount : prevQuick.onlineSalesCount,
-                  totalSold: typeof found.totalSold === 'number' ? found.totalSold : prevQuick.totalSold,
+                  stockCount: nextStock,
+                  inventoryCount: nextInv,
+                  inStock: nextInStock,
+                  onlineSalesCount: typeof found.onlineSalesCount === 'number' ? Math.max(prevQuick.onlineSalesCount || 0, found.onlineSalesCount) : prevQuick.onlineSalesCount,
+                  totalSold: typeof found.totalSold === 'number' ? Math.max(prevQuick.totalSold || 0, found.totalSold) : prevQuick.totalSold,
                   soldCount: typeof found.soldCount === 'number' ? found.soldCount : prevQuick.soldCount
                 };
               }
@@ -1307,7 +1317,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
 
-      // Hydrate live Cloud Firestore overrides synchronously on boot so soldCount/price never flashes an older value
+      // Hydrate live Cloud Firestore overrides synchronously on boot only when override is >= bundled product timestamp
       const liveOverridesRaw = localStorage.getItem('artified_cloud_live_overrides_v1');
       if (liveOverridesRaw) {
         try {
@@ -1316,16 +1326,23 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
             baseList = baseList.map((p) => {
               const ov = liveOverrides[p.id];
               if (!ov) return p;
+              const ovTime = ov.updatedAt ? new Date(ov.updatedAt).getTime() : 0;
+              const pTime = p.updatedAt ? new Date(p.updatedAt).getTime() : 0;
+              const isOvNewerOrEqual = ovTime === 0 || pTime === 0 || ovTime >= pTime;
+              const nextStock = isOvNewerOrEqual && typeof ov.stockCount === 'number' ? ov.stockCount : p.stockCount;
+              const nextInv = isOvNewerOrEqual && typeof ov.inventoryCount === 'number' ? ov.inventoryCount : p.inventoryCount;
+              const nextInStock = isOvNewerOrEqual && typeof ov.inStock === 'boolean' ? (ov.inStock && nextStock > 0) : p.inStock;
               return {
                 ...p,
-                soldCount: typeof ov.soldCount === 'number' ? ov.soldCount : p.soldCount,
+                soldCount: isOvNewerOrEqual && typeof ov.soldCount === 'number' ? ov.soldCount : p.soldCount,
                 onlineSalesCount: typeof ov.onlineSalesCount === 'number' ? Math.max(p.onlineSalesCount || 0, ov.onlineSalesCount) : p.onlineSalesCount,
-                totalSold: typeof ov.totalSold === 'number' ? ov.totalSold : p.totalSold,
-                price: typeof ov.price === 'number' && ov.price > 0 ? ov.price : p.price,
-                originalPrice: typeof ov.originalPrice === 'number' ? ov.originalPrice : p.originalPrice,
-                stockCount: typeof ov.stockCount === 'number' ? ov.stockCount : p.stockCount,
-                inventoryCount: typeof ov.inventoryCount === 'number' ? ov.inventoryCount : p.inventoryCount,
-                inStock: typeof ov.inStock === 'boolean' ? ov.inStock : p.inStock
+                totalSold: typeof ov.totalSold === 'number' ? Math.max(p.totalSold || 0, ov.totalSold) : p.totalSold,
+                price: isOvNewerOrEqual && typeof ov.price === 'number' && ov.price > 0 ? ov.price : p.price,
+                originalPrice: isOvNewerOrEqual && typeof ov.originalPrice === 'number' ? ov.originalPrice : p.originalPrice,
+                stockCount: nextStock,
+                inventoryCount: nextInv,
+                inStock: nextInStock,
+                updatedAt: isOvNewerOrEqual && ov.updatedAt ? ov.updatedAt : p.updatedAt
               };
             });
           }
@@ -1340,11 +1357,13 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return applyVerifiedSalesToProducts(PRODUCTS).map(sanitizeProduct);
   });
 
-  // Google Search & Direct Link Hydration (?product=id or ?category=id)
+  // Google Search & Direct Link Hydration (?product=id, ?category=id, or /product/<id>)
   useEffect(() => {
     try {
       const params = new URLSearchParams(window.location.search);
-      const prodParam = params.get('product') || params.get('p');
+      const pathMatch = window.location.pathname.match(/^\/product\/([^/]+)\/?$/i);
+      const pathProdId = pathMatch?.[1] ? decodeURIComponent(pathMatch[1]) : null;
+      const prodParam = params.get('product') || params.get('p') || pathProdId;
       if (prodParam && products.length > 0 && !quickViewProduct) {
         const found = products.find(
           (p) => p.id === prodParam || p.id.toLowerCase() === prodParam.toLowerCase()
@@ -1546,47 +1565,76 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setQuickViewProduct(filteredProducts[nextIndex]);
   };
 
-  // Listen for sales increments triggered by order confirmation/completion in Order Progress Manager or Checkout
+  // Listen for sales increments triggered by order confirmation/checkout or sales_history sync
   useEffect(() => {
     const handleSalesIncremented = (e: Event) => {
       const custom = e as CustomEvent<{
         orderId?: string;
         productQuantities?: Record<string, number>;
         verifiedSalesByProduct?: Record<string, number>;
+        deductInventory?: boolean;
       }>;
       const quantities = custom.detail?.productQuantities || {};
       const verifiedByProd = custom.detail?.verifiedSalesByProduct || {};
       if (Object.keys(quantities).length === 0 && Object.keys(verifiedByProd).length === 0) return;
 
+      const orderKey = (custom.detail?.orderId || '').replace(/[^A-Z0-9]/gi, '').toUpperCase();
+      const canDeductThisOrder =
+        Boolean(custom.detail?.deductInventory) &&
+        Object.keys(quantities).length > 0 &&
+        (!orderKey || !deductedLocalOrderIdsRef.current.has(orderKey));
+
+      if (canDeductThisOrder && orderKey) {
+        deductedLocalOrderIdsRef.current.add(orderKey);
+      }
+
       setProducts((prev) => {
         const nowIso = new Date().toISOString();
+        let anyChanged = false;
         const updated = prev.map((prod) => {
-          const addedQty = quantities[prod.id] || 0;
+          const addedQty = canDeductThisOrder ? (quantities[prod.id] || 0) : 0;
           const prevOnline = prod.onlineSalesCount || 0;
           const verifiedOnline = verifiedByProd[prod.id] || 0;
           const nextOnline = Math.max(prevOnline + addedQty, verifiedOnline);
-          const newlySold = Math.max(0, nextOnline - prevOnline);
 
-          if (newlySold > 0 || addedQty > 0 || verifiedOnline > prevOnline) {
+          if (addedQty > 0 || nextOnline > prevOnline) {
             const baseSold = prod.soldCount !== undefined ? prod.soldCount : 0;
             const nextTotal = baseSold + nextOnline;
             const currentStock = typeof prod.stockCount === 'number' ? prod.stockCount : (prod.inventoryCount ?? 8);
-            const nextStock = Math.max(0, currentStock - (newlySold > 0 ? newlySold : addedQty));
-            lastLocalProductEditRef.current[prod.id] = Date.now();
-            return {
-              ...prod,
-              soldCount: baseSold,
-              onlineSalesCount: nextOnline,
-              totalSold: nextTotal,
-              stockCount: nextStock,
-              inventoryCount: nextStock,
-              inStock: nextStock > 0,
-              updatedAt: nowIso,
-              isBestSeller: nextTotal >= bestsellerThreshold || prod.isBestSeller
-            };
+            // Only subtract addedQty for an explicit fresh checkout order; NEVER subtract (verifiedOnline - prevOnline) during historical/background syncs!
+            const nextStock = addedQty > 0 ? Math.max(0, currentStock - addedQty) : currentStock;
+            const nextInStock = addedQty > 0 ? nextStock > 0 : (prod.inStock !== false && currentStock > 0);
+            const nextBestSeller = nextTotal >= bestsellerThreshold || Boolean(prod.isBestSeller);
+
+            if (addedQty > 0) {
+              lastLocalProductEditRef.current[prod.id] = Date.now();
+            }
+
+            if (
+              nextOnline !== prevOnline ||
+              nextTotal !== prod.totalSold ||
+              nextStock !== prod.stockCount ||
+              nextInStock !== prod.inStock ||
+              nextBestSeller !== Boolean(prod.isBestSeller)
+            ) {
+              anyChanged = true;
+              return {
+                ...prod,
+                soldCount: baseSold,
+                onlineSalesCount: nextOnline,
+                totalSold: nextTotal,
+                stockCount: nextStock,
+                inventoryCount: nextStock,
+                inStock: nextInStock,
+                updatedAt: addedQty > 0 ? nowIso : prod.updatedAt,
+                isBestSeller: nextBestSeller
+              };
+            }
           }
           return prod;
         });
+
+        if (!anyChanged) return prev;
 
         latestProductsRef.current = updated;
         window.setTimeout(() => {
@@ -1594,11 +1642,13 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const serialized = JSON.stringify(updated);
             localStorage.setItem('artified_products_custom', serialized);
             localStorage.setItem('artified_products_v3', serialized);
-            fetch('/api/products', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: serialized
-            }).catch(() => {});
+            if (canDeductThisOrder) {
+              fetch('/api/products', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: serialized
+              }).catch(() => {});
+            }
           } catch {}
         }, 0);
 
@@ -1618,13 +1668,13 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Total creations sold across the entire store catalog
   const totalCreationsSold = React.useMemo(() => calculateCatalogTotalCreationsSold(products), [products]);
 
-  // Track confirmed order sales in Firestore per product document (idempotent per orderId)
+  // Sync confirmed order into sales_history ledger without decrementing stock (seller phase updates never deduct stock)
   const trackOrderSalesInFirestore = async (order: any) => {
     if (!order) return;
-    await trackConfirmedOrderSalesInFirestore(order, products);
+    await trackConfirmedOrderSalesInFirestore(order, products, { deductInventory: false });
   };
 
-  // Record genuine live online sales when an order is submitted or confirmed
+  // Record genuine live online sales when an order is freshly submitted at checkout (deducts stock once per orderId)
   const recordOnlineOrderSales = async (items: CartItem[], orderId?: string) => {
     try {
       const effectiveOrderId = orderId || `SALE-${Date.now()}`;
@@ -1655,7 +1705,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
             price: i.product.price
           }))
         },
-        products
+        products,
+        { deductInventory: true }
       );
     } catch (e) {
       console.error('Error logging online sales:', e);
@@ -2434,7 +2485,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       // 1. Permanent Cloud Firestore save
       const prodRef = doc(db, 'products', cleanedProduct.id);
-      await setDoc(prodRef, cleanedProduct, { merge: true });
+      await setDoc(prodRef, sanitizeForFirestore(cleanedProduct), { merge: true });
 
       // 2. Update local dbSyncedPrices map
       setDbSyncedPrices((prev) =>

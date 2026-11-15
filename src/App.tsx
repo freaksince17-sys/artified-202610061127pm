@@ -39,6 +39,7 @@ import { OrderFAQsModal } from './components/OrderFAQsModal';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { useCart } from './context/CartContext';
 import { useAuthPersistence } from './hooks/useAuthPersistence';
+import { useGoogleAnalytics } from './hooks/useGoogleAnalytics';
 import { LanguageProvider } from './context/LanguageContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { recordVisitorHit } from './services/visitorAnalyticsService';
@@ -180,8 +181,17 @@ function AppContent() {
     isOrderFAQsOpen,
     setIsOrderFAQsOpen,
     isMeetArtisanOpen,
-    setIsMeetArtisanOpen
+    setIsMeetArtisanOpen,
+    activeNavTab,
+    selectedCategory,
+    quickViewProduct
   } = useCart();
+
+  useGoogleAnalytics({
+    activeNavTab,
+    selectedCategory,
+    quickViewProduct,
+  });
 
   // Log visitor traffic hit unobtrusively for live analytics
   React.useEffect(() => {

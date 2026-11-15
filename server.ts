@@ -7,6 +7,7 @@ import crypto from 'crypto';
 import { PRODUCTS, DEFAULT_INSTAGRAM_ITEMS, DEFAULT_INSTAGRAM_HANDLE, DEFAULT_INSTAGRAM_PROFILE_URL, TIKTOK_REELS, DEFAULT_CRAFT_STORY } from './src/data/products.ts';
 import { DEFAULT_ARTISAN_PROFILE } from './src/data/artisanProfile.ts';
 import { generateSitemapXml } from './src/utils/sitemapGenerator.ts';
+import { buildProductOgSvgMarkup } from './src/utils/ogImageGenerator.ts';
 import { GoogleGenAI } from '@google/genai';
 import { autoGenerateWorkshopGroup, autoGenerateMediaCaption } from './src/utils/workshopAIGenerator.ts';
 import { handleAtomicSalesIncrementCloudFunction } from './functions/src/index.ts';
@@ -15,6 +16,7 @@ import { collection, getDocs } from 'firebase/firestore';
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const archiverPkg = require('archiver');
+const sharp = require('sharp');
 
 async function startServer() {
   const app = express();
@@ -127,6 +129,73 @@ async function startServer() {
       return res.sendFile(robotsPath);
     }
     return res.status(404).send('Not found');
+  });
+
+  // GET /og/products/:productId(.jpg) - Auto-generated 1200x630 OpenGraph image with product name & Buy Now CTA
+  app.get('/og/products/:productId', async (req, res) => {
+    try {
+      const rawId = decodeURIComponent(req.params.productId || '').replace(/\.(?:jpg|jpeg|png|webp)$/i, '');
+      let productList = PRODUCTS;
+      if (fs.existsSync(productsJsonPath)) {
+        try {
+          productList = JSON.parse(fs.readFileSync(productsJsonPath, 'utf-8'));
+        } catch {}
+      }
+
+      const product =
+        productList.find((p: any) => p.id === rawId) ||
+        productList.find((p: any) => String(p.id).toLowerCase() === rawId.toLowerCase());
+
+      if (!product) {
+        const fallbackOg = path.resolve(process.cwd(), 'public/og-image.jpg');
+        if (fs.existsSync(fallbackOg)) return res.sendFile(fallbackOg);
+        return res.status(404).send('Product OpenGraph image not found');
+      }
+
+      let embeddedImageDataUri: string | undefined;
+      const primaryImg = Array.isArray(product.images) ? product.images[0] : '';
+      if (primaryImg) {
+        if (primaryImg.startsWith('data:image/')) {
+          // Re-encode via sharp to a compact clean JPEG so SVG embedding stays fast and reliable
+          try {
+            const base64Part = primaryImg.split(',')[1];
+            if (base64Part) {
+              const resized = await sharp(Buffer.from(base64Part, 'base64'))
+                .resize(520, 520, { fit: 'cover' })
+                .jpeg({ quality: 82 })
+                .toBuffer();
+              embeddedImageDataUri = `data:image/jpeg;base64,${resized.toString('base64')}`;
+            }
+          } catch {}
+        } else if (primaryImg.startsWith('/')) {
+          const localPhotoPath = path.resolve(process.cwd(), 'public', primaryImg.replace(/^\/+/, ''));
+          if (fs.existsSync(localPhotoPath)) {
+            try {
+              const resized = await sharp(localPhotoPath)
+                .resize(520, 520, { fit: 'cover' })
+                .jpeg({ quality: 82 })
+                .toBuffer();
+              embeddedImageDataUri = `data:image/jpeg;base64,${resized.toString('base64')}`;
+            } catch {}
+          }
+        }
+      }
+
+      const svg = buildProductOgSvgMarkup(product, { embeddedImageDataUri });
+      const jpegBuffer = await sharp(Buffer.from(svg))
+        .resize(1200, 630)
+        .jpeg({ quality: 90, mozjpeg: true })
+        .toBuffer();
+
+      res.setHeader('Content-Type', 'image/jpeg');
+      res.setHeader('Cache-Control', 'public, max-age=3600');
+      return res.status(200).send(jpegBuffer);
+    } catch (err) {
+      console.warn('Notice: Failed generating product OG image:', err);
+      const fallbackOg = path.resolve(process.cwd(), 'public/og-image.jpg');
+      if (fs.existsSync(fallbackOg)) return res.sendFile(fallbackOg);
+      return res.status(500).send('Error generating OpenGraph image');
+    }
   });
 
   // Path to persistent reviews database files (both runtime tmp and seed codebase)
@@ -3898,10 +3967,10 @@ Do NOT use the words "masterclass", "cohort", or "atelier". Return ONLY valid JS
     viteInstance = vite;
   }
 
-  // OpenGraph social sharing middleware for crawler bots (WhatsApp, Facebook, Twitter, Slack, etc.)
+  // OpenGraph social sharing middleware for crawler bots (Instagram, TikTok, WhatsApp, Facebook, Twitter, Google, etc.)
   app.use(async (req, res, next) => {
     const userAgent = (req.headers['user-agent'] || '').toLowerCase();
-    const isBot = /facebookexternalhit|facebot|twitterbot|whatsapp|telegrambot|linkedinbot|discordbot|slackbot|googlebot|bingbot|pinterest/i.test(userAgent);
+    const isBot = /instagram|tiktok|bytedance|bytespider|meta-externalagent|facebookexternalhit|facebot|twitterbot|whatsapp|telegrambot|linkedinbot|discordbot|slackbot|googlebot|bingbot|pinterest|applebot/i.test(userAgent);
 
     // Only intercept for external crawler bots requesting social cards
     if (isBot) {
@@ -3917,7 +3986,51 @@ Do NOT use the words "masterclass", "cohort", or "atelier". Return ONLY valid JS
           const proto = req.headers['x-forwarded-proto'] || req.protocol || 'https';
           const host = req.headers['x-forwarded-host'] || req.get('host') || 'localhost:3000';
           const origin = `${proto}://${host}`;
-          const absoluteOgImage = `${origin}/og-image.jpg`;
+          let absoluteOgImage = `${origin}/og-image.jpg`;
+
+          // Check if the shared link targets a specific product (?product=<id> or /product/<id>)
+          const pathProdMatch = req.path.match(/^\/product\/([^/]+)\/?$/i);
+          const requestedProductId =
+            (typeof req.query.product === 'string' && req.query.product) ||
+            (typeof req.query.p === 'string' && req.query.p) ||
+            (pathProdMatch?.[1] ? decodeURIComponent(pathProdMatch[1]) : '');
+
+          if (requestedProductId) {
+            let productList = PRODUCTS;
+            if (fs.existsSync(productsJsonPath)) {
+              try {
+                productList = JSON.parse(fs.readFileSync(productsJsonPath, 'utf-8'));
+              } catch {}
+            }
+            const matchedProduct =
+              productList.find((p: any) => p.id === requestedProductId) ||
+              productList.find((p: any) => String(p.id).toLowerCase() === requestedProductId.toLowerCase());
+
+            if (matchedProduct) {
+              const escapeAttr = (s: string) =>
+                String(s || '')
+                  .replace(/&/g, '&amp;')
+                  .replace(/"/g, '&quot;')
+                  .replace(/</g, '&lt;')
+                  .replace(/>/g, '&gt;');
+              const prodTitle = escapeAttr(`${matchedProduct.title} (NPR ${Number(matchedProduct.price || 0).toLocaleString()}) | Artified Nepal`);
+              const prodDesc = escapeAttr(`Buy handcrafted ${matchedProduct.title} in Nepal for NPR ${Number(matchedProduct.price || 0).toLocaleString()}. Handcrafted in Kathmandu with doorstep delivery across Nepal.`);
+              const prodAlt = escapeAttr(`${matchedProduct.title} — Buy Now at Artified Nepal`);
+              const prodUrl = escapeAttr(`${origin}/product/${encodeURIComponent(matchedProduct.id)}/`);
+              absoluteOgImage = `${origin}/og/products/${encodeURIComponent(matchedProduct.id)}.jpg`;
+
+              html = html
+                .replace(/<title>.*?<\/title>/i, `<title>${prodTitle}</title>`)
+                .replace(/<meta name="description"[^>]*>/i, `<meta name="description" content="${prodDesc}" />`)
+                .replace(/<link rel="canonical"[^>]*>/i, `<link rel="canonical" href="${prodUrl}" />`)
+                .replace(/<meta property="og:title"[^>]*>/i, `<meta property="og:title" content="${prodTitle}" />`)
+                .replace(/<meta property="og:description"[^>]*>/i, `<meta property="og:description" content="${prodDesc}" />`)
+                .replace(/<meta property="og:image:alt"[^>]*>/i, `<meta property="og:image:alt" content="${prodAlt}" />`)
+                .replace(/<meta name="twitter:title"[^>]*>/i, `<meta name="twitter:title" content="${prodTitle}" />`)
+                .replace(/<meta name="twitter:description"[^>]*>/i, `<meta name="twitter:description" content="${prodDesc}" />`)
+                .replace(/<meta name="twitter:image:alt"[^>]*>/i, `<meta name="twitter:image:alt" content="${prodAlt}" />`);
+            }
+          }
 
           html = html
             .replace(/content="\/og-image\.jpg"/g, `content="${absoluteOgImage}"`)

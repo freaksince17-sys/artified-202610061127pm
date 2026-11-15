@@ -18,6 +18,7 @@ import { isFirestoreQuotaExceeded, detectQuotaError } from '../utils/safeFiresto
 const CONFIRMED_SALES_ORDERS_STORAGE_KEY = 'artified_confirmed_sales_order_ids_v1';
 const SALES_HISTORY_STORAGE_KEY = 'artified_sales_history_v1';
 const PRODUCT_SALES_LEDGER_STORAGE_KEY = 'artified_product_sales_ledger_v1';
+const inFlightOrderSalesKeys = new Set<string>();
 
 export interface SalesHistoryRecord {
   id: string;
@@ -491,155 +492,174 @@ export function resolveProductIdFromOrderItem(
  */
 export async function trackConfirmedOrderSalesInFirestore(
   order: TrackedOrderData,
-  currentProducts: Product[] = PRODUCTS
+  currentProducts: Product[] = PRODUCTS,
+  options?: { deductInventory?: boolean }
 ): Promise<{ updatedProductQuantities: Record<string, number>; wasNewlyCounted: boolean }> {
+  const shouldDeductInventory = Boolean(options?.deductInventory);
   const canonicalOrderId = getCanonicalOrderKey(order?.orderId || '');
   if (!canonicalOrderId || PURGED_ORDER_IDS.has(canonicalOrderId) || !isOrderConfirmedOrCompleted(order)) {
     return { updatedProductQuantities: {}, wasNewlyCounted: false };
   }
 
-  // Calculate quantities and prices per product from order items
-  const productQuantities: Record<string, number> = {};
-  const productPrices: Record<string, number> = {};
-  for (const item of order.items || []) {
-    const pid = resolveProductIdFromOrderItem(item, currentProducts);
-    if (pid) {
-      const qty = Math.max(1, Number(item.quantity) || 1);
-      productQuantities[pid] = (productQuantities[pid] || 0) + qty;
-      if (Number(item.price) > 0) {
-        productPrices[pid] = Number(item.price);
-      }
-    }
-  }
-
-  if (Object.keys(productQuantities).length === 0) {
+  // Prevent concurrent double-execution for the same order (e.g. CheckoutModal save + recordOnlineOrderSales)
+  const inFlightKey = `${canonicalOrderId}_${shouldDeductInventory ? 'deduct' : 'sync'}`;
+  if (inFlightOrderSalesKeys.has(canonicalOrderId) || inFlightOrderSalesKeys.has(inFlightKey)) {
     return { updatedProductQuantities: {}, wasNewlyCounted: false };
   }
+  inFlightOrderSalesKeys.add(canonicalOrderId);
+  inFlightOrderSalesKeys.add(inFlightKey);
 
-  const existingHistory = getLocalSalesHistory(currentProducts);
-  const existingIds = new Set(existingHistory.map((r) => r.id));
-  const nowIso = order.updatedAt || new Date().toISOString();
-  const normOrderId = normalizeOrderId(order.orderId);
-  const formattedOrderId = `#${normOrderId}`;
-
-  const newRecords: SalesHistoryRecord[] = [];
-  const newlyAddedQuantities: Record<string, number> = {};
-
-  for (const [productId, qtyToAdd] of Object.entries(productQuantities)) {
-    const recId = `${canonicalOrderId}_${productId}`;
-    if (!existingIds.has(recId)) {
-      const existingProd =
-        currentProducts.find((p) => p.id === productId) || PRODUCTS.find((p) => p.id === productId);
-      const unitPrice = productPrices[productId] || existingProd?.price || 1500;
-      newRecords.push({
-        id: recId,
-        productId,
-        productTitle: existingProd?.title || '',
-        category: existingProd?.category || 'pearl-bags',
-        orderId: formattedOrderId,
-        quantity: qtyToAdd,
-        unitPrice,
-        revenue: qtyToAdd * unitPrice,
-        timestamp: nowIso,
-        createdAt: nowIso,
-        status: 'completed'
-      });
-      newlyAddedQuantities[productId] = qtyToAdd;
-    }
-  }
-
-  const countedSet = getCountedSalesOrderIds();
-  countedSet.add(canonicalOrderId);
-  saveCountedSalesOrderIds(countedSet);
-
-  const { verifiedSalesByProduct } = mergeSalesHistoryRecords(newRecords, currentProducts);
-
-  if (
-    typeof window !== 'undefined' &&
-    (Object.keys(newlyAddedQuantities).length > 0 || Object.keys(verifiedSalesByProduct).length > 0)
-  ) {
-    window.dispatchEvent(
-      new CustomEvent('artified_sales_incremented', {
-        detail: {
-          orderId: formattedOrderId,
-          productQuantities: newlyAddedQuantities,
-          verifiedSalesByProduct
-        }
-      })
-    );
-    if ('BroadcastChannel' in window) {
-      try {
-        const bc = new BroadcastChannel('artified_sync_channel');
-        bc.postMessage({ type: 'ORDER_PLACED', orderId: formattedOrderId });
-        bc.close();
-      } catch {}
-    }
-  }
-
-  // 1. Invoke Server-Side Cloud Function endpoint (/api/sales/increment) for atomic persistence & cross-browser sync
   try {
-    const res = await fetch('/api/sales/increment', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        orderId: formattedOrderId,
-        timestamp: nowIso,
-        items: Object.entries(productQuantities).map(([pid, qty]) => {
-          const prod = currentProducts.find((p) => p.id === pid) || PRODUCTS.find((p) => p.id === pid);
-          const unitPrice = productPrices[pid] || prod?.price || 1500;
-          return {
-            productId: pid,
-            productTitle: prod?.title || '',
-            category: prod?.category || 'pearl-bags',
-            quantity: qty,
-            unitPrice,
-            revenue: qty * unitPrice
-          };
-        })
-      })
-    });
-    if (res.ok) {
-      const serverData = await res.json();
-      if (Array.isArray(serverData?.salesHistory)) {
-        const merged = mergeSalesHistoryRecords(serverData.salesHistory, currentProducts);
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(
-            new CustomEvent('artified_sales_incremented', {
-              detail: {
-                orderId: formattedOrderId,
-                productQuantities: {},
-                verifiedSalesByProduct: merged.verifiedSalesByProduct
-              }
-            })
-          );
+    // Calculate quantities and prices per product from order items
+    const productQuantities: Record<string, number> = {};
+    const productPrices: Record<string, number> = {};
+    for (const item of order.items || []) {
+      const pid = resolveProductIdFromOrderItem(item, currentProducts);
+      if (pid) {
+        const qty = Math.max(1, Number(item.quantity) || 1);
+        productQuantities[pid] = (productQuantities[pid] || 0) + qty;
+        if (Number(item.price) > 0) {
+          productPrices[pid] = Number(item.price);
         }
       }
     }
-  } catch {}
 
-  // 2. Direct Firestore atomic transaction to decrement inventoryCount and increment onlineSalesCount / totalSold without race conditions
-  if (newRecords.length > 0 && !isFirestoreQuotaExceeded) {
-    try {
-      const itemsToTransact = Object.entries(newlyAddedQuantities).map(([pid, qtyToAdd]) => {
-        const prod = currentProducts.find((p) => p.id === pid) || PRODUCTS.find((p) => p.id === pid);
-        return {
-          productId: pid,
-          quantity: qtyToAdd,
-          unitPrice: productPrices[pid] || prod?.price || 1500,
-          productTitle: prod?.title || ''
-        };
-      });
-
-      await executeProductPurchaseTransaction(itemsToTransact, formattedOrderId, currentProducts);
-    } catch (err) {
-      detectQuotaError(err);
+    if (Object.keys(productQuantities).length === 0) {
+      return { updatedProductQuantities: {}, wasNewlyCounted: false };
     }
-  }
 
-  return {
-    updatedProductQuantities: newlyAddedQuantities,
-    wasNewlyCounted: Object.keys(newlyAddedQuantities).length > 0
-  };
+    const existingHistory = getLocalSalesHistory(currentProducts);
+    const existingIds = new Set(existingHistory.map((r) => r.id));
+    const nowIso = order.updatedAt || new Date().toISOString();
+    const normOrderId = normalizeOrderId(order.orderId);
+    const formattedOrderId = `#${normOrderId}`;
+
+    const newRecords: SalesHistoryRecord[] = [];
+    const newlyAddedQuantities: Record<string, number> = {};
+
+    for (const [productId, qtyToAdd] of Object.entries(productQuantities)) {
+      const recId = `${canonicalOrderId}_${productId}`;
+      if (!existingIds.has(recId)) {
+        const existingProd =
+          currentProducts.find((p) => p.id === productId) || PRODUCTS.find((p) => p.id === productId);
+        const unitPrice = productPrices[productId] || existingProd?.price || 1500;
+        newRecords.push({
+          id: recId,
+          productId,
+          productTitle: existingProd?.title || '',
+          category: existingProd?.category || 'pearl-bags',
+          orderId: formattedOrderId,
+          quantity: qtyToAdd,
+          unitPrice,
+          revenue: qtyToAdd * unitPrice,
+          timestamp: nowIso,
+          createdAt: nowIso,
+          status: 'completed'
+        });
+        newlyAddedQuantities[productId] = qtyToAdd;
+      }
+    }
+
+    const countedSet = getCountedSalesOrderIds();
+    countedSet.add(canonicalOrderId);
+    saveCountedSalesOrderIds(countedSet);
+
+    const { verifiedSalesByProduct } = mergeSalesHistoryRecords(newRecords, currentProducts);
+
+    if (
+      typeof window !== 'undefined' &&
+      (Object.keys(newlyAddedQuantities).length > 0 || Object.keys(verifiedSalesByProduct).length > 0)
+    ) {
+      window.dispatchEvent(
+        new CustomEvent('artified_sales_incremented', {
+          detail: {
+            orderId: formattedOrderId,
+            productQuantities: newlyAddedQuantities,
+            verifiedSalesByProduct,
+            deductInventory: shouldDeductInventory
+          }
+        })
+      );
+      if (shouldDeductInventory && 'BroadcastChannel' in window) {
+        try {
+          const bc = new BroadcastChannel('artified_sync_channel');
+          bc.postMessage({ type: 'ORDER_PLACED', orderId: formattedOrderId });
+          bc.close();
+        } catch {}
+      }
+    }
+
+    // 1. Invoke Server-Side endpoint (/api/sales/increment) for cross-browser ledger persistence
+    try {
+      const res = await fetch('/api/sales/increment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId: formattedOrderId,
+          timestamp: nowIso,
+          items: Object.entries(productQuantities).map(([pid, qty]) => {
+            const prod = currentProducts.find((p) => p.id === pid) || PRODUCTS.find((p) => p.id === pid);
+            const unitPrice = productPrices[pid] || prod?.price || 1500;
+            return {
+              productId: pid,
+              productTitle: prod?.title || '',
+              category: prod?.category || 'pearl-bags',
+              quantity: qty,
+              unitPrice,
+              revenue: qty * unitPrice
+            };
+          })
+        })
+      });
+      if (res.ok) {
+        const serverData = await res.json();
+        if (Array.isArray(serverData?.salesHistory)) {
+          const merged = mergeSalesHistoryRecords(serverData.salesHistory, currentProducts);
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(
+              new CustomEvent('artified_sales_incremented', {
+                detail: {
+                  orderId: formattedOrderId,
+                  productQuantities: {},
+                  verifiedSalesByProduct: merged.verifiedSalesByProduct,
+                  deductInventory: false
+                }
+              })
+            );
+          }
+        }
+      }
+    } catch {}
+
+    // 2. Direct Firestore atomic transaction (only deducts inventory if shouldDeductInventory is explicitly true AND sales_history record does not yet exist in Firestore)
+    if (newRecords.length > 0 && !isFirestoreQuotaExceeded) {
+      try {
+        const itemsToTransact = Object.entries(newlyAddedQuantities).map(([pid, qtyToAdd]) => {
+          const prod = currentProducts.find((p) => p.id === pid) || PRODUCTS.find((p) => p.id === pid);
+          return {
+            productId: pid,
+            quantity: qtyToAdd,
+            unitPrice: productPrices[pid] || prod?.price || 1500,
+            productTitle: prod?.title || ''
+          };
+        });
+
+        await executeProductPurchaseTransaction(itemsToTransact, formattedOrderId, currentProducts, {
+          deductInventory: shouldDeductInventory
+        });
+      } catch (err) {
+        detectQuotaError(err);
+      }
+    }
+
+    return {
+      updatedProductQuantities: newlyAddedQuantities,
+      wasNewlyCounted: Object.keys(newlyAddedQuantities).length > 0
+    };
+  } finally {
+    inFlightOrderSalesKeys.delete(canonicalOrderId);
+    inFlightOrderSalesKeys.delete(inFlightKey);
+  }
 }
 
 /**
@@ -748,7 +768,8 @@ export async function syncConfirmedSalesOrdersFromFirestore(
       }
 
       if (missingAnyItem) {
-        await trackConfirmedOrderSalesInFirestore(order, currentProducts);
+        // Historical/background reconciliation NEVER deducts live inventoryCount/stockCount
+        await trackConfirmedOrderSalesInFirestore(order, currentProducts, { deductInventory: false });
       }
     }
   }
@@ -767,23 +788,39 @@ export function calculateCatalogTotalCreationsSold(products: Product[] = PRODUCT
 export async function executeProductPurchaseTransaction(
   items: Array<{ productId: string; quantity: number; unitPrice?: number; productTitle?: string }>,
   orderId: string,
-  currentProducts: Product[] = PRODUCTS
-): Promise<Record<string, { newInventory: number; newOnlineSales: number; newTotalSold: number }>> {
-  const results: Record<string, { newInventory: number; newOnlineSales: number; newTotalSold: number }> = {};
+  currentProducts: Product[] = PRODUCTS,
+  options?: { deductInventory?: boolean }
+): Promise<Record<string, { newInventory: number; newOnlineSales: number; newTotalSold: number; deducted: boolean }>> {
+  const results: Record<string, { newInventory: number; newOnlineSales: number; newTotalSold: number; deducted: boolean }> = {};
   if (!db || isFirestoreQuotaExceeded || !items || items.length === 0) return results;
+
+  const allowInventoryDeduction = Boolean(options?.deductInventory);
+  const canonical = getCanonicalOrderKey(orderId);
+  if (!canonical || PURGED_ORDER_IDS.has(canonical)) return results;
 
   try {
     await runTransaction(db, async (transaction) => {
       const nowIso = new Date().toISOString();
+      const validItems = items.filter((item) => item && item.productId);
 
-      for (const item of items) {
-        if (!item || !item.productId) continue;
-        const pid = item.productId;
+      // Phase 1: Execute ALL Firestore reads before ANY writes (required by Firestore transactions for multi-item orders)
+      const prefetched = await Promise.all(
+        validItems.map(async (item) => {
+          const pid = item.productId;
+          const prodRef = doc(db, 'products', pid);
+          const recId = `${canonical}_${pid}`;
+          const historyRef = doc(db, 'sales_history', recId);
+          const [prodSnap, historySnap] = await Promise.all([
+            transaction.get(prodRef),
+            transaction.get(historyRef)
+          ]);
+          return { item, pid, prodRef, recId, historyRef, prodSnap, historySnap };
+        })
+      );
+
+      // Phase 2: Compute updates and execute writes
+      for (const { item, pid, prodRef, recId, historyRef, prodSnap, historySnap } of prefetched) {
         const qtyToBuy = Math.max(1, Number(item.quantity) || 1);
-        const prodRef = doc(db, 'products', pid);
-
-        // 1. Read the product document inside the transaction
-        const prodSnap = await transaction.get(prodRef);
         const catalogProd = currentProducts.find((p) => p.id === pid) || PRODUCTS.find((p) => p.id === pid);
 
         let currentInventory = 10;
@@ -818,66 +855,69 @@ export async function executeProductPurchaseTransaction(
           currentTotalSold = catalogProd.totalSold ?? ((catalogProd.soldCount ?? 54) + currentOnlineSales);
         }
 
-        // 2. Compute atomic decrements & increments
-        const newInventory = Math.max(0, currentInventory - qtyToBuy);
-        const newOnlineSales = currentOnlineSales + qtyToBuy;
-        const newTotalSold = currentTotalSold + qtyToBuy;
+        const alreadyExistsInFirestore = historySnap.exists();
+        const shouldDeductNow = allowInventoryDeduction && !alreadyExistsInFirestore;
+
+        const newInventory = shouldDeductNow ? Math.max(0, currentInventory - qtyToBuy) : currentInventory;
+        const newOnlineSales = !alreadyExistsInFirestore ? currentOnlineSales + qtyToBuy : currentOnlineSales;
+        const newTotalSold = !alreadyExistsInFirestore ? currentTotalSold + qtyToBuy : currentTotalSold;
         const newInStock = newInventory > 0;
 
         results[pid] = {
           newInventory,
           newOnlineSales,
-          newTotalSold
+          newTotalSold,
+          deducted: shouldDeductNow
         };
 
-        // 3. Write atomic updates back to Firestore product doc inside transaction only if valid product exists
-        if (catalogProd || (prodSnap.exists() && typeof prodSnap.data()?.price === 'number')) {
+        // Write updates back to Firestore product doc only when recording a new sale,
+        // and NEVER modify stock fields unless shouldDeductNow is explicitly true.
+        if (!alreadyExistsInFirestore && (catalogProd || (prodSnap.exists() && typeof prodSnap.data()?.price === 'number'))) {
+          const productUpdate: Record<string, any> = {
+            id: pid,
+            title: catalogProd?.title || item.productTitle || pid,
+            ...(catalogProd?.price ? { price: catalogProd.price } : {}),
+            ...(catalogProd?.category ? { category: catalogProd.category } : {}),
+            onlineSalesCount: newOnlineSales,
+            totalSold: newTotalSold,
+            updatedAt: nowIso
+          };
+          if (shouldDeductNow) {
+            productUpdate.inventoryCount = newInventory;
+            productUpdate.stockCount = newInventory;
+            productUpdate.inStock = newInStock;
+          }
+          transaction.set(prodRef, productUpdate, { merge: true });
+        }
+
+        // Record sales_history entry if it doesn't already exist
+        if (!alreadyExistsInFirestore) {
+          const unitPrice = item.unitPrice || catalogProd?.price || 1500;
           transaction.set(
-            prodRef,
+            historyRef,
             {
-              id: pid,
-              title: catalogProd?.title || item.productTitle || pid,
-              ...(catalogProd?.price ? { price: catalogProd.price } : {}),
-              ...(catalogProd?.category ? { category: catalogProd.category } : {}),
-              inventoryCount: newInventory,
-              stockCount: newInventory,
-              inStock: newInStock,
-              onlineSalesCount: newOnlineSales,
-              totalSold: newTotalSold,
-              updatedAt: nowIso
+              id: recId,
+              productId: pid,
+              productTitle: catalogProd?.title || item.productTitle || '',
+              category: catalogProd?.category || 'pearl-bags',
+              orderId,
+              quantity: qtyToBuy,
+              unitPrice,
+              revenue: qtyToBuy * unitPrice,
+              inventoryDeducted: shouldDeductNow,
+              timestamp: serverTimestamp(),
+              createdAt: nowIso,
+              status: 'completed'
             },
             { merge: true }
           );
         }
-
-        // 4. Record sales_history entry inside the transaction
-        const canonical = getCanonicalOrderKey(orderId);
-        const recId = `${canonical}_${pid}`;
-        const historyRef = doc(db, 'sales_history', recId);
-        const unitPrice = item.unitPrice || catalogProd?.price || 1500;
-
-        transaction.set(
-          historyRef,
-          {
-            id: recId,
-            productId: pid,
-            productTitle: catalogProd?.title || item.productTitle || '',
-            category: catalogProd?.category || 'pearl-bags',
-            orderId,
-            quantity: qtyToBuy,
-            unitPrice,
-            revenue: qtyToBuy * unitPrice,
-            timestamp: serverTimestamp(),
-            createdAt: nowIso,
-            status: 'completed'
-          },
-          { merge: true }
-        );
       }
     });
-    // Trigger low stock Cloud Function email dispatch for any product whose inventoryCount dropped below 5
+
+    // Trigger low stock email alert only when inventory was genuinely deducted below 5
     for (const [pid, res] of Object.entries(results)) {
-      if (res.newInventory < 5) {
+      if (res.deducted && res.newInventory < 5) {
         const prod = currentProducts.find((p) => p.id === pid) || PRODUCTS.find((p) => p.id === pid);
         fetch('/api/send-low-stock-email', {
           method: 'POST',
