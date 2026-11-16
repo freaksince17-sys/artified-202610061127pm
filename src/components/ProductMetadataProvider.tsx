@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-import { useCart, findMatchingProductByUrlParam, getRequestedProductParamFromUrl } from '../context/CartContext';
+import { useCart } from '../context/CartContext';
 import { applyProductSeo } from '../utils/productSeo';
 import { selectBestProductImages } from '../data/products';
 import { handleFirestoreError, OperationType } from '../utils/firestoreErrors';
@@ -11,27 +11,27 @@ import { Product } from '../types';
  * Dedicated metadata provider that fetches real-time product data from Firestore on page load
  * and injects product-specific OpenGraph (og:title, og:image, og:description), Twitter Card,
  * canonical URL, and JSON-LD structured data directly into document.head (without exposing price).
+ * When the product modal is closed, it immediately restores the clean storefront URL and metadata.
  */
 export const ProductMetadataProvider: React.FC = () => {
-  const { quickViewProduct, products } = useCart();
+  const { quickViewProduct } = useCart();
   const hadActiveProductRef = useRef<boolean>(Boolean(quickViewProduct));
 
   useEffect(() => {
     let isCancelled = false;
-    const requestedParam = getRequestedProductParamFromUrl();
-    const localTargetProduct =
-      quickViewProduct || findMatchingProductByUrlParam(products, requestedParam);
 
-    if (localTargetProduct) {
-      hadActiveProductRef.current = true;
-      applyProductSeo(localTargetProduct);
-    } else if (!requestedParam && hadActiveProductRef.current) {
-      hadActiveProductRef.current = false;
-      applyProductSeo(null);
+    if (!quickViewProduct) {
+      if (hadActiveProductRef.current) {
+        hadActiveProductRef.current = false;
+        applyProductSeo(null);
+      }
       return;
     }
 
-    const targetId = localTargetProduct?.id || requestedParam;
+    hadActiveProductRef.current = true;
+    applyProductSeo(quickViewProduct);
+
+    const targetId = quickViewProduct.id;
     if (!targetId) return;
 
     // Fetch real-time product data from Firestore ('products' collection) on page load / product switch
@@ -45,26 +45,27 @@ export const ProductMetadataProvider: React.FC = () => {
         if (!cloudData) return;
 
         const mergedProduct: Product = {
-          ...(localTargetProduct || ({} as Product)),
+          ...quickViewProduct,
           ...(cloudData as Partial<Product>),
           id: cloudData.id || snap.id || targetId,
-          title: cloudData.title || localTargetProduct?.title || 'Artified Nepal Creation',
-          subtitle: cloudData.subtitle || localTargetProduct?.subtitle || 'Handcrafted in Kathmandu, Nepal',
+          title: cloudData.title || quickViewProduct.title || 'Artified Nepal Creation',
+          subtitle: cloudData.subtitle || quickViewProduct.subtitle || 'Handcrafted in Kathmandu, Nepal',
           description:
             cloudData.description ||
-            localTargetProduct?.description ||
+            quickViewProduct.description ||
             cloudData.subtitle ||
             'Handcrafted creation by Artified Nepal in Kathmandu.',
-          category: cloudData.category || localTargetProduct?.category || 'pearl-bags',
+          category: cloudData.category || quickViewProduct.category || 'pearl-bags',
           price:
             typeof cloudData.price === 'number' && cloudData.price > 0
               ? cloudData.price
-              : localTargetProduct?.price || 1500,
-          images: selectBestProductImages(cloudData.images, localTargetProduct?.images, true),
+              : quickViewProduct.price || 1500,
+          images: selectBestProductImages(cloudData.images, quickViewProduct.images, true),
         };
 
-        hadActiveProductRef.current = true;
-        applyProductSeo(mergedProduct);
+        if (!isCancelled) {
+          applyProductSeo(mergedProduct);
+        }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         if (msg.toLowerCase().includes('missing or insufficient permissions')) {
@@ -82,7 +83,7 @@ export const ProductMetadataProvider: React.FC = () => {
     return () => {
       isCancelled = true;
     };
-  }, [quickViewProduct, products]);
+  }, [quickViewProduct]);
 
   return null;
 };

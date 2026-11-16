@@ -1380,7 +1380,9 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const currentPath = window.location.pathname.toLowerCase().replace(/\/+$/, '') || '/';
     const isCleanRoute = ['/pearl-bags', '/pearl-necklaces', '/macrame', '/workshops', '/accessories'].includes(currentPath);
     const isProductRoute = /^\/product\/[^/]+$/i.test(currentPath);
-    if (!isProductRoute && currentPath !== targetPath && (targetPath !== '/' || isCleanRoute)) {
+    if (!quickViewProduct && isProductRoute && !pendingUrlProductIdRef.current) {
+      window.history.replaceState({ navTab: activeNavTab, category: selectedCategory }, '', targetPath);
+    } else if (!quickViewProduct && !isProductRoute && currentPath !== targetPath && (targetPath !== '/' || isCleanRoute)) {
       const searchSuffix = window.location.search || '';
       window.history.pushState({ navTab: activeNavTab, category: selectedCategory }, '', `${targetPath}${searchSuffix}`);
     }
@@ -1419,15 +1421,15 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Google Search & Direct Link Hydration (?product=id, ?category=id, or /product/<id>)
   useEffect(() => {
     try {
-      const prodParam = pendingUrlProductIdRef.current || getRequestedProductParamFromUrl();
+      const prodParam = pendingUrlProductIdRef.current;
       if (prodParam && products.length > 0 && !quickViewProduct) {
         const found = findMatchingProductByUrlParam(products, prodParam);
         if (found) {
           pendingUrlProductIdRef.current = null;
           setQuickViewProduct(found);
-        } else if (pendingUrlProductIdRef.current) {
+        } else {
           // Fallback: if shared product is a brand-new creation stored in Cloud Firestore, fetch it directly
-          const targetId = pendingUrlProductIdRef.current;
+          const targetId = prodParam;
           getDoc(doc(db, 'products', targetId))
             .then((snap) => {
               if (snap.exists()) {
