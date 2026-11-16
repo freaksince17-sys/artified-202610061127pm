@@ -138,7 +138,14 @@ export function applyProductSeo(product: Product | null): void {
     // 7. Update browser URL without reloading page
     try {
       const url = new URL(window.location.href);
-      url.searchParams.set('product', product.id);
+      const isDedicatedProductPath = /^\/product\/[^/]+\/?$/i.test(url.pathname);
+      if (isDedicatedProductPath) {
+        url.pathname = `/product/${encodeURIComponent(product.id)}/`;
+        url.searchParams.delete('product');
+        url.searchParams.delete('p');
+      } else {
+        url.searchParams.set('product', product.id);
+      }
       window.history.replaceState({ productId: product.id }, seo.title, url.toString());
     } catch {}
   } else {
@@ -165,12 +172,20 @@ export function applyProductSeo(product: Product | null): void {
       jsonLdEl.parentNode.removeChild(jsonLdEl);
     }
 
-    // Clean up product query from browser URL without reloading
+    // Clean up product query or dedicated product path from browser URL without reloading
     try {
       const url = new URL(window.location.href);
+      let changed = false;
       if (url.searchParams.has('product') || url.searchParams.has('p')) {
         url.searchParams.delete('product');
         url.searchParams.delete('p');
+        changed = true;
+      }
+      if (/^\/product\/[^/]+\/?$/i.test(url.pathname)) {
+        url.pathname = '/';
+        changed = true;
+      }
+      if (changed) {
         window.history.replaceState({}, DEFAULT_TITLE, url.toString());
       }
     } catch {}

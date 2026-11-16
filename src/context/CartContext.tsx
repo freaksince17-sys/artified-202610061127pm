@@ -314,6 +314,119 @@ const sanitizeProduct = (prod: Product): Product => {
   };
 };
 
+const slugifyProductTitle = (value: string): string =>
+  String(value || '')
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+
+export const getRequestedProductParamFromUrl = (): string | null => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const pathMatch = window.location.pathname.match(/^\/product\/([^/]+)\/?$/i);
+    const pathProdId = pathMatch?.[1] ? decodeURIComponent(pathMatch[1]) : null;
+    const hashMatch = window.location.hash.match(/[?&]product=([^&]+)/i);
+    const hashProdId = hashMatch?.[1] ? decodeURIComponent(hashMatch[1]) : null;
+    const raw = (params.get('product') || params.get('p') || pathProdId || hashProdId || '').trim();
+    return raw || null;
+  } catch {
+    return null;
+  }
+};
+
+export const findMatchingProductByUrlParam = (
+  catalog: Product[],
+  param: string | null | undefined
+): Product | null => {
+  if (!param || !Array.isArray(catalog) || catalog.length === 0) return null;
+  const normalized = param.trim().toLowerCase();
+  const slugTarget = slugifyProductTitle(param);
+  return (
+    catalog.find(
+      (p) =>
+        p.id === param ||
+        p.id.toLowerCase() === normalized ||
+        (slugTarget && slugifyProductTitle(p.title) === slugTarget)
+    ) || null
+  );
+};
+
+const loadInitialProductsCatalog = (): Product[] => {
+  try {
+    const storedBuildVersion = localStorage.getItem('artified_catalog_build_version');
+    if (storedBuildVersion !== CATALOG_BUILD_VERSION) {
+      localStorage.removeItem('artified_products_custom');
+      localStorage.removeItem('artified_products_v3');
+      localStorage.removeItem('artified_deleted_review_ids');
+      localStorage.removeItem('artified_custom_reviews_v1');
+      try {
+        const keysToRemove: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith('artified_reviews_')) {
+            keysToRemove.push(k);
+          }
+        }
+        keysToRemove.forEach((k) => localStorage.removeItem(k));
+      } catch {}
+      localStorage.setItem('artified_catalog_build_version', CATALOG_BUILD_VERSION);
+    }
+
+    const saved = localStorage.getItem('artified_products_v3') || localStorage.getItem('artified_products_custom');
+    let baseList = PRODUCTS;
+    if (saved) {
+      if (saved.length > 800000) {
+        localStorage.removeItem('artified_products_v3');
+        localStorage.removeItem('artified_products_custom');
+      } else {
+        try {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            baseList = reconcileProductCatalog(parsed, PRODUCTS);
+          }
+        } catch {}
+      }
+    }
+
+    const liveOverridesRaw = localStorage.getItem('artified_cloud_live_overrides_v1');
+    if (liveOverridesRaw) {
+      try {
+        const liveOverrides = JSON.parse(liveOverridesRaw);
+        if (liveOverrides && typeof liveOverrides === 'object') {
+          baseList = baseList.map((p) => {
+            const ov = liveOverrides[p.id];
+            if (!ov) return p;
+            const ovTime = ov.updatedAt ? new Date(ov.updatedAt).getTime() : 0;
+            const pTime = p.updatedAt ? new Date(p.updatedAt).getTime() : 0;
+            const isOvNewerOrEqual = ovTime === 0 || pTime === 0 || ovTime >= pTime;
+            const nextStock = isOvNewerOrEqual && typeof ov.stockCount === 'number' ? ov.stockCount : p.stockCount;
+            const nextInv = isOvNewerOrEqual && typeof ov.inventoryCount === 'number' ? ov.inventoryCount : p.inventoryCount;
+            const nextInStock = isOvNewerOrEqual && typeof ov.inStock === 'boolean' ? (ov.inStock && nextStock > 0) : p.inStock;
+            return {
+              ...p,
+              soldCount: isOvNewerOrEqual && typeof ov.soldCount === 'number' ? ov.soldCount : p.soldCount,
+              onlineSalesCount: typeof ov.onlineSalesCount === 'number' ? Math.max(p.onlineSalesCount || 0, ov.onlineSalesCount) : p.onlineSalesCount,
+              totalSold: typeof ov.totalSold === 'number' ? Math.max(p.totalSold || 0, ov.totalSold) : p.totalSold,
+              price: isOvNewerOrEqual && typeof ov.price === 'number' && ov.price > 0 ? ov.price : p.price,
+              originalPrice: isOvNewerOrEqual && typeof ov.originalPrice === 'number' ? ov.originalPrice : p.originalPrice,
+              stockCount: nextStock,
+              inventoryCount: nextInv,
+              inStock: nextInStock,
+              updatedAt: isOvNewerOrEqual && ov.updatedAt ? ov.updatedAt : p.updatedAt
+            };
+          });
+        }
+      } catch {}
+    }
+
+    baseList = applyVerifiedSalesToProducts(baseList);
+    return baseList.map(sanitizeProduct);
+  } catch {}
+  return applyVerifiedSalesToProducts(PRODUCTS).map(sanitizeProduct);
+};
+
 /**
  * Parses initial URL path or query params for clean URLs:
  * /pearl-bags, /pearl-necklaces, /macrame, /workshops, /accessories
@@ -341,6 +454,9 @@ export const getInitialRouteState = (): { navTab: AppNavTab; category: string } 
   }
   if (rawPath === '/accessories') {
     return { navTab: 'home', category: 'accessories' };
+  }
+  if (/^\/product\/[^/]+$/i.test(rawPath)) {
+    return { navTab: 'home', category: params.get('category') || 'all' };
   }
 
   // 2. Query parameter and hash routing fallbacks:
@@ -397,7 +513,14 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isTrackerOpen, setIsTrackerOpen] = useState<boolean>(false);
   const [trackingOrderId, setTrackingOrderId] = useState<string>('');
   const [isOrderManagerOpen, setIsOrderManagerOpen] = useState<boolean>(false);
-  const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null);
+  const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(() => {
+    const requestedParam = getRequestedProductParamFromUrl();
+    if (!requestedParam) return null;
+    return findMatchingProductByUrlParam(loadInitialProductsCatalog(), requestedParam);
+  });
+  const pendingUrlProductIdRef = React.useRef<string | null>(
+    quickViewProduct ? null : getRequestedProductParamFromUrl()
+  );
   const [activeReel, setActiveReel] = useState<TikTokReel | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<string>(() => {
@@ -1256,123 +1379,70 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const currentPath = window.location.pathname.toLowerCase().replace(/\/+$/, '') || '/';
     const isCleanRoute = ['/pearl-bags', '/pearl-necklaces', '/macrame', '/workshops', '/accessories'].includes(currentPath);
-    if (currentPath !== targetPath && (targetPath !== '/' || isCleanRoute)) {
-      window.history.pushState({ navTab: activeNavTab, category: selectedCategory }, '', targetPath);
+    const isProductRoute = /^\/product\/[^/]+$/i.test(currentPath);
+    if (!isProductRoute && currentPath !== targetPath && (targetPath !== '/' || isCleanRoute)) {
+      const searchSuffix = window.location.search || '';
+      window.history.pushState({ navTab: activeNavTab, category: selectedCategory }, '', `${targetPath}${searchSuffix}`);
     }
-    document.title = targetTitle;
-  }, [activeNavTab, selectedCategory]);
-
-  // Handle browser Back / Forward buttons (popstate)
-  useEffect(() => {
-    const handlePopState = () => {
-      const { navTab, category } = getInitialRouteState();
-      setActiveNavTab(navTab);
-      setSelectedCategory(category);
-    };
-
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
+    if (!quickViewProduct) {
+      document.title = targetTitle;
+    }
+  }, [activeNavTab, selectedCategory, quickViewProduct]);
 
   // Social Media Showcase Tab State ('tiktok' | 'journal')
   const [activeSocialTab, setActiveSocialTab] = useState<'tiktok' | 'journal'>('tiktok');
 
   // Products State - Guaranteed all products loaded immediately with authoritative prices reconciled
-  const [products, setProducts] = useState<Product[]>(() => {
-    try {
-      const storedBuildVersion = localStorage.getItem('artified_catalog_build_version');
-      if (storedBuildVersion !== CATALOG_BUILD_VERSION) {
-        // Automatic cache purge on new release deployment:
-        // Discard stale product & review caches from previous releases so Royal & Classic each have their exact 1 review
-        localStorage.removeItem('artified_products_custom');
-        localStorage.removeItem('artified_products_v3');
-        localStorage.removeItem('artified_deleted_review_ids');
-        localStorage.removeItem('artified_custom_reviews_v1');
-        try {
-          const keysToRemove: string[] = [];
-          for (let i = 0; i < localStorage.length; i++) {
-            const k = localStorage.key(i);
-            if (k && k.startsWith('artified_reviews_')) {
-              keysToRemove.push(k);
-            }
-          }
-          keysToRemove.forEach((k) => localStorage.removeItem(k));
-        } catch {}
-        localStorage.setItem('artified_catalog_build_version', CATALOG_BUILD_VERSION);
-      }
+  const [products, setProducts] = useState<Product[]>(() => loadInitialProductsCatalog());
 
-      const saved = localStorage.getItem('artified_products_v3') || localStorage.getItem('artified_products_custom');
-      let baseList = PRODUCTS;
-      if (saved) {
-        if (saved.length > 800000) {
-          localStorage.removeItem('artified_products_v3');
-          localStorage.removeItem('artified_products_custom');
-        } else {
-          try {
-            const parsed = JSON.parse(saved);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-              baseList = reconcileProductCatalog(parsed, PRODUCTS);
-            }
-          } catch {}
+  // Handle browser Back / Forward buttons (popstate) including product deep links
+  useEffect(() => {
+    const handlePopState = () => {
+      const { navTab, category } = getInitialRouteState();
+      setActiveNavTab(navTab);
+      setSelectedCategory(category);
+      const prodParam = getRequestedProductParamFromUrl();
+      if (prodParam) {
+        const found = findMatchingProductByUrlParam(products, prodParam);
+        if (found) {
+          setQuickViewProduct(found);
         }
+      } else {
+        setQuickViewProduct(null);
       }
+    };
 
-      // Hydrate live Cloud Firestore overrides synchronously on boot only when override is >= bundled product timestamp
-      const liveOverridesRaw = localStorage.getItem('artified_cloud_live_overrides_v1');
-      if (liveOverridesRaw) {
-        try {
-          const liveOverrides = JSON.parse(liveOverridesRaw);
-          if (liveOverrides && typeof liveOverrides === 'object') {
-            baseList = baseList.map((p) => {
-              const ov = liveOverrides[p.id];
-              if (!ov) return p;
-              const ovTime = ov.updatedAt ? new Date(ov.updatedAt).getTime() : 0;
-              const pTime = p.updatedAt ? new Date(p.updatedAt).getTime() : 0;
-              const isOvNewerOrEqual = ovTime === 0 || pTime === 0 || ovTime >= pTime;
-              const nextStock = isOvNewerOrEqual && typeof ov.stockCount === 'number' ? ov.stockCount : p.stockCount;
-              const nextInv = isOvNewerOrEqual && typeof ov.inventoryCount === 'number' ? ov.inventoryCount : p.inventoryCount;
-              const nextInStock = isOvNewerOrEqual && typeof ov.inStock === 'boolean' ? (ov.inStock && nextStock > 0) : p.inStock;
-              return {
-                ...p,
-                soldCount: isOvNewerOrEqual && typeof ov.soldCount === 'number' ? ov.soldCount : p.soldCount,
-                onlineSalesCount: typeof ov.onlineSalesCount === 'number' ? Math.max(p.onlineSalesCount || 0, ov.onlineSalesCount) : p.onlineSalesCount,
-                totalSold: typeof ov.totalSold === 'number' ? Math.max(p.totalSold || 0, ov.totalSold) : p.totalSold,
-                price: isOvNewerOrEqual && typeof ov.price === 'number' && ov.price > 0 ? ov.price : p.price,
-                originalPrice: isOvNewerOrEqual && typeof ov.originalPrice === 'number' ? ov.originalPrice : p.originalPrice,
-                stockCount: nextStock,
-                inventoryCount: nextInv,
-                inStock: nextInStock,
-                updatedAt: isOvNewerOrEqual && ov.updatedAt ? ov.updatedAt : p.updatedAt
-              };
-            });
-          }
-        } catch {}
-      }
-
-      // Hydrate verified sales counts from sales_history & lightweight ledger so refresh never reverts sales
-      baseList = applyVerifiedSalesToProducts(baseList);
-
-      return baseList.map(sanitizeProduct);
-    } catch {}
-    return applyVerifiedSalesToProducts(PRODUCTS).map(sanitizeProduct);
-  });
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [products]);
 
   // Google Search & Direct Link Hydration (?product=id, ?category=id, or /product/<id>)
   useEffect(() => {
     try {
-      const params = new URLSearchParams(window.location.search);
-      const pathMatch = window.location.pathname.match(/^\/product\/([^/]+)\/?$/i);
-      const pathProdId = pathMatch?.[1] ? decodeURIComponent(pathMatch[1]) : null;
-      const prodParam = params.get('product') || params.get('p') || pathProdId;
+      const prodParam = pendingUrlProductIdRef.current || getRequestedProductParamFromUrl();
       if (prodParam && products.length > 0 && !quickViewProduct) {
-        const found = products.find(
-          (p) => p.id === prodParam || p.id.toLowerCase() === prodParam.toLowerCase()
-        );
+        const found = findMatchingProductByUrlParam(products, prodParam);
         if (found) {
+          pendingUrlProductIdRef.current = null;
           setQuickViewProduct(found);
+        } else if (pendingUrlProductIdRef.current) {
+          // Fallback: if shared product is a brand-new creation stored in Cloud Firestore, fetch it directly
+          const targetId = pendingUrlProductIdRef.current;
+          getDoc(doc(db, 'products', targetId))
+            .then((snap) => {
+              if (snap.exists()) {
+                const data = snap.data();
+                const cleaned = sanitizeProduct({ ...data, id: data?.id || snap.id } as Product);
+                pendingUrlProductIdRef.current = null;
+                setProducts((prev) => reconcileProductCatalog([cleaned], prev));
+                setQuickViewProduct(cleaned);
+              }
+            })
+            .catch(() => {});
         }
       }
 
+      const params = new URLSearchParams(window.location.search);
       const catParam = params.get('category') || params.get('cat');
       if (catParam) {
         setSelectedCategory(catParam);

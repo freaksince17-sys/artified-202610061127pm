@@ -126,12 +126,17 @@ export const ProductDetailModal: React.FC = () => {
     };
   }, [quickViewProduct?.id]);
 
+  const hadOpenProductRef = React.useRef<boolean>(Boolean(quickViewProduct));
+
   // Dynamic Google SEO, High-CTR Metadata & Schema.org Product structured data synchronization
   useEffect(() => {
-    applyProductSeo(quickViewProduct);
-    return () => {
+    if (quickViewProduct) {
+      hadOpenProductRef.current = true;
+      applyProductSeo(quickViewProduct);
+    } else if (hadOpenProductRef.current) {
+      hadOpenProductRef.current = false;
       applyProductSeo(null);
-    };
+    }
   }, [quickViewProduct]);
 
   const isOutOfStock = quickViewProduct ? (quickViewProduct.inStock === false || (typeof quickViewProduct.stockCount === 'number' && quickViewProduct.stockCount <= 0)) : false;
