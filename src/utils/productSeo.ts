@@ -19,45 +19,42 @@ export interface ProductSeoData {
   imageUrl: string;
   ogImageUrl: string;
   ogImageAlt: string;
-  priceAmount: string;
-  priceCurrency: string;
   availability: string;
   schemaJsonLd: Record<string, any>;
 }
 
 /**
  * Builds a clean, human-friendly brief detail summary from the product's description and subtitle
- * for OpenGraph social preview cards (WhatsApp, Instagram, TikTok, Facebook, X).
+ * for OpenGraph social preview cards (WhatsApp, Instagram, TikTok, Facebook, X) without showing the price.
  */
-export function buildProductBriefDetail(product: Pick<Product, 'title' | 'subtitle' | 'description' | 'price'>): string {
-  const formattedPrice = Number(product.price || 0).toLocaleString('en-US');
+export function buildProductBriefDetail(
+  product: Pick<Product, 'title' | 'subtitle' | 'description'>
+): string {
   const rawDetail = String(product.description || product.subtitle || '')
     .replace(/\s+/g, ' ')
     .trim();
 
   if (!rawDetail) {
-    return `Shop handmade ${product.title} in Nepal for NPR ${formattedPrice}. Handcrafted in Kathmandu with doorstep delivery across Nepal.`;
+    return `Discover handmade ${product.title} at Artified Nepal. Handcrafted in Kathmandu with doorstep delivery across Nepal.`;
   }
 
-  const maxDetailLen = 135;
+  const maxDetailLen = 140;
   const excerpt =
     rawDetail.length > maxDetailLen
       ? `${rawDetail.slice(0, maxDetailLen - 3).replace(/\s+\S*$/, '').trim()}...`
       : rawDetail;
 
-  return `${excerpt} • NPR ${formattedPrice} • Handcrafted in Kathmandu, Nepal`;
+  return `${excerpt} • Handcrafted in Kathmandu, Nepal`;
 }
 
 /**
- * Builds high-converting, CTR-optimized SEO & OpenGraph metadata for an individual product
+ * Builds SEO & OpenGraph metadata for an individual product without revealing the price in social previews
  */
 export function buildProductSeoMetadata(product: Product): ProductSeoData {
-  const formattedPrice = Number(product.price || 0).toLocaleString('en-US');
+  // 1. Page & OpenGraph Title: exact product name and brand (no price in shared preview)
+  const title = `${product.title} | Artified Nepal`;
 
-  // 1. High-CTR Page & OpenGraph Title: includes exact product name, NPR pricing, and brand
-  const title = `${product.title} (NPR ${formattedPrice}) | Artified Nepal`;
-
-  // 2. Brief Detail Description for OpenGraph & Meta Description
+  // 2. Brief Detail Description for OpenGraph & Meta Description (no price in shared preview)
   const briefDetail = buildProductBriefDetail(product);
   const description = briefDetail;
 
@@ -66,7 +63,7 @@ export function buildProductSeoMetadata(product: Product): ProductSeoData {
   const shareUrl = getProductShareUrl(product, activeOrigin);
   const canonicalUrl = getProductShareUrl(product, BASE_URL);
   const ogImageUrl = getProductOgImageUrl(product, activeOrigin);
-  const ogImageAlt = `${product.title} (NPR ${formattedPrice}) — ${product.subtitle || 'Handcrafted in Kathmandu, Nepal'}`;
+  const ogImageAlt = `${product.title} — ${product.subtitle || 'Handcrafted in Kathmandu, Nepal'}`;
 
   const resolvedImages = resolveSchemaProductImages(product, activeOrigin);
   const imageUrl = resolvedImages[0] || ogImageUrl || DEFAULT_IMAGE;
@@ -74,7 +71,7 @@ export function buildProductSeoMetadata(product: Product): ProductSeoData {
   const isAvailable =
     product.inStock !== false && (typeof product.stockCount !== 'number' || product.stockCount > 0);
 
-  // Schema.org Product + Kathmandu LocalBusiness Structured Data (Google Rich Results format)
+  // Schema.org Product + Kathmandu LocalBusiness Structured Data
   const schemaJsonLd = buildProductWithLocalBusinessSchema(product, BASE_URL);
 
   return {
@@ -86,8 +83,6 @@ export function buildProductSeoMetadata(product: Product): ProductSeoData {
     imageUrl,
     ogImageUrl,
     ogImageAlt,
-    priceAmount: String(product.price || 0),
-    priceCurrency: 'NPR',
     availability: isAvailable ? 'in stock' : 'out of stock',
     schemaJsonLd,
   };
@@ -108,6 +103,14 @@ function setOrCreateMeta(
   el.setAttribute('content', content);
 }
 
+function removeMeta(attrName: 'name' | 'property', attrValue: string): void {
+  if (typeof document === 'undefined') return;
+  const el = document.querySelector(`meta[${attrName}="${attrValue}"]`);
+  if (el && el.parentNode) {
+    el.parentNode.removeChild(el);
+  }
+}
+
 /**
  * Updates DOM head elements dynamically for product pages and deep links
  */
@@ -117,13 +120,17 @@ export function applyProductSeo(product: Product | null): void {
   let canonicalEl = document.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
   let jsonLdEl = document.getElementById('product-seo-jsonld') as HTMLScriptElement | null;
 
+  // Ensure price meta tags are never present in head so social link unfurling never displays price before opening
+  removeMeta('property', 'product:price:amount');
+  removeMeta('property', 'product:price:currency');
+
   if (product) {
     const seo = buildProductSeoMetadata(product);
 
     // 1. Document Title
     document.title = seo.title;
 
-    // 2. Meta Description (with product brief details)
+    // 2. Meta Description (with product brief details, no price)
     setOrCreateMeta('name', 'description', seo.description);
 
     // 3. Canonical Tag
@@ -134,7 +141,7 @@ export function applyProductSeo(product: Product | null): void {
     }
     canonicalEl.setAttribute('href', seo.canonicalUrl);
 
-    // 4. OpenGraph Tags (with product photo card, title, brief description, and NPR price)
+    // 4. OpenGraph Tags (with product photo card, title, and brief description — no price)
     setOrCreateMeta('property', 'og:type', 'product');
     setOrCreateMeta('property', 'og:title', seo.title);
     setOrCreateMeta('property', 'og:description', seo.description);
@@ -142,8 +149,6 @@ export function applyProductSeo(product: Product | null): void {
     setOrCreateMeta('property', 'og:image:secure_url', seo.ogImageUrl);
     setOrCreateMeta('property', 'og:image:alt', seo.ogImageAlt);
     setOrCreateMeta('property', 'og:url', seo.shareUrl);
-    setOrCreateMeta('property', 'product:price:amount', seo.priceAmount);
-    setOrCreateMeta('property', 'product:price:currency', seo.priceCurrency);
     setOrCreateMeta('property', 'product:availability', seo.availability);
 
     // 5. Twitter Card Tags
@@ -162,7 +167,6 @@ export function applyProductSeo(product: Product | null): void {
     jsonLdEl.textContent = JSON.stringify(seo.schemaJsonLd, null, 2);
 
     // 7. Update browser URL to include both the pre-rendered /product/<id>/ path AND ?product=<id> query
-    // so copying from the address bar works on both static hosting (GitHub Pages) and SPA query handlers.
     try {
       const encodedId = encodeURIComponent(product.id);
       const nextUrl = `/product/${encodedId}/?product=${encodedId}`;

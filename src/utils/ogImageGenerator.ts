@@ -68,7 +68,7 @@ export function getProductOgImagePath(productId: string): string {
 /**
  * Resolves the absolute OpenGraph image URL for a product so Instagram, TikTok,
  * WhatsApp, and search crawlers always render a tailored preview card with the
- * product name and Buy Now CTA.
+ * product photo, name, brief details, and Buy Now CTA (without revealing price before opening).
  */
 export function getProductOgImageUrl(
   product: Pick<Product, 'id'>,
@@ -105,27 +105,27 @@ export function getProductShareUrl(
 /**
  * Builds a deterministic 1200x630 SVG OpenGraph social preview card for a product,
  * featuring the product photograph, Artified Nepal branding, exact product name,
- * transparent NPR pricing, and a prominent "Buy Now" call-to-action button.
- *
- * Works both in headless Node.js build scripts (rasterized with sharp to .jpg)
- * and as a zero-dependency vector fallback in the browser.
+ * brief product description, and a prominent "Buy Now" call-to-action button.
+ * By default, price is hidden on the social preview card so viewers open the link to see pricing.
  */
 export function buildProductOgSvgMarkup(
-  product: Pick<Product, 'id' | 'title' | 'price' | 'originalPrice' | 'category' | 'subtitle' | 'inStock' | 'stockCount'>,
+  product: Pick<Product, 'id' | 'title' | 'price' | 'originalPrice' | 'category' | 'subtitle' | 'description' | 'inStock' | 'stockCount'>,
   options?: {
     embeddedImageDataUri?: string;
     ctaLabel?: string;
     domainLabel?: string;
+    showPrice?: boolean;
   }
 ): string {
-  const ctaLabel = escapeXmlText(options?.ctaLabel || 'Buy Now');
+  const ctaLabel = escapeXmlText(options?.ctaLabel || 'View Details & Buy Now');
   const domainLabel = escapeXmlText(options?.domainLabel || 'artified.com.np');
   const categoryLabel = escapeXmlText(getCategoryDisplayLabel(product.category));
+  const showPrice = options?.showPrice === true;
 
   const titleLines = wrapTextIntoLines(product.title, 22, 3);
-  const titleFontSize = titleLines.length >= 3 ? 40 : titleLines.some((l) => l.length > 18) ? 44 : 50;
+  const titleFontSize = titleLines.length >= 3 ? 38 : titleLines.some((l) => l.length > 18) ? 44 : 48;
   const lineHeight = Math.round(titleFontSize * 1.16);
-  const titleStartY = titleLines.length === 1 ? 236 : titleLines.length === 2 ? 214 : 196;
+  const titleStartY = titleLines.length === 1 ? 210 : titleLines.length === 2 ? 194 : 182;
 
   const titleTextElements = titleLines
     .map(
@@ -134,24 +134,30 @@ export function buildProductOgSvgMarkup(
     )
     .join('\n    ');
 
-  const subtitleY = titleStartY + titleLines.length * lineHeight + 22;
-  const cleanSubtitle = wrapTextIntoLines(
-    product.subtitle || 'Handcrafted in Kathmandu • Fast Delivery Across Nepal',
-    46,
-    1
-  )[0];
+  const briefSource = String(product.description || product.subtitle || 'Individually handcrafted in Kathmandu with doorstep delivery across Nepal.')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const briefLines = wrapTextIntoLines(briefSource, 44, 3);
+  const briefStartY = titleStartY + titleLines.length * lineHeight + 28;
+  const briefLineHeight = 28;
+
+  const briefTextElements = briefLines
+    .map(
+      (line, idx) =>
+        `<text x="618" y="${briefStartY + idx * briefLineHeight}" font-family="'DejaVu Sans', sans-serif" font-size="18" font-weight="500" fill="#4A433C">${escapeXmlText(line)}</text>`
+    )
+    .join('\n    ');
 
   const priceText = `NPR ${Number(product.price || 0).toLocaleString('en-US')}`;
-  const hasDiscount =
-    typeof product.originalPrice === 'number' && product.originalPrice > (product.price || 0);
-  const originalPriceText = hasDiscount
-    ? `NPR ${Number(product.originalPrice).toLocaleString('en-US')}`
-    : '';
+  const priceOrProvenanceBlock = showPrice
+    ? `<text x="618" y="426" font-family="'DejaVu Sans', sans-serif" font-size="30" font-weight="700" fill="#1C1B1A">${escapeXmlText(priceText)}</text>`
+    : `<rect x="618" y="396" width="380" height="40" rx="10" fill="#F2ECE1" stroke="#D8CBB8" stroke-width="1" />
+       <text x="636" y="422" font-family="'DejaVu Sans', sans-serif" font-size="15" font-weight="700" letter-spacing="1" fill="#7A5216">HANDCRAFTED IN KATHMANDU, NEPAL</text>`;
 
   const isOutOfStock =
     product.inStock === false ||
     (typeof product.stockCount === 'number' && product.stockCount <= 0);
-  const availabilityText = isOutOfStock ? 'MADE TO ORDER • KATHMANDU' : 'IN STOCK • READY TO SHIP';
+  const availabilityText = isOutOfStock ? 'MADE TO ORDER • KATHMANDU' : 'HANDMADE CREATION • NEPAL';
 
   const imageBlock = options?.embeddedImageDataUri
     ? `<image href="${escapeXmlText(options.embeddedImageDataUri)}" x="54" y="54" width="510" height="522" preserveAspectRatio="xMidYMid slice" clip-path="url(#productPhotoClip)" />`
@@ -192,19 +198,14 @@ export function buildProductOgSvgMarkup(
 
   ${titleTextElements}
 
-  <text x="618" y="${subtitleY}" font-family="'DejaVu Sans', sans-serif" font-size="19" font-weight="500" fill="#5C534B">${escapeXmlText(cleanSubtitle)}</text>
+  ${briefTextElements}
 
-  <!-- Price Row -->
-  <text x="618" y="422" font-family="'DejaVu Sans', sans-serif" font-size="34" font-weight="700" fill="#1C1B1A">${escapeXmlText(priceText)}</text>
-  ${
-    originalPriceText
-      ? `<text x="855" y="420" font-family="'DejaVu Sans', sans-serif" font-size="22" text-decoration="line-through" fill="#8C847E">${escapeXmlText(originalPriceText)}</text>`
-      : ''
-  }
+  <!-- Provenance Pill (or optional Price if explicitly enabled) -->
+  ${priceOrProvenanceBlock}
 
-  <!-- Prominent Buy Now Call-To-Action Button -->
-  <rect x="618" y="464" width="320" height="72" rx="16" fill="url(#goldBtn)" stroke="#D4AF37" stroke-width="2.5" />
-  <text x="778" y="509" text-anchor="middle" font-family="'DejaVu Sans', sans-serif" font-size="25" font-weight="700" letter-spacing="1" fill="#F5D98B">${ctaLabel}  →</text>
+  <!-- Prominent Call-To-Action Button -->
+  <rect x="618" y="460" width="380" height="72" rx="16" fill="url(#goldBtn)" stroke="#D4AF37" stroke-width="2.5" />
+  <text x="808" y="505" text-anchor="middle" font-family="'DejaVu Sans', sans-serif" font-size="22" font-weight="700" letter-spacing="0.8" fill="#F5D98B">${ctaLabel}  →</text>
 
   <!-- Brand Signature Footer -->
   <text x="618" y="574" font-family="'DejaVu Sans', sans-serif" font-size="15" font-weight="700" letter-spacing="1" fill="#5C534B">@artified_np  •  ${domainLabel}</text>
@@ -257,18 +258,18 @@ function drawRoundedRectPath(
 
 /**
  * Generates a high-resolution 1200x630 OpenGraph JPEG data URL directly in the browser
- * containing the product's image, title, NPR price, and a bold "Buy Now" CTA button
- * tailored for Instagram Stories, TikTok, and link preview cards.
+ * containing the product's image, title, brief details, and CTA button (without showing price).
  */
 export async function generateProductOgImageDataUrl(
   product: Product,
-  options?: { ctaLabel?: string; domainLabel?: string }
+  options?: { ctaLabel?: string; domainLabel?: string; showPrice?: boolean }
 ): Promise<string> {
-  const ctaLabel = options?.ctaLabel || 'Buy Now';
+  const ctaLabel = options?.ctaLabel || 'View Details & Buy Now';
   const domainLabel = options?.domainLabel || 'artified.com.np';
+  const showPrice = options?.showPrice === true;
 
   if (typeof document === 'undefined') {
-    const svg = buildProductOgSvgMarkup(product, { ctaLabel, domainLabel });
+    const svg = buildProductOgSvgMarkup(product, { ctaLabel, domainLabel, showPrice });
     return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
   }
 
@@ -278,7 +279,7 @@ export async function generateProductOgImageDataUrl(
   const ctx = canvas.getContext('2d');
 
   if (!ctx) {
-    const svg = buildProductOgSvgMarkup(product, { ctaLabel, domainLabel });
+    const svg = buildProductOgSvgMarkup(product, { ctaLabel, domainLabel, showPrice });
     return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
   }
 
@@ -340,12 +341,12 @@ export async function generateProductOgImageDataUrl(
   ctx.font = 'bold 13px "Plus Jakarta Sans", sans-serif';
   ctx.textAlign = 'center';
   ctx.fillText(
-    isOutOfStock ? 'MADE TO ORDER • NEPAL' : 'IN STOCK • READY TO SHIP',
+    isOutOfStock ? 'MADE TO ORDER • NEPAL' : 'HANDMADE CREATION • NEPAL',
     210,
     538
   );
 
-  // 3. Right column copy & Buy Now CTA
+  // 3. Right column copy & CTA
   ctx.textAlign = 'left';
   ctx.fillStyle = '#8C6730';
   ctx.font = 'bold 15px "Plus Jakarta Sans", sans-serif';
@@ -360,9 +361,9 @@ export async function generateProductOgImageDataUrl(
 
   // Wrapped product title
   const titleLines = wrapTextIntoLines(product.title, 22, 3);
-  const titleFontSize = titleLines.length >= 3 ? 40 : titleLines.some((l) => l.length > 18) ? 44 : 50;
+  const titleFontSize = titleLines.length >= 3 ? 38 : titleLines.some((l) => l.length > 18) ? 44 : 48;
   const lineHeight = Math.round(titleFontSize * 1.16);
-  const titleStartY = titleLines.length === 1 ? 236 : titleLines.length === 2 ? 214 : 196;
+  const titleStartY = titleLines.length === 1 ? 210 : titleLines.length === 2 ? 194 : 182;
 
   ctx.fillStyle = '#1C1B1A';
   ctx.font = `bold ${titleFontSize}px Georgia, "Playfair Display", serif`;
@@ -370,37 +371,52 @@ export async function generateProductOgImageDataUrl(
     ctx.fillText(line, 618, titleStartY + idx * lineHeight);
   });
 
-  // Subtitle / Delivery line
-  const subtitleY = titleStartY + titleLines.length * lineHeight + 24;
-  ctx.fillStyle = '#5C534B';
-  ctx.font = '500 19px "Plus Jakarta Sans", sans-serif';
-  const subtitleLine = wrapTextIntoLines(
-    product.subtitle || 'Handcrafted in Kathmandu • Fast Delivery Across Nepal',
-    46,
-    1
-  )[0];
-  ctx.fillText(subtitleLine, 618, subtitleY);
+  // Brief detail lines (2-3 lines of product description / subtitle)
+  const briefSource = String(product.description || product.subtitle || 'Individually handcrafted in Kathmandu with doorstep delivery across Nepal.')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const briefLines = wrapTextIntoLines(briefSource, 44, 3);
+  const briefStartY = titleStartY + titleLines.length * lineHeight + 28;
+  const briefLineHeight = 28;
 
-  // Price
-  ctx.fillStyle = '#1C1B1A';
-  ctx.font = 'bold 34px "Plus Jakarta Sans", sans-serif';
-  ctx.fillText(`NPR ${Number(product.price || 0).toLocaleString('en-US')}`, 618, 422);
+  ctx.fillStyle = '#4A433C';
+  ctx.font = '500 18px "Plus Jakarta Sans", sans-serif';
+  briefLines.forEach((line, idx) => {
+    ctx.fillText(line, 618, briefStartY + idx * briefLineHeight);
+  });
 
-  // Buy Now CTA button
-  const btnGrad = ctx.createLinearGradient(618, 464, 938, 536);
+  // Provenance badge (or optional price if explicitly enabled)
+  if (showPrice) {
+    ctx.fillStyle = '#1C1B1A';
+    ctx.font = 'bold 30px "Plus Jakarta Sans", sans-serif';
+    ctx.fillText(`NPR ${Number(product.price || 0).toLocaleString('en-US')}`, 618, 426);
+  } else {
+    ctx.fillStyle = '#F2ECE1';
+    ctx.strokeStyle = '#D8CBB8';
+    ctx.lineWidth = 1;
+    drawRoundedRectPath(ctx, 618, 396, 380, 40, 10);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#7A5216';
+    ctx.font = 'bold 15px "Plus Jakarta Sans", sans-serif';
+    ctx.fillText('HANDCRAFTED IN KATHMANDU, NEPAL', 636, 422);
+  }
+
+  // CTA button
+  const btnGrad = ctx.createLinearGradient(618, 460, 998, 532);
   btnGrad.addColorStop(0, '#1C1B1A');
   btnGrad.addColorStop(1, '#2E2A26');
   ctx.fillStyle = btnGrad;
   ctx.strokeStyle = '#D4AF37';
   ctx.lineWidth = 2.5;
-  drawRoundedRectPath(ctx, 618, 464, 320, 72, 16);
+  drawRoundedRectPath(ctx, 618, 460, 380, 72, 16);
   ctx.fill();
   ctx.stroke();
 
   ctx.fillStyle = '#F5D98B';
-  ctx.font = 'bold 25px "Plus Jakarta Sans", sans-serif';
+  ctx.font = 'bold 22px "Plus Jakarta Sans", sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText(`${ctaLabel}  →`, 778, 509);
+  ctx.fillText(`${ctaLabel}  →`, 808, 505);
 
   // Footer signature
   ctx.textAlign = 'left';
@@ -411,7 +427,7 @@ export async function generateProductOgImageDataUrl(
   try {
     return canvas.toDataURL('image/jpeg', 0.92);
   } catch {
-    const svg = buildProductOgSvgMarkup(product, { ctaLabel, domainLabel });
+    const svg = buildProductOgSvgMarkup(product, { ctaLabel, domainLabel, showPrice });
     return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
   }
 }
@@ -437,7 +453,7 @@ export async function generateProductOgImageFile(product: Product): Promise<File
   if (!blob || typeof File === 'undefined') return null;
   const safeSlug = product.id.replace(/[^a-z0-9-_]/gi, '-').toLowerCase();
   const ext = blob.type.includes('svg') ? 'svg' : 'jpg';
-  return new File([blob], `artified-${safeSlug}-buy-now.${ext}`, {
+  return new File([blob], `artified-${safeSlug}-preview.${ext}`, {
     type: blob.type || 'image/jpeg'
   });
 }

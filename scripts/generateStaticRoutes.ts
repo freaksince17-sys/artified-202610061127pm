@@ -186,12 +186,11 @@ async function generateStaticRoutes() {
       if (!fs.existsSync(prodDir)) {
         fs.mkdirSync(prodDir, { recursive: true });
       }
-      const priceText = `NPR ${Number(product.price || 0).toLocaleString('en-US')}`;
-      const prodTitle = escapeHtmlAttr(`${product.title} (${priceText}) | Artified Nepal`);
+      const prodTitle = escapeHtmlAttr(`${product.title} | Artified Nepal`);
       const prodDesc = escapeHtmlAttr(buildProductBriefDetail(product));
       const prodUrl = `https://www.artified.com.np/product/${encodeURIComponent(product.id)}/?product=${encodeURIComponent(product.id)}`;
       const prodOgImg = `https://www.artified.com.np/og/products/${encodeURIComponent(product.id)}.jpg`;
-      const prodAlt = escapeHtmlAttr(`${product.title} (${priceText}) — ${product.subtitle || 'Handcrafted in Kathmandu, Nepal'}`);
+      const prodAlt = escapeHtmlAttr(`${product.title} — ${product.subtitle || 'Handcrafted in Kathmandu, Nepal'}`);
 
       let prodHtml = baseHtml
         .replace(/<title>.*?<\/title>/i, `<title>${prodTitle}</title>`)

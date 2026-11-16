@@ -9,6 +9,10 @@ import { DEFAULT_ARTISAN_PROFILE } from './src/data/artisanProfile.ts';
 import { generateSitemapXml } from './src/utils/sitemapGenerator.ts';
 import { buildProductOgSvgMarkup } from './src/utils/ogImageGenerator.ts';
 import { buildProductBriefDetail } from './src/utils/productSeo.ts';
+import {
+  resolveProductForOgPreview,
+  generateTemporaryProductOgImageFile,
+} from './src/server/ogImageService.ts';
 import { GoogleGenAI } from '@google/genai';
 import { autoGenerateWorkshopGroup, autoGenerateMediaCaption } from './src/utils/workshopAIGenerator.ts';
 import { handleAtomicSalesIncrementCloudFunction } from './functions/src/index.ts';
@@ -132,65 +136,34 @@ async function startServer() {
     return res.status(404).send('Not found');
   });
 
-  // GET /og/products/:productId(.jpg) - Auto-generated 1200x630 OpenGraph image with product name & Buy Now CTA
-  app.get('/og/products/:productId', async (req, res) => {
+  // GET /og/products/:productId(.jpg) & /api/og-image - Dynamically generates a temporary OpenGraph image file
+  // on disk using sharp so social platforms can fetch pre-rendered visual previews (without showing price)
+  app.get(['/og/products/:productId', '/api/og-image'], async (req, res) => {
     try {
-      const rawId = decodeURIComponent(req.params.productId || '').replace(/\.(?:jpg|jpeg|png|webp)$/i, '');
-      let productList = PRODUCTS;
-      if (fs.existsSync(productsJsonPath)) {
-        try {
-          productList = JSON.parse(fs.readFileSync(productsJsonPath, 'utf-8'));
-        } catch {}
-      }
+      const rawParam =
+        req.params.productId ||
+        (typeof req.query.product === 'string' ? req.query.product : '') ||
+        (typeof req.query.id === 'string' ? req.query.id : '');
+      const showPrice = req.query.showPrice === 'true';
 
-      const product =
-        productList.find((p: any) => p.id === rawId) ||
-        productList.find((p: any) => String(p.id).toLowerCase() === rawId.toLowerCase());
-
+      const product = await resolveProductForOgPreview(rawParam, productsJsonPath);
       if (!product) {
         const fallbackOg = path.resolve(process.cwd(), 'public/og-image.jpg');
         if (fs.existsSync(fallbackOg)) return res.sendFile(fallbackOg);
         return res.status(404).send('Product OpenGraph image not found');
       }
 
-      let embeddedImageDataUri: string | undefined;
-      const primaryImg = Array.isArray(product.images) ? product.images[0] : '';
-      if (primaryImg) {
-        if (primaryImg.startsWith('data:image/')) {
-          // Re-encode via sharp to a compact clean JPEG so SVG embedding stays fast and reliable
-          try {
-            const base64Part = primaryImg.split(',')[1];
-            if (base64Part) {
-              const resized = await sharp(Buffer.from(base64Part, 'base64'))
-                .resize(520, 520, { fit: 'cover' })
-                .jpeg({ quality: 82 })
-                .toBuffer();
-              embeddedImageDataUri = `data:image/jpeg;base64,${resized.toString('base64')}`;
-            }
-          } catch {}
-        } else if (primaryImg.startsWith('/')) {
-          const localPhotoPath = path.resolve(process.cwd(), 'public', primaryImg.replace(/^\/+/, ''));
-          if (fs.existsSync(localPhotoPath)) {
-            try {
-              const resized = await sharp(localPhotoPath)
-                .resize(520, 520, { fit: 'cover' })
-                .jpeg({ quality: 82 })
-                .toBuffer();
-              embeddedImageDataUri = `data:image/jpeg;base64,${resized.toString('base64')}`;
-            } catch {}
-          }
-        }
-      }
-
-      const svg = buildProductOgSvgMarkup(product, { embeddedImageDataUri });
-      const jpegBuffer = await sharp(Buffer.from(svg))
-        .resize(1200, 630)
-        .jpeg({ quality: 90, mozjpeg: true })
-        .toBuffer();
+      const { filePath, buffer } = await generateTemporaryProductOgImageFile(product, {
+        publicDir: path.resolve(process.cwd(), 'public'),
+        showPrice,
+      });
 
       res.setHeader('Content-Type', 'image/jpeg');
       res.setHeader('Cache-Control', 'public, max-age=3600');
-      return res.status(200).send(jpegBuffer);
+      if (fs.existsSync(filePath)) {
+        return res.sendFile(filePath);
+      }
+      return res.status(200).send(buffer);
     } catch (err) {
       console.warn('Notice: Failed generating product OG image:', err);
       const fallbackOg = path.resolve(process.cwd(), 'public/og-image.jpg');
@@ -4007,23 +3980,7 @@ Do NOT use the words "masterclass", "cohort", or "atelier". Return ONLY valid JS
           let absoluteOgImage = `${origin}/og-image.jpg`;
 
           if (requestedProductId) {
-            let productList = PRODUCTS;
-            if (fs.existsSync(productsJsonPath)) {
-              try {
-                productList = JSON.parse(fs.readFileSync(productsJsonPath, 'utf-8'));
-              } catch {}
-            }
-            const slugify = (v: string) =>
-              String(v || '')
-                .toLowerCase()
-                .trim()
-                .replace(/[^a-z0-9]+/g, '-')
-                .replace(/^-+|-+$/g, '');
-            const targetSlug = slugify(requestedProductId);
-            const matchedProduct =
-              productList.find((p: any) => p.id === requestedProductId) ||
-              productList.find((p: any) => String(p.id).toLowerCase() === requestedProductId.toLowerCase()) ||
-              productList.find((p: any) => targetSlug && slugify(p.title) === targetSlug);
+            const matchedProduct = await resolveProductForOgPreview(requestedProductId, productsJsonPath);
 
             if (matchedProduct) {
               const escapeAttr = (s: string) =>
@@ -4032,11 +3989,10 @@ Do NOT use the words "masterclass", "cohort", or "atelier". Return ONLY valid JS
                   .replace(/"/g, '&quot;')
                   .replace(/</g, '&lt;')
                   .replace(/>/g, '&gt;');
-              const formattedPrice = `NPR ${Number(matchedProduct.price || 0).toLocaleString('en-US')}`;
-              const prodTitle = escapeAttr(`${matchedProduct.title} (${formattedPrice}) | Artified Nepal`);
+              const prodTitle = escapeAttr(`${matchedProduct.title} | Artified Nepal`);
               const prodDesc = escapeAttr(buildProductBriefDetail(matchedProduct));
               const prodAlt = escapeAttr(
-                `${matchedProduct.title} (${formattedPrice}) — ${matchedProduct.subtitle || 'Handcrafted in Kathmandu, Nepal'}`
+                `${matchedProduct.title} — ${matchedProduct.subtitle || 'Handcrafted in Kathmandu, Nepal'}`
               );
               const encodedId = encodeURIComponent(matchedProduct.id);
               const prodUrl = escapeAttr(`${origin}/product/${encodedId}/?product=${encodedId}`);

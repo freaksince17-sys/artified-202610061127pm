@@ -171,7 +171,11 @@ export const ProductDetailModal: React.FC = () => {
   const handleShareWhatsApp = () => {
     if (!quickViewProduct) return;
     const shareUrl = getActiveShareUrl();
-    const text = `Look at this stunning handmade ${quickViewProduct.title} from Artified Nepal! ✨\nPrice: NPR ${quickViewProduct.price.toLocaleString()}\nHandcrafted with pearls in Kathmandu, Nepal 🌸\nBuy Now: ${shareUrl}`;
+    const brief = (quickViewProduct.subtitle || quickViewProduct.description || 'Handcrafted with pearls in Kathmandu, Nepal')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 120);
+    const text = `Look at this stunning handmade ${quickViewProduct.title} from Artified Nepal! ✨\n${brief} 🌸\nView details: ${shareUrl}`;
     const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
     window.open(url, '_blank');
   };
@@ -180,7 +184,11 @@ export const ProductDetailModal: React.FC = () => {
     if (!quickViewProduct) return;
     const shareUrl = getActiveShareUrl();
     const shareTitle = `${quickViewProduct.title} | Artified Nepal`;
-    const shareText = `Adoring this handmade ${quickViewProduct.title} by @artified_np ✨ NPR ${quickViewProduct.price.toLocaleString()} • Buy Now: ${shareUrl}`;
+    const brief = (quickViewProduct.subtitle || quickViewProduct.description || 'Handcrafted in Kathmandu, Nepal')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 110);
+    const shareText = `Adoring this handmade ${quickViewProduct.title} by @artified_np ✨ ${brief} • View piece: ${shareUrl}`;
 
     // On mobile devices with native share support (attach generated Buy Now OG image card when supported)
     if (navigator.share) {
