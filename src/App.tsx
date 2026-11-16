@@ -37,7 +37,8 @@ import { ReferAFriendModal } from './components/ReferAFriendModal';
 import { SizeGuideModal } from './components/SizeGuideModal';
 import { OrderFAQsModal } from './components/OrderFAQsModal';
 import { OfflineIndicator } from './components/OfflineIndicator';
-import { useCart } from './context/CartContext';
+import { useCart, findMatchingProductByUrlParam, getRequestedProductParamFromUrl } from './context/CartContext';
+import { ProductMetadataProvider } from './components/ProductMetadataProvider';
 import { useAuthPersistence } from './hooks/useAuthPersistence';
 import { useGoogleAnalytics } from './hooks/useGoogleAnalytics';
 import { LanguageProvider } from './context/LanguageContext';
@@ -184,8 +185,27 @@ function AppContent() {
     setIsMeetArtisanOpen,
     activeNavTab,
     selectedCategory,
-    quickViewProduct
+    quickViewProduct,
+    setQuickViewProduct,
+    products
   } = useCart();
+
+  // Entry-point URL parameter handler: reads ?product=<id> (or /product/<id>/) on initial page load
+  // and triggers ProductDetailModal for shared social media product links
+  const initialProductHandledRef = React.useRef<boolean>(Boolean(quickViewProduct));
+  React.useEffect(() => {
+    if (initialProductHandledRef.current) return;
+    const requestedProductParam = getRequestedProductParamFromUrl();
+    if (!requestedProductParam) {
+      initialProductHandledRef.current = true;
+      return;
+    }
+    const matched = findMatchingProductByUrlParam(products, requestedProductParam);
+    if (matched) {
+      initialProductHandledRef.current = true;
+      setQuickViewProduct(matched);
+    }
+  }, [products, setQuickViewProduct]);
 
   useGoogleAnalytics({
     activeNavTab,
@@ -200,6 +220,9 @@ function AppContent() {
 
   return (
     <div id="top" className="min-h-screen bg-[#FAF8F5] dark:bg-[#0F0E0E] text-[#1C1B1A] dark:text-[#F5F2EB] flex flex-col font-sans selection:bg-[#E8DFD8] dark:selection:bg-[#33302C] selection:text-[#1C1B1A] dark:selection:text-[#FAF8F5] transition-colors duration-200">
+      {/* Dynamic Product OpenGraph & Structured Metadata Provider */}
+      <ProductMetadataProvider />
+
       {/* Top Announcement Bar */}
       <AnnouncementBar />
 

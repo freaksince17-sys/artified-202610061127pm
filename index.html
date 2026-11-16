@@ -46,7 +46,7 @@
       })();
     </script>
     
-    <!-- SPA Redirect URL Restoration for GitHub Pages Static Hosting -->
+    <!-- SPA Redirect URL Restoration & Early Product OpenGraph Hydration -->
     <script>
       (function() {
         try {
@@ -57,6 +57,26 @@
               window.history.replaceState(null, '', redirect);
             }
           }
+          var params = new URLSearchParams(window.location.search);
+          var pathMatch = window.location.pathname.match(/^\/product\/([^/]+)\/?$/i);
+          var prodId = (params.get('product') || params.get('p') || (pathMatch && pathMatch[1] ? decodeURIComponent(pathMatch[1]) : '') || '').trim();
+          if (prodId) {
+            window.__ARTIFIED_INITIAL_PRODUCT_ID__ = prodId;
+            var ogImgUrl = window.location.origin + '/og/products/' + encodeURIComponent(prodId) + '.jpg';
+            var shareUrl = window.location.origin + '/product/' + encodeURIComponent(prodId) + '/?product=' + encodeURIComponent(prodId);
+            window.addEventListener('DOMContentLoaded', function() {
+              try {
+                var ogImg = document.querySelector('meta[property="og:image"]');
+                var ogImgSec = document.querySelector('meta[property="og:image:secure_url"]');
+                var twImg = document.querySelector('meta[name="twitter:image"]');
+                var ogUrlEl = document.querySelector('meta[property="og:url"]');
+                if (ogImg) ogImg.setAttribute('content', ogImgUrl);
+                if (ogImgSec) ogImgSec.setAttribute('content', ogImgUrl);
+                if (twImg) twImg.setAttribute('content', ogImgUrl);
+                if (ogUrlEl) ogUrlEl.setAttribute('content', shareUrl);
+              } catch (e) {}
+            });
+          }
         } catch (e) {}
       })();
     </script>
@@ -64,10 +84,11 @@
     <!-- OpenGraph Social Sharing Meta Tags -->
     <meta property="og:site_name" content="Artified_np | Art made with love" />
     <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://www.artified.com.np/" />
     <meta property="og:title" content="Artified_np | Art made with love" />
     <meta property="og:description" content="Handcrafted Elegance & Wearable Art. Handmade pearl bags, pearl necklaces, and macrame accessories in Nepal." />
-    <meta property="og:image" content="/og-image.jpg" />
-    <meta property="og:image:secure_url" content="/og-image.jpg" />
+    <meta property="og:image" content="https://www.artified.com.np/og-image.jpg" />
+    <meta property="og:image:secure_url" content="https://www.artified.com.np/og-image.jpg" />
     <meta property="og:image:type" content="image/jpeg" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
@@ -80,7 +101,7 @@
     <meta name="twitter:creator" content="@artified_np" />
     <meta name="twitter:title" content="Artified_np | Art made with love" />
     <meta name="twitter:description" content="Handcrafted Elegance & Wearable Art. Handmade pearl bags, pearl necklaces, and macrame accessories in Nepal." />
-    <meta name="twitter:image" content="/og-image.jpg" />
+    <meta name="twitter:image" content="https://www.artified.com.np/og-image.jpg" />
     <meta name="twitter:image:alt" content="Artified_np Logo - Art made with love" />
 
     <!-- SEO & Geographic Meta Tags -->

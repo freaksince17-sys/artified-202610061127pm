@@ -3,7 +3,8 @@ import { getProductOgImageUrl, getProductShareUrl } from './ogImageGenerator';
 import { buildProductWithLocalBusinessSchema, resolveSchemaProductImages } from './LocalBusinessSchema';
 
 const DEFAULT_TITLE = 'Artified_np | Handcrafted Elegance & Wearable Art Nepal';
-const DEFAULT_DESCRIPTION = 'Handcrafted Elegance & Wearable Art. Handmade pearl bags, pearl necklaces, and macrame accessories in Nepal.';
+const DEFAULT_DESCRIPTION =
+  'Handcrafted Elegance & Wearable Art. Handmade pearl bags, pearl necklaces, and macrame accessories in Nepal.';
 const DEFAULT_CANONICAL = 'https://www.artified.com.np/';
 const DEFAULT_IMAGE = 'https://www.artified.com.np/og-image.jpg';
 const DEFAULT_IMAGE_ALT = 'Artified_np Logo - Art made with love';
@@ -12,46 +13,66 @@ const BASE_URL = 'https://www.artified.com.np';
 export interface ProductSeoData {
   title: string;
   description: string;
+  briefDetail: string;
   canonicalUrl: string;
   shareUrl: string;
   imageUrl: string;
   ogImageUrl: string;
   ogImageAlt: string;
+  priceAmount: string;
+  priceCurrency: string;
+  availability: string;
   schemaJsonLd: Record<string, any>;
 }
 
 /**
- * Builds high-converting, CTR-optimized SEO metadata for an individual product
+ * Builds a clean, human-friendly brief detail summary from the product's description and subtitle
+ * for OpenGraph social preview cards (WhatsApp, Instagram, TikTok, Facebook, X).
  */
-export function buildProductSeoMetadata(product: Product): ProductSeoData {
-  const formattedPrice = product.price.toLocaleString();
-  
-  // 1. High-CTR Page Title: includes exact product name, transparent NPR pricing, and brand keyword (50-60 chars)
-  const title = `${product.title} (NPR ${formattedPrice}) | Artified Nepal`;
-
-  // 2. High-CTR Meta Description: includes pricing, artisan provenance, materials, and delivery assurance (135-155 chars)
-  const cleanSnippet = (product.description || product.subtitle || '')
+export function buildProductBriefDetail(product: Pick<Product, 'title' | 'subtitle' | 'description' | 'price'>): string {
+  const formattedPrice = Number(product.price || 0).toLocaleString('en-US');
+  const rawDetail = String(product.description || product.subtitle || '')
     .replace(/\s+/g, ' ')
     .trim();
-  
-  const shortSnippet = cleanSnippet.length > 70 
-    ? cleanSnippet.substring(0, 70).trim() + '...' 
-    : cleanSnippet;
 
-  const rawDescription = `Shop handmade ${product.title} in Nepal for NPR ${formattedPrice}. ${shortSnippet} Handcrafted in Kathmandu with doorstep delivery across Nepal.`;
-  const description = rawDescription.length > 160
-    ? rawDescription.slice(0, 157).replace(/\s+\S*$/, '') + '...'
-    : rawDescription;
+  if (!rawDetail) {
+    return `Shop handmade ${product.title} in Nepal for NPR ${formattedPrice}. Handcrafted in Kathmandu with doorstep delivery across Nepal.`;
+  }
 
-  const canonicalUrl = `${BASE_URL}/?product=${encodeURIComponent(product.id)}`;
+  const maxDetailLen = 135;
+  const excerpt =
+    rawDetail.length > maxDetailLen
+      ? `${rawDetail.slice(0, maxDetailLen - 3).replace(/\s+\S*$/, '').trim()}...`
+      : rawDetail;
+
+  return `${excerpt} • NPR ${formattedPrice} • Handcrafted in Kathmandu, Nepal`;
+}
+
+/**
+ * Builds high-converting, CTR-optimized SEO & OpenGraph metadata for an individual product
+ */
+export function buildProductSeoMetadata(product: Product): ProductSeoData {
+  const formattedPrice = Number(product.price || 0).toLocaleString('en-US');
+
+  // 1. High-CTR Page & OpenGraph Title: includes exact product name, NPR pricing, and brand
+  const title = `${product.title} (NPR ${formattedPrice}) | Artified Nepal`;
+
+  // 2. Brief Detail Description for OpenGraph & Meta Description
+  const briefDetail = buildProductBriefDetail(product);
+  const description = briefDetail;
+
   const activeOrigin =
     typeof window !== 'undefined' && window.location?.origin ? window.location.origin : BASE_URL;
   const shareUrl = getProductShareUrl(product, activeOrigin);
+  const canonicalUrl = getProductShareUrl(product, BASE_URL);
   const ogImageUrl = getProductOgImageUrl(product, activeOrigin);
-  const ogImageAlt = `${product.title} — Buy Now at Artified Nepal`;
-  
-  const resolvedImages = resolveSchemaProductImages(product, BASE_URL);
-  const imageUrl = resolvedImages[0] || DEFAULT_IMAGE;
+  const ogImageAlt = `${product.title} (NPR ${formattedPrice}) — ${product.subtitle || 'Handcrafted in Kathmandu, Nepal'}`;
+
+  const resolvedImages = resolveSchemaProductImages(product, activeOrigin);
+  const imageUrl = resolvedImages[0] || ogImageUrl || DEFAULT_IMAGE;
+
+  const isAvailable =
+    product.inStock !== false && (typeof product.stockCount !== 'number' || product.stockCount > 0);
 
   // Schema.org Product + Kathmandu LocalBusiness Structured Data (Google Rich Results format)
   const schemaJsonLd = buildProductWithLocalBusinessSchema(product, BASE_URL);
@@ -59,13 +80,32 @@ export function buildProductSeoMetadata(product: Product): ProductSeoData {
   return {
     title,
     description,
+    briefDetail,
     canonicalUrl,
     shareUrl,
     imageUrl,
     ogImageUrl,
     ogImageAlt,
-    schemaJsonLd
+    priceAmount: String(product.price || 0),
+    priceCurrency: 'NPR',
+    availability: isAvailable ? 'in stock' : 'out of stock',
+    schemaJsonLd,
   };
+}
+
+function setOrCreateMeta(
+  attrName: 'name' | 'property',
+  attrValue: string,
+  content: string
+): void {
+  if (typeof document === 'undefined') return;
+  let el = document.querySelector(`meta[${attrName}="${attrValue}"]`) as HTMLMetaElement | null;
+  if (!el) {
+    el = document.createElement('meta');
+    el.setAttribute(attrName, attrValue);
+    document.head.appendChild(el);
+  }
+  el.setAttribute('content', content);
 }
 
 /**
@@ -74,20 +114,7 @@ export function buildProductSeoMetadata(product: Product): ProductSeoData {
 export function applyProductSeo(product: Product | null): void {
   if (typeof document === 'undefined') return;
 
-  let metaDesc = document.querySelector('meta[name="description"]');
-  let canonicalEl = document.querySelector('link[rel="canonical"]');
-  let ogTitle = document.querySelector('meta[property="og:title"]');
-  let ogDesc = document.querySelector('meta[property="og:description"]');
-  let ogImage = document.querySelector('meta[property="og:image"]');
-  let ogImageSecure = document.querySelector('meta[property="og:image:secure_url"]');
-  let ogImageAlt = document.querySelector('meta[property="og:image:alt"]');
-  let ogUrl = document.querySelector('meta[property="og:url"]');
-  let twitterTitle = document.querySelector('meta[name="twitter:title"]');
-  let twitterDesc = document.querySelector('meta[name="twitter:description"]');
-  let twitterImage = document.querySelector('meta[name="twitter:image"]');
-  let twitterImageAlt = document.querySelector('meta[name="twitter:image:alt"]');
-
-  // Existing dynamic JSON-LD element
+  let canonicalEl = document.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
   let jsonLdEl = document.getElementById('product-seo-jsonld') as HTMLScriptElement | null;
 
   if (product) {
@@ -96,13 +123,8 @@ export function applyProductSeo(product: Product | null): void {
     // 1. Document Title
     document.title = seo.title;
 
-    // 2. Meta Description
-    if (!metaDesc) {
-      metaDesc = document.createElement('meta');
-      metaDesc.setAttribute('name', 'description');
-      document.head.appendChild(metaDesc);
-    }
-    metaDesc.setAttribute('content', seo.description);
+    // 2. Meta Description (with product brief details)
+    setOrCreateMeta('name', 'description', seo.description);
 
     // 3. Canonical Tag
     if (!canonicalEl) {
@@ -112,19 +134,23 @@ export function applyProductSeo(product: Product | null): void {
     }
     canonicalEl.setAttribute('href', seo.canonicalUrl);
 
-    // 4. OpenGraph Tags (using auto-generated product OG card containing title + Buy Now CTA)
-    if (ogTitle) ogTitle.setAttribute('content', seo.title);
-    if (ogDesc) ogDesc.setAttribute('content', seo.description);
-    if (ogImage) ogImage.setAttribute('content', seo.ogImageUrl);
-    if (ogImageSecure) ogImageSecure.setAttribute('content', seo.ogImageUrl);
-    if (ogImageAlt) ogImageAlt.setAttribute('content', seo.ogImageAlt);
-    if (ogUrl) ogUrl.setAttribute('content', seo.canonicalUrl);
+    // 4. OpenGraph Tags (with product photo card, title, brief description, and NPR price)
+    setOrCreateMeta('property', 'og:type', 'product');
+    setOrCreateMeta('property', 'og:title', seo.title);
+    setOrCreateMeta('property', 'og:description', seo.description);
+    setOrCreateMeta('property', 'og:image', seo.ogImageUrl);
+    setOrCreateMeta('property', 'og:image:secure_url', seo.ogImageUrl);
+    setOrCreateMeta('property', 'og:image:alt', seo.ogImageAlt);
+    setOrCreateMeta('property', 'og:url', seo.shareUrl);
+    setOrCreateMeta('property', 'product:price:amount', seo.priceAmount);
+    setOrCreateMeta('property', 'product:price:currency', seo.priceCurrency);
+    setOrCreateMeta('property', 'product:availability', seo.availability);
 
     // 5. Twitter Card Tags
-    if (twitterTitle) twitterTitle.setAttribute('content', seo.title);
-    if (twitterDesc) twitterDesc.setAttribute('content', seo.description);
-    if (twitterImage) twitterImage.setAttribute('content', seo.ogImageUrl);
-    if (twitterImageAlt) twitterImageAlt.setAttribute('content', seo.ogImageAlt);
+    setOrCreateMeta('name', 'twitter:title', seo.title);
+    setOrCreateMeta('name', 'twitter:description', seo.description);
+    setOrCreateMeta('name', 'twitter:image', seo.ogImageUrl);
+    setOrCreateMeta('name', 'twitter:image:alt', seo.ogImageAlt);
 
     // 6. Schema.org Product JSON-LD Injection
     if (!jsonLdEl) {
@@ -135,37 +161,35 @@ export function applyProductSeo(product: Product | null): void {
     }
     jsonLdEl.textContent = JSON.stringify(seo.schemaJsonLd, null, 2);
 
-    // 7. Update browser URL without reloading page
+    // 7. Update browser URL to include both the pre-rendered /product/<id>/ path AND ?product=<id> query
+    // so copying from the address bar works on both static hosting (GitHub Pages) and SPA query handlers.
     try {
-      const url = new URL(window.location.href);
-      const isDedicatedProductPath = /^\/product\/[^/]+\/?$/i.test(url.pathname);
-      if (isDedicatedProductPath) {
-        url.pathname = `/product/${encodeURIComponent(product.id)}/`;
-        url.searchParams.delete('product');
-        url.searchParams.delete('p');
-      } else {
-        url.searchParams.set('product', product.id);
+      const encodedId = encodeURIComponent(product.id);
+      const nextUrl = `/product/${encodedId}/?product=${encodedId}`;
+      const currentFull = window.location.pathname + window.location.search;
+      if (currentFull !== nextUrl) {
+        window.history.replaceState({ productId: product.id }, seo.title, nextUrl);
       }
-      window.history.replaceState({ productId: product.id }, seo.title, url.toString());
     } catch {}
   } else {
     // Restore default storefront SEO
     document.title = DEFAULT_TITLE;
 
-    if (metaDesc) metaDesc.setAttribute('content', DEFAULT_DESCRIPTION);
+    setOrCreateMeta('name', 'description', DEFAULT_DESCRIPTION);
     if (canonicalEl) canonicalEl.setAttribute('href', DEFAULT_CANONICAL);
 
-    if (ogTitle) ogTitle.setAttribute('content', DEFAULT_TITLE);
-    if (ogDesc) ogDesc.setAttribute('content', DEFAULT_DESCRIPTION);
-    if (ogImage) ogImage.setAttribute('content', DEFAULT_IMAGE);
-    if (ogImageSecure) ogImageSecure.setAttribute('content', DEFAULT_IMAGE);
-    if (ogImageAlt) ogImageAlt.setAttribute('content', DEFAULT_IMAGE_ALT);
-    if (ogUrl) ogUrl.setAttribute('content', DEFAULT_CANONICAL);
+    setOrCreateMeta('property', 'og:type', 'website');
+    setOrCreateMeta('property', 'og:title', DEFAULT_TITLE);
+    setOrCreateMeta('property', 'og:description', DEFAULT_DESCRIPTION);
+    setOrCreateMeta('property', 'og:image', DEFAULT_IMAGE);
+    setOrCreateMeta('property', 'og:image:secure_url', DEFAULT_IMAGE);
+    setOrCreateMeta('property', 'og:image:alt', DEFAULT_IMAGE_ALT);
+    setOrCreateMeta('property', 'og:url', DEFAULT_CANONICAL);
 
-    if (twitterTitle) twitterTitle.setAttribute('content', DEFAULT_TITLE);
-    if (twitterDesc) twitterDesc.setAttribute('content', DEFAULT_DESCRIPTION);
-    if (twitterImage) twitterImage.setAttribute('content', DEFAULT_IMAGE);
-    if (twitterImageAlt) twitterImageAlt.setAttribute('content', DEFAULT_IMAGE_ALT);
+    setOrCreateMeta('name', 'twitter:title', DEFAULT_TITLE);
+    setOrCreateMeta('name', 'twitter:description', DEFAULT_DESCRIPTION);
+    setOrCreateMeta('name', 'twitter:image', DEFAULT_IMAGE);
+    setOrCreateMeta('name', 'twitter:image:alt', DEFAULT_IMAGE_ALT);
 
     // Remove product JSON-LD
     if (jsonLdEl && jsonLdEl.parentNode) {

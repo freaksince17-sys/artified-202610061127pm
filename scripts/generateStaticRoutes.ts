@@ -4,6 +4,7 @@ import { fileURLToPath } from 'url';
 import sharp from 'sharp';
 import { buildProductOgSvgMarkup } from '../src/utils/ogImageGenerator.ts';
 import { buildProductWithLocalBusinessSchema } from '../src/utils/LocalBusinessSchema.tsx';
+import { buildProductBriefDetail } from '../src/utils/productSeo.ts';
 import { Product } from '../src/types.ts';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -186,18 +187,17 @@ async function generateStaticRoutes() {
         fs.mkdirSync(prodDir, { recursive: true });
       }
       const priceText = `NPR ${Number(product.price || 0).toLocaleString('en-US')}`;
-      const prodTitle = escapeHtmlAttr(`${product.title} (${priceText}) | Buy Now | Artified Nepal`);
-      const prodDesc = escapeHtmlAttr(
-        `Shop handmade ${product.title} in Nepal for ${priceText}. Handcrafted in Kathmandu with doorstep delivery across Nepal.`
-      );
-      const prodUrl = `https://www.artified.com.np/product/${encodeURIComponent(product.id)}/`;
+      const prodTitle = escapeHtmlAttr(`${product.title} (${priceText}) | Artified Nepal`);
+      const prodDesc = escapeHtmlAttr(buildProductBriefDetail(product));
+      const prodUrl = `https://www.artified.com.np/product/${encodeURIComponent(product.id)}/?product=${encodeURIComponent(product.id)}`;
       const prodOgImg = `https://www.artified.com.np/og/products/${encodeURIComponent(product.id)}.jpg`;
-      const prodAlt = escapeHtmlAttr(`${product.title} — Buy Now at Artified Nepal`);
+      const prodAlt = escapeHtmlAttr(`${product.title} (${priceText}) — ${product.subtitle || 'Handcrafted in Kathmandu, Nepal'}`);
 
       let prodHtml = baseHtml
         .replace(/<title>.*?<\/title>/i, `<title>${prodTitle}</title>`)
         .replace(/<link rel="canonical"[^>]*>/i, `<link rel="canonical" href="${prodUrl}" />`)
         .replace(/<meta name="description"[^>]*>/i, `<meta name="description" content="${prodDesc}" />`)
+        .replace(/<meta property="og:type"[^>]*>/i, `<meta property="og:type" content="product" />`)
         .replace(/<meta property="og:title"[^>]*>/i, `<meta property="og:title" content="${prodTitle}" />`)
         .replace(/<meta property="og:description"[^>]*>/i, `<meta property="og:description" content="${prodDesc}" />`)
         .replace(/<meta property="og:image"[^>]*>/i, `<meta property="og:image" content="${prodOgImg}" />`)

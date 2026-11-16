@@ -8,6 +8,7 @@ import { PRODUCTS, DEFAULT_INSTAGRAM_ITEMS, DEFAULT_INSTAGRAM_HANDLE, DEFAULT_IN
 import { DEFAULT_ARTISAN_PROFILE } from './src/data/artisanProfile.ts';
 import { generateSitemapXml } from './src/utils/sitemapGenerator.ts';
 import { buildProductOgSvgMarkup } from './src/utils/ogImageGenerator.ts';
+import { buildProductBriefDetail } from './src/utils/productSeo.ts';
 import { GoogleGenAI } from '@google/genai';
 import { autoGenerateWorkshopGroup, autoGenerateMediaCaption } from './src/utils/workshopAIGenerator.ts';
 import { handleAtomicSalesIncrementCloudFunction } from './functions/src/index.ts';
@@ -3967,13 +3968,30 @@ Do NOT use the words "masterclass", "cohort", or "atelier". Return ONLY valid JS
     viteInstance = vite;
   }
 
-  // OpenGraph social sharing middleware for crawler bots (Instagram, TikTok, WhatsApp, Facebook, Twitter, Google, etc.)
+  // OpenGraph social sharing & product deep-link metadata middleware
   app.use(async (req, res, next) => {
+    if (req.method !== 'GET') return next();
+    if (
+      req.path.startsWith('/api/') ||
+      req.path.startsWith('/src/') ||
+      req.path.startsWith('/@') ||
+      req.path.startsWith('/node_modules/') ||
+      req.path.startsWith('/og/') ||
+      /\.[a-z0-9]+$/i.test(req.path)
+    ) {
+      return next();
+    }
+
     const userAgent = (req.headers['user-agent'] || '').toLowerCase();
     const isBot = /instagram|tiktok|bytedance|bytespider|meta-externalagent|facebookexternalhit|facebot|twitterbot|whatsapp|telegrambot|linkedinbot|discordbot|slackbot|googlebot|bingbot|pinterest|applebot/i.test(userAgent);
+    const pathProdMatch = req.path.match(/^\/product\/([^/]+)\/?$/i);
+    const requestedProductId =
+      (typeof req.query.product === 'string' && req.query.product.trim()) ||
+      (typeof req.query.p === 'string' && req.query.p.trim()) ||
+      (pathProdMatch?.[1] ? decodeURIComponent(pathProdMatch[1]).trim() : '');
 
-    // Only intercept for external crawler bots requesting social cards
-    if (isBot) {
+    // Intercept for crawler bots OR whenever a specific product link (?product=<id> or /product/<id>) is requested
+    if (isBot || Boolean(requestedProductId)) {
       try {
         const cleanPath = req.path.toLowerCase().replace(/\/+$/, '').replace(/^\//, '');
         const specificRoutePath = cleanPath ? path.resolve(process.cwd(), `dist/${cleanPath}/index.html`) : null;
@@ -3988,13 +4006,6 @@ Do NOT use the words "masterclass", "cohort", or "atelier". Return ONLY valid JS
           const origin = `${proto}://${host}`;
           let absoluteOgImage = `${origin}/og-image.jpg`;
 
-          // Check if the shared link targets a specific product (?product=<id> or /product/<id>)
-          const pathProdMatch = req.path.match(/^\/product\/([^/]+)\/?$/i);
-          const requestedProductId =
-            (typeof req.query.product === 'string' && req.query.product) ||
-            (typeof req.query.p === 'string' && req.query.p) ||
-            (pathProdMatch?.[1] ? decodeURIComponent(pathProdMatch[1]) : '');
-
           if (requestedProductId) {
             let productList = PRODUCTS;
             if (fs.existsSync(productsJsonPath)) {
@@ -4002,9 +4013,17 @@ Do NOT use the words "masterclass", "cohort", or "atelier". Return ONLY valid JS
                 productList = JSON.parse(fs.readFileSync(productsJsonPath, 'utf-8'));
               } catch {}
             }
+            const slugify = (v: string) =>
+              String(v || '')
+                .toLowerCase()
+                .trim()
+                .replace(/[^a-z0-9]+/g, '-')
+                .replace(/^-+|-+$/g, '');
+            const targetSlug = slugify(requestedProductId);
             const matchedProduct =
               productList.find((p: any) => p.id === requestedProductId) ||
-              productList.find((p: any) => String(p.id).toLowerCase() === requestedProductId.toLowerCase());
+              productList.find((p: any) => String(p.id).toLowerCase() === requestedProductId.toLowerCase()) ||
+              productList.find((p: any) => targetSlug && slugify(p.title) === targetSlug);
 
             if (matchedProduct) {
               const escapeAttr = (s: string) =>
@@ -4013,28 +4032,38 @@ Do NOT use the words "masterclass", "cohort", or "atelier". Return ONLY valid JS
                   .replace(/"/g, '&quot;')
                   .replace(/</g, '&lt;')
                   .replace(/>/g, '&gt;');
-              const prodTitle = escapeAttr(`${matchedProduct.title} (NPR ${Number(matchedProduct.price || 0).toLocaleString()}) | Artified Nepal`);
-              const prodDesc = escapeAttr(`Buy handcrafted ${matchedProduct.title} in Nepal for NPR ${Number(matchedProduct.price || 0).toLocaleString()}. Handcrafted in Kathmandu with doorstep delivery across Nepal.`);
-              const prodAlt = escapeAttr(`${matchedProduct.title} — Buy Now at Artified Nepal`);
-              const prodUrl = escapeAttr(`${origin}/product/${encodeURIComponent(matchedProduct.id)}/`);
-              absoluteOgImage = `${origin}/og/products/${encodeURIComponent(matchedProduct.id)}.jpg`;
+              const formattedPrice = `NPR ${Number(matchedProduct.price || 0).toLocaleString('en-US')}`;
+              const prodTitle = escapeAttr(`${matchedProduct.title} (${formattedPrice}) | Artified Nepal`);
+              const prodDesc = escapeAttr(buildProductBriefDetail(matchedProduct));
+              const prodAlt = escapeAttr(
+                `${matchedProduct.title} (${formattedPrice}) — ${matchedProduct.subtitle || 'Handcrafted in Kathmandu, Nepal'}`
+              );
+              const encodedId = encodeURIComponent(matchedProduct.id);
+              const prodUrl = escapeAttr(`${origin}/product/${encodedId}/?product=${encodedId}`);
+              absoluteOgImage = `${origin}/og/products/${encodedId}.jpg`;
 
               html = html
                 .replace(/<title>.*?<\/title>/i, `<title>${prodTitle}</title>`)
                 .replace(/<meta name="description"[^>]*>/i, `<meta name="description" content="${prodDesc}" />`)
                 .replace(/<link rel="canonical"[^>]*>/i, `<link rel="canonical" href="${prodUrl}" />`)
+                .replace(/<meta property="og:type"[^>]*>/i, `<meta property="og:type" content="product" />`)
+                .replace(/<meta property="og:url"[^>]*>/i, `<meta property="og:url" content="${prodUrl}" />`)
                 .replace(/<meta property="og:title"[^>]*>/i, `<meta property="og:title" content="${prodTitle}" />`)
                 .replace(/<meta property="og:description"[^>]*>/i, `<meta property="og:description" content="${prodDesc}" />`)
+                .replace(/<meta property="og:image"[^>]*>/i, `<meta property="og:image" content="${absoluteOgImage}" />`)
+                .replace(/<meta property="og:image:secure_url"[^>]*>/i, `<meta property="og:image:secure_url" content="${absoluteOgImage}" />`)
                 .replace(/<meta property="og:image:alt"[^>]*>/i, `<meta property="og:image:alt" content="${prodAlt}" />`)
                 .replace(/<meta name="twitter:title"[^>]*>/i, `<meta name="twitter:title" content="${prodTitle}" />`)
                 .replace(/<meta name="twitter:description"[^>]*>/i, `<meta name="twitter:description" content="${prodDesc}" />`)
+                .replace(/<meta name="twitter:image"[^>]*>/i, `<meta name="twitter:image" content="${absoluteOgImage}" />`)
                 .replace(/<meta name="twitter:image:alt"[^>]*>/i, `<meta name="twitter:image:alt" content="${prodAlt}" />`);
             }
+          } else {
+            html = html
+              .replace(/<meta property="og:image"[^>]*>/i, `<meta property="og:image" content="${absoluteOgImage}" />`)
+              .replace(/<meta property="og:image:secure_url"[^>]*>/i, `<meta property="og:image:secure_url" content="${absoluteOgImage}" />`)
+              .replace(/<meta name="twitter:image"[^>]*>/i, `<meta name="twitter:image" content="${absoluteOgImage}" />`);
           }
-
-          html = html
-            .replace(/content="\/og-image\.jpg"/g, `content="${absoluteOgImage}"`)
-            .replace(/content="og-image\.jpg"/g, `content="${absoluteOgImage}"`);
 
           if (!isProd && viteInstance) {
             html = await viteInstance.transformIndexHtml(req.originalUrl, html);
@@ -4042,7 +4071,7 @@ Do NOT use the words "masterclass", "cohort", or "atelier". Return ONLY valid JS
           return res.status(200).set({ 'Content-Type': 'text/html' }).send(html);
         }
       } catch (err) {
-        console.warn('Notice: Error serving dynamic OpenGraph html for bot:', err);
+        console.warn('Notice: Error serving dynamic OpenGraph html:', err);
       }
     }
     next();

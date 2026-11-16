@@ -98,7 +98,8 @@ export function getProductShareUrl(
       : DEFAULT_STORE_ORIGIN)
   ).replace(/\/+$/, '');
 
-  return `${resolvedOrigin}/product/${encodeURIComponent(product.id)}/`;
+  const encodedId = encodeURIComponent(product.id);
+  return `${resolvedOrigin}/product/${encodedId}/?product=${encodedId}`;
 }
 
 /**
