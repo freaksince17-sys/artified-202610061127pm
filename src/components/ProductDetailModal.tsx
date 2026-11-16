@@ -165,19 +165,62 @@ export const ProductDetailModal: React.FC = () => {
   // Social Share Handlers
   const getActiveShareUrl = () => {
     if (!quickViewProduct) return window.location.href;
-    return getProductShareUrl(quickViewProduct, window.location.origin);
+    const origin = window.location.hostname.includes('artified.com.np')
+      ? window.location.origin
+      : 'https://www.artified.com.np';
+    return getProductShareUrl(quickViewProduct, origin);
   };
 
-  const handleShareWhatsApp = () => {
-    if (!quickViewProduct) return;
+  const getShareMessageText = () => {
+    if (!quickViewProduct) return '';
     const shareUrl = getActiveShareUrl();
-    const brief = (quickViewProduct.subtitle || quickViewProduct.description || 'Handcrafted with pearls in Kathmandu, Nepal')
+    const brief = (quickViewProduct.subtitle || quickViewProduct.description || 'Handcrafted in Kathmandu, Nepal')
       .replace(/\s+/g, ' ')
       .trim()
       .slice(0, 120);
-    const text = `Look at this stunning handmade ${quickViewProduct.title} from Artified Nepal! ✨\n${brief} 🌸\nView details: ${shareUrl}`;
-    const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
-    window.open(url, '_blank');
+    return `${quickViewProduct.title} — ${brief}\n${shareUrl}`;
+  };
+
+  const getWhatsAppShareHref = () => {
+    if (!quickViewProduct) return '#';
+    return `https://api.whatsapp.com/send?text=${encodeURIComponent(getShareMessageText())}`;
+  };
+
+  const getViberShareHref = () => {
+    if (!quickViewProduct) return '#';
+    return `viber://forward?text=${encodeURIComponent(getShareMessageText())}`;
+  };
+
+  const getFacebookShareHref = () => {
+    if (!quickViewProduct) return '#';
+    const shareUrl = getActiveShareUrl();
+    return `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`;
+  };
+
+  const handleNativeDeviceShare = async () => {
+    if (!quickViewProduct) return;
+    const shareUrl = getActiveShareUrl();
+    const shareTitle = `${quickViewProduct.title} | Artified Nepal`;
+    const brief = (quickViewProduct.subtitle || quickViewProduct.description || 'Handcrafted in Kathmandu, Nepal')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 110);
+    const shareText = `${quickViewProduct.title} — ${brief}`;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: shareTitle,
+          text: shareText,
+          url: shareUrl,
+        });
+        return;
+      } catch {
+        // User cancelled or fallback to Share modal
+      }
+    }
+
+    setShowStoryModal(true);
   };
 
   const handleShareInstagramStory = async () => {
@@ -625,6 +668,16 @@ export const ProductDetailModal: React.FC = () => {
               )}
 
               <button
+                type="button"
+                onClick={() => setShowStoryModal(true)}
+                className="px-2.5 sm:px-3 py-1.5 rounded-full border border-[#C5A880] bg-[#FAF6F0] hover:bg-[#F2EAE0] text-[#1C1B1A] text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
+                title="Share product link on WhatsApp, Viber, Instagram, TikTok, or Facebook"
+                aria-label="Share product"
+              >
+                <Share2 className="w-3.5 h-3.5 text-[#8C6730]" />
+                <span className="hidden xs:inline sm:inline">Share</span>
+              </button>
+              <button
                 onClick={() => toggleWishlist(product.id)}
                 className={`p-2 rounded-full border border-[#E8DFD8] transition-colors cursor-pointer ${
                   wishlisted ? 'bg-rose-50 text-rose-500 border-rose-200' : 'text-[#736C65] hover:text-[#1C1B1A]'
@@ -952,6 +1005,96 @@ export const ProductDetailModal: React.FC = () => {
                     </button>
                   </div>
                 )}
+
+                {/* Quick Social & Messenger Share Bar (WhatsApp, Viber, Facebook, Instagram/TikTok, Copy Link) */}
+                <div className="mb-4 p-3 rounded-xl bg-white border border-[#E8DFD8] space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-[#8C7A6B] flex items-center gap-1.5">
+                      <Share2 className="w-3.5 h-3.5 text-[#C5A880]" />
+                      <span>Share Product Link</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowStoryModal(true)}
+                      className="text-[11px] font-semibold text-[#8C6730] hover:text-[#1C1B1A] underline underline-offset-2 cursor-pointer"
+                    >
+                      Preview Card &amp; More
+                    </button>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {/* Copy Link */}
+                    <button
+                      type="button"
+                      onClick={handleCopyProductLink}
+                      className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold border transition-all flex items-center gap-1.5 cursor-pointer ${
+                        shareCopied
+                          ? 'bg-emerald-600 text-white border-emerald-600'
+                          : 'bg-[#FAF8F5] hover:bg-[#F2ECE4] text-[#1C1B1A] border-[#D8CBB8]'
+                      }`}
+                      title="Copy clean product link"
+                    >
+                      {shareCopied ? (
+                        <>
+                          <Check className="w-3.5 h-3.5" />
+                          <span>Link Copied!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5 text-[#8C6730]" />
+                          <span>Copy Link</span>
+                        </>
+                      )}
+                    </button>
+
+                    {/* WhatsApp Share */}
+                    <a
+                      href={getWhatsAppShareHref()}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-[#25D366]/10 hover:bg-[#25D366]/20 text-[#075E54] border border-[#25D366]/40 transition-all flex items-center gap-1.5"
+                      title="Share product link on WhatsApp"
+                    >
+                      <MessageCircle className="w-3.5 h-3.5 text-[#25D366]" />
+                      <span>WhatsApp</span>
+                    </a>
+
+                    {/* Viber Share */}
+                    <a
+                      href={getViberShareHref()}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-[#7360F2]/10 hover:bg-[#7360F2]/20 text-[#5946D2] border border-[#7360F2]/35 transition-all flex items-center gap-1.5"
+                      title="Share product link on Viber"
+                    >
+                      <Send className="w-3.5 h-3.5 text-[#7360F2]" />
+                      <span>Viber</span>
+                    </a>
+
+                    {/* Facebook Share */}
+                    <a
+                      href={getFacebookShareHref()}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-[#1877F2]/10 hover:bg-[#1877F2]/20 text-[#1877F2] border border-[#1877F2]/35 transition-all flex items-center gap-1.5"
+                      title="Share product link on Facebook"
+                    >
+                      <Share2 className="w-3.5 h-3.5 text-[#1877F2]" />
+                      <span>Facebook</span>
+                    </a>
+
+                    {/* Instagram / TikTok / Native Share */}
+                    <button
+                      type="button"
+                      onClick={() => setShowStoryModal(true)}
+                      className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-rose-50 hover:bg-rose-100 text-[#C13584] border border-rose-200 transition-all flex items-center gap-1.5 cursor-pointer"
+                      title="Share on Instagram, TikTok, or other apps"
+                    >
+                      <Instagram className="w-3.5 h-3.5 text-[#E1306C]" />
+                      <span>IG / TikTok</span>
+                    </button>
+                  </div>
+                </div>
 
                 {/* Detailed Description - Directly under Add to Bag, Buy Now, and WhatsApp */}
                 <div className="pt-3 border-t border-[#E8DFD8] mb-4">
@@ -1446,14 +1589,14 @@ export const ProductDetailModal: React.FC = () => {
       </div>
         </div>
 
-      {/* Instagram & TikTok OpenGraph Share Assistant Modal */}
+      {/* Universal Product Share Modal (WhatsApp, Viber, Instagram, TikTok, Facebook & Copy Link) */}
       {showStoryModal && product && (
         <div 
           className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200"
           onClick={() => setShowStoryModal(false)}
         >
           <div 
-            className="relative w-full max-w-md rounded-3xl bg-[#1C1B1A] border-2 border-[#D4AF37]/50 p-5 sm:p-6 text-white shadow-2xl space-y-3.5"
+            className="relative w-full max-w-md rounded-3xl bg-[#1C1B1A] border-2 border-[#D4AF37]/50 p-5 sm:p-6 text-white shadow-2xl space-y-3.5 max-h-[92vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <button
@@ -1465,8 +1608,92 @@ export const ProductDetailModal: React.FC = () => {
             </button>
 
             <div className="flex items-center gap-2 text-xs text-[#D4AF37] font-bold uppercase tracking-wider">
-              <Instagram className="w-4 h-4 text-[#E1306C]" />
-              <span>Social Preview Card (Instagram &amp; TikTok)</span>
+              <Share2 className="w-4 h-4 text-[#D4AF37]" />
+              <span>Share Piece Anywhere</span>
+            </div>
+
+            {/* Direct Clean Share URL Box + Copy Button */}
+            <div className="p-2.5 rounded-xl bg-white/5 border border-white/15 space-y-1.5">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-[#B8AFA6] block">
+                Direct Product Link
+              </span>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  readOnly
+                  value={getActiveShareUrl()}
+                  onClick={(e) => (e.currentTarget as HTMLInputElement).select()}
+                  className="flex-1 min-w-0 bg-black/40 text-[#FAF8F5] text-xs px-2.5 py-2 rounded-lg border border-white/15 focus:outline-none font-mono"
+                />
+                <button
+                  type="button"
+                  onClick={handleCopyProductLink}
+                  className={`px-3 py-2 rounded-lg text-xs font-bold shrink-0 flex items-center gap-1.5 transition-all cursor-pointer ${
+                    shareCopied
+                      ? 'bg-emerald-500 text-black'
+                      : 'bg-[#D4AF37] hover:bg-[#c49f2c] text-[#1C1B1A]'
+                  }`}
+                >
+                  {shareCopied ? (
+                    <>
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Copied</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>Copy</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Direct Social & Messaging Apps Grid */}
+            <div className="space-y-1.5">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-[#B8AFA6] block">
+                Share Directly To
+              </span>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <a
+                  href={getWhatsAppShareHref()}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="py-2.5 px-2 rounded-xl bg-[#25D366] hover:opacity-95 text-[#072614] font-bold text-xs flex flex-col items-center justify-center gap-1 transition-all shadow-sm"
+                >
+                  <MessageCircle className="w-4 h-4" />
+                  <span>WhatsApp</span>
+                </a>
+
+                <a
+                  href={getViberShareHref()}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="py-2.5 px-2 rounded-xl bg-[#7360F2] hover:opacity-95 text-white font-bold text-xs flex flex-col items-center justify-center gap-1 transition-all shadow-sm"
+                >
+                  <Send className="w-4 h-4" />
+                  <span>Viber</span>
+                </a>
+
+                <a
+                  href={getFacebookShareHref()}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="py-2.5 px-2 rounded-xl bg-[#1877F2] hover:opacity-95 text-white font-bold text-xs flex flex-col items-center justify-center gap-1 transition-all shadow-sm"
+                >
+                  <Share2 className="w-4 h-4" />
+                  <span>Facebook</span>
+                </a>
+
+                <button
+                  type="button"
+                  onClick={handleNativeDeviceShare}
+                  className="py-2.5 px-2 rounded-xl bg-gradient-to-r from-[#833ab4] via-[#fd1d1d] to-[#fcb045] hover:opacity-95 text-white font-bold text-xs flex flex-col items-center justify-center gap-1 transition-all shadow-sm cursor-pointer"
+                >
+                  <Instagram className="w-4 h-4" />
+                  <span>IG / TikTok</span>
+                </button>
+              </div>
             </div>
 
             {/* Auto-Generated 1200x630 OpenGraph Preview Card (Product Name + Buy Now CTA) */}
@@ -1485,54 +1712,30 @@ export const ProductDetailModal: React.FC = () => {
                 )}
               </div>
               <p className="text-[10px] text-[#B8AFA6] text-center">
-                Auto-generated 1200×630 link card with product name &amp; Buy Now CTA
+                Link preview card (shows product photo &amp; brief details without revealing price)
               </p>
             </div>
 
             {/* Quick Actions */}
-            <div className="space-y-2 pt-1">
+            <div className="grid grid-cols-2 gap-2 pt-1">
               <button
                 type="button"
-                onClick={handleCopyProductLink}
-                className="w-full py-2.5 px-4 bg-[#D4AF37] hover:bg-[#c49f2c] text-[#1C1B1A] font-bold text-xs uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-sm"
+                onClick={handleDownloadOgCard}
+                className="py-2.5 px-3 bg-white/10 hover:bg-white/20 text-white font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer border border-white/15"
               >
-                {shareCopied ? (
-                  <>
-                    <Check className="w-4 h-4 text-emerald-950" />
-                    <span>Product Share Link Copied!</span>
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-4 h-4" />
-                    <span>Copy Share Link for Bio / Story</span>
-                  </>
-                )}
+                <Download className="w-3.5 h-3.5 text-[#D4AF37]" />
+                <span>Save Preview Card</span>
               </button>
 
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={handleDownloadOgCard}
-                  className="py-2.5 px-3 bg-white/10 hover:bg-white/20 text-white font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer border border-white/15"
-                >
-                  <Download className="w-3.5 h-3.5 text-[#D4AF37]" />
-                  <span>Save OG Card</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleShareInstagramStory}
-                  className="py-2.5 px-3 bg-gradient-to-r from-[#833ab4] via-[#fd1d1d] to-[#fcb045] hover:opacity-95 text-white font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-md"
-                >
-                  <Share2 className="w-3.5 h-3.5 text-white" />
-                  <span>Share Now</span>
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={handleShareInstagramStory}
+                className="py-2.5 px-3 bg-[#D4AF37] hover:bg-[#c49f2c] text-[#1C1B1A] font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-md"
+              >
+                <Share2 className="w-3.5 h-3.5" />
+                <span>More Apps...</span>
+              </button>
             </div>
-
-            <p className="text-[10px] text-[#8C847E] text-center leading-relaxed">
-              Paste the link in Instagram Stories, TikTok bio, or WhatsApp to display the preview card for <strong>{product.title}</strong>.
-            </p>
           </div>
         </div>
       )}
