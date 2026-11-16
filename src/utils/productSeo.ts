@@ -1,5 +1,5 @@
 import { Product } from '../types';
-import { getProductOgImageUrl, getProductShareUrl } from './ogImageGenerator';
+import { getProductOgImageUrl, getProductShareUrl, getProductUrlSlug } from './ogImageGenerator';
 import { buildProductWithLocalBusinessSchema, resolveSchemaProductImages } from './LocalBusinessSchema';
 
 const DEFAULT_TITLE = 'Artified_np | Handcrafted Elegance & Wearable Art Nepal';
@@ -166,13 +166,13 @@ export function applyProductSeo(product: Product | null): void {
     }
     jsonLdEl.textContent = JSON.stringify(seo.schemaJsonLd, null, 2);
 
-    // 7. Update browser URL to include both the pre-rendered /product/<id>/ path AND ?product=<id> query
+    // 7. Update browser URL to the clean, human-readable product slug (e.g. /product/pearl-royale-set/)
     try {
-      const encodedId = encodeURIComponent(product.id);
-      const nextUrl = `/product/${encodedId}/?product=${encodedId}`;
+      const slug = getProductUrlSlug(product);
+      const nextUrl = `/product/${slug}/`;
       const currentFull = window.location.pathname + window.location.search;
       if (currentFull !== nextUrl) {
-        window.history.replaceState({ productId: product.id }, seo.title, nextUrl);
+        window.history.replaceState({ productId: product.id, slug }, seo.title, nextUrl);
       }
     } catch {}
   } else {

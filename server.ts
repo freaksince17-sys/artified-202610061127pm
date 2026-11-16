@@ -7,7 +7,7 @@ import crypto from 'crypto';
 import { PRODUCTS, DEFAULT_INSTAGRAM_ITEMS, DEFAULT_INSTAGRAM_HANDLE, DEFAULT_INSTAGRAM_PROFILE_URL, TIKTOK_REELS, DEFAULT_CRAFT_STORY } from './src/data/products.ts';
 import { DEFAULT_ARTISAN_PROFILE } from './src/data/artisanProfile.ts';
 import { generateSitemapXml } from './src/utils/sitemapGenerator.ts';
-import { buildProductOgSvgMarkup } from './src/utils/ogImageGenerator.ts';
+import { buildProductOgSvgMarkup, getProductUrlSlug } from './src/utils/ogImageGenerator.ts';
 import { buildProductBriefDetail } from './src/utils/productSeo.ts';
 import {
   resolveProductForOgPreview,
@@ -3994,9 +3994,9 @@ Do NOT use the words "masterclass", "cohort", or "atelier". Return ONLY valid JS
               const prodAlt = escapeAttr(
                 `${matchedProduct.title} — ${matchedProduct.subtitle || 'Handcrafted in Kathmandu, Nepal'}`
               );
-              const encodedId = encodeURIComponent(matchedProduct.id);
-              const prodUrl = escapeAttr(`${origin}/product/${encodedId}/?product=${encodedId}`);
-              absoluteOgImage = `${origin}/og/products/${encodedId}.jpg`;
+              const slug = getProductUrlSlug(matchedProduct);
+              const prodUrl = escapeAttr(`${origin}/product/${slug}/`);
+              absoluteOgImage = `${origin}/og/products/${slug}.jpg`;
 
               html = html
                 .replace(/<title>.*?<\/title>/i, `<title>${prodTitle}</title>`)

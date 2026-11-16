@@ -1,4 +1,5 @@
 import { Product } from '../types';
+import { getProductUrlSlug } from './ogImageGenerator';
 
 export interface SitemapCategory {
   id: string;
@@ -33,11 +34,11 @@ function escapeXml(unsafe: string): string {
  */
 function resolveProductImageUrl(
   img: string | undefined,
-  productId: string,
+  productSlug: string,
   baseUrl = 'https://www.artified.com.np'
 ): string {
   if (!img || img.startsWith('data:')) {
-    return `${baseUrl}/og/products/${encodeURIComponent(productId)}.jpg`;
+    return `${baseUrl}/og/products/${productSlug}.jpg`;
   }
   if (img.startsWith('http://') || img.startsWith('https://')) return img;
   if (img.startsWith('/')) return `${baseUrl}${img}`;
@@ -77,12 +78,13 @@ export function generateSitemapXml(
 
   // Individual products
   for (const product of products) {
-    const productUrl = `${baseUrl}/product/${encodeURIComponent(product.id)}/`;
+    const slug = getProductUrlSlug(product);
+    const productUrl = `${baseUrl}/product/${slug}/`;
     const productTitle = escapeXml(product.title);
     const productDesc = escapeXml(
       product.description || product.subtitle || 'Handcrafted pearl and macrame creation in Kathmandu, Nepal'
     );
-    const primaryImgUrl = resolveProductImageUrl(product.images?.[0], product.id, baseUrl);
+    const primaryImgUrl = resolveProductImageUrl(product.images?.[0], slug, baseUrl);
 
     lines.push('  <url>');
     lines.push(`    <loc>${productUrl}</loc>`);
@@ -101,7 +103,7 @@ export function generateSitemapXml(
         const extraImg = product.images[i];
         if (extraImg && !extraImg.startsWith('data:')) {
           lines.push('    <image:image>');
-          lines.push(`      <image:loc>${escapeXml(resolveProductImageUrl(extraImg, product.id, baseUrl))}</image:loc>`);
+          lines.push(`      <image:loc>${escapeXml(resolveProductImageUrl(extraImg, slug, baseUrl))}</image:loc>`);
           lines.push(`      <image:title>${productTitle} - Angle ${i + 1}</image:title>`);
           lines.push('    </image:image>');
         }

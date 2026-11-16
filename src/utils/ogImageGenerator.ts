@@ -59,10 +59,33 @@ function wrapTextIntoLines(text: string, maxCharsPerLine: number, maxLines: numb
 }
 
 /**
+ * Converts a product title into a clean, SEO-friendly URL slug (e.g. "Pearl Royale Set" -> "pearl-royale-set").
+ */
+export function slugifyProductTitle(title: string): string {
+  return String(title || '')
+    .toLowerCase()
+    .trim()
+    .replace(/['’]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+/**
+ * Returns the clean, human-readable URL slug for a product (falling back to product.id only if title is empty).
+ */
+export function getProductUrlSlug(product: Pick<Product, 'id'> & { title?: string }): string {
+  const titleSlug = product.title ? slugifyProductTitle(product.title) : '';
+  return titleSlug || encodeURIComponent(product.id);
+}
+
+/**
  * Returns the canonical relative path for a product's generated 1200x630 OpenGraph image.
  */
-export function getProductOgImagePath(productId: string): string {
-  return `/og/products/${encodeURIComponent(productId)}.jpg`;
+export function getProductOgImagePath(productOrId: string | (Pick<Product, 'id'> & { title?: string })): string {
+  if (typeof productOrId === 'string') {
+    return `/og/products/${encodeURIComponent(productOrId)}.jpg`;
+  }
+  return `/og/products/${getProductUrlSlug(productOrId)}.jpg`;
 }
 
 /**
@@ -71,7 +94,7 @@ export function getProductOgImagePath(productId: string): string {
  * product photo, name, brief details, and Buy Now CTA (without revealing price before opening).
  */
 export function getProductOgImageUrl(
-  product: Pick<Product, 'id'>,
+  product: Pick<Product, 'id'> & { title?: string },
   origin?: string
 ): string {
   const resolvedOrigin = (
@@ -81,14 +104,15 @@ export function getProductOgImageUrl(
       : DEFAULT_STORE_ORIGIN)
   ).replace(/\/+$/, '');
 
-  return `${resolvedOrigin}${getProductOgImagePath(product.id)}`;
+  return `${resolvedOrigin}${getProductOgImagePath(product)}`;
 }
 
 /**
- * Resolves a product share URL for social sharing (Instagram Stories, TikTok bio, WhatsApp).
+ * Resolves a clean, human-readable product share URL (e.g. https://www.artified.com.np/product/pearl-royale-set/)
+ * for social sharing (Instagram Stories, TikTok bio, WhatsApp) and SEO.
  */
 export function getProductShareUrl(
-  product: Pick<Product, 'id'>,
+  product: Pick<Product, 'id'> & { title?: string },
   origin?: string
 ): string {
   const resolvedOrigin = (
@@ -98,8 +122,8 @@ export function getProductShareUrl(
       : DEFAULT_STORE_ORIGIN)
   ).replace(/\/+$/, '');
 
-  const encodedId = encodeURIComponent(product.id);
-  return `${resolvedOrigin}/product/${encodedId}/?product=${encodedId}`;
+  const slug = getProductUrlSlug(product);
+  return `${resolvedOrigin}/product/${slug}/`;
 }
 
 /**

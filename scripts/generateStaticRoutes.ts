@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import sharp from 'sharp';
-import { buildProductOgSvgMarkup } from '../src/utils/ogImageGenerator.ts';
+import { buildProductOgSvgMarkup, getProductUrlSlug } from '../src/utils/ogImageGenerator.ts';
 import { buildProductWithLocalBusinessSchema } from '../src/utils/LocalBusinessSchema.tsx';
 import { buildProductBriefDetail } from '../src/utils/productSeo.ts';
 import { Product } from '../src/types.ts';
@@ -174,22 +174,24 @@ async function generateStaticRoutes() {
       }
 
       const svg = buildProductOgSvgMarkup(product, { embeddedImageDataUri });
-      const jpegOutPath = path.join(ogOutDir, `${product.id}.jpg`);
-      await sharp(Buffer.from(svg))
+      const slug = getProductUrlSlug(product);
+      const jpegBuffer = await sharp(Buffer.from(svg))
         .resize(1200, 630)
         .jpeg({ quality: 88, mozjpeg: true })
-        .toFile(jpegOutPath);
+        .toBuffer();
+
+      // Save OpenGraph card under both the clean product slug and the internal ID
+      fs.writeFileSync(path.join(ogOutDir, `${slug}.jpg`), jpegBuffer);
+      if (slug !== product.id) {
+        fs.writeFileSync(path.join(ogOutDir, `${product.id}.jpg`), jpegBuffer);
+      }
       ogGeneratedCount++;
 
-      // Pre-render /product/<id>/index.html for rich link previews on Instagram, TikTok, and WhatsApp
-      const prodDir = path.resolve(distDir, 'product', product.id);
-      if (!fs.existsSync(prodDir)) {
-        fs.mkdirSync(prodDir, { recursive: true });
-      }
+      // Pre-render /product/<slug>/index.html (and legacy /product/<id>/index.html) for rich link previews
       const prodTitle = escapeHtmlAttr(`${product.title} | Artified Nepal`);
       const prodDesc = escapeHtmlAttr(buildProductBriefDetail(product));
-      const prodUrl = `https://www.artified.com.np/product/${encodeURIComponent(product.id)}/?product=${encodeURIComponent(product.id)}`;
-      const prodOgImg = `https://www.artified.com.np/og/products/${encodeURIComponent(product.id)}.jpg`;
+      const prodUrl = `https://www.artified.com.np/product/${slug}/`;
+      const prodOgImg = `https://www.artified.com.np/og/products/${slug}.jpg`;
       const prodAlt = escapeHtmlAttr(`${product.title} — ${product.subtitle || 'Handcrafted in Kathmandu, Nepal'}`);
 
       let prodHtml = baseHtml
@@ -223,10 +225,22 @@ async function generateStaticRoutes() {
       const localBusinessScriptTag = `\n    <script id="product-local-business-jsonld" type="application/ld+json">${JSON.stringify(localBusinessProductLd)}</script>\n  </head>`;
       prodHtml = prodHtml.replace('</head>', localBusinessScriptTag);
 
-      fs.writeFileSync(path.join(prodDir, 'index.html'), prodHtml, 'utf-8');
+      const slugDir = path.resolve(distDir, 'product', slug);
+      if (!fs.existsSync(slugDir)) {
+        fs.mkdirSync(slugDir, { recursive: true });
+      }
+      fs.writeFileSync(path.join(slugDir, 'index.html'), prodHtml, 'utf-8');
+
+      if (slug !== product.id) {
+        const legacyIdDir = path.resolve(distDir, 'product', product.id);
+        if (!fs.existsSync(legacyIdDir)) {
+          fs.mkdirSync(legacyIdDir, { recursive: true });
+        }
+        fs.writeFileSync(path.join(legacyIdDir, 'index.html'), prodHtml, 'utf-8');
+      }
     }
 
-    console.log(`  ✅ Generated ${ogGeneratedCount} product OpenGraph cards (dist/og/products/<id>.jpg) and /product/<id>/ preview pages`);
+    console.log(`  ✅ Generated ${ogGeneratedCount} product OpenGraph cards and clean /product/<name>/ preview pages`);
   }
 
   // Generate dist/404.html for GitHub Pages fallback
