@@ -2,7 +2,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { createRequire } from 'module';
-import { doc, getDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs } from 'firebase/firestore';
 import { db } from '../firebase.ts';
 import { PRODUCTS, selectBestProductImages } from '../data/products.ts';
 import { buildProductOgSvgMarkup } from '../utils/ogImageGenerator.ts';
@@ -21,7 +21,7 @@ function sanitizeFileSlug(id: string): string {
 
 /**
  * Resolves a product by ID or title slug from runtime disk catalog, bundled PRODUCTS,
- * and live Cloud Firestore ('products' collection).
+ * and live Cloud Firestore ('products' collection — matching both document ID and title slug).
  */
 export async function resolveProductForOgPreview(
   rawIdentifier: string,
@@ -46,6 +46,7 @@ export async function resolveProductForOgPreview(
     String(val || '')
       .toLowerCase()
       .trim()
+      .replace(/['’]/g, '')
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '');
   const targetSlug = slugify(cleanId);
@@ -56,7 +57,7 @@ export async function resolveProductForOgPreview(
     productList.find((p) => targetSlug && slugify(p.title) === targetSlug) ||
     null;
 
-  // Attempt to enrich with real-time Firestore product document (fast 2.5s timeout so crawlers never hang)
+  // Attempt to enrich or discover from real-time Firestore 'products' collection
   try {
     const targetDocId = localProduct?.id || cleanId;
     const snap = await Promise.race([
@@ -64,28 +65,56 @@ export async function resolveProductForOgPreview(
       new Promise<null>((resolve) => setTimeout(() => resolve(null), 2500)),
     ]);
 
+    let cloudData: Record<string, any> | null = null;
+    let resolvedDocId = targetDocId;
+
     if (snap && snap.exists()) {
-      const cloudData = snap.data();
-      if (cloudData) {
-        localProduct = {
-          ...(localProduct || ({} as Product)),
-          ...(cloudData as Partial<Product>),
-          id: cloudData.id || snap.id || targetDocId,
-          title: cloudData.title || localProduct?.title || 'Artified Nepal Creation',
-          subtitle: cloudData.subtitle || localProduct?.subtitle || 'Handcrafted in Kathmandu, Nepal',
-          description:
-            cloudData.description ||
-            localProduct?.description ||
-            cloudData.subtitle ||
-            'Individually handcrafted in Kathmandu, Nepal.',
-          category: cloudData.category || localProduct?.category || 'pearl-bags',
-          price:
-            typeof cloudData.price === 'number' && cloudData.price > 0
-              ? cloudData.price
-              : localProduct?.price || 1500,
-          images: selectBestProductImages(cloudData.images, localProduct?.images, true),
-        };
+      cloudData = snap.data() || null;
+      resolvedDocId = snap.id || targetDocId;
+    } else if (!localProduct && targetSlug) {
+      // Newly added product shared by its clean title slug (e.g. /product/cascading-pearl-potli/):
+      // Query the Firestore 'products' collection and match by slugified title or ID
+      const allSnap = await Promise.race([
+        getDocs(collection(db, 'products')),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 3500)),
+      ]);
+      if (allSnap && !allSnap.empty) {
+        allSnap.forEach((docSnap) => {
+          if (cloudData) return;
+          const d = docSnap.data();
+          if (!d) return;
+          const docId = String(d.id || docSnap.id || '');
+          const docSlug = slugify(d.title || '');
+          if (
+            docId.toLowerCase() === cleanId.toLowerCase() ||
+            (docSlug && docSlug === targetSlug)
+          ) {
+            cloudData = d;
+            resolvedDocId = docId || docSnap.id;
+          }
+        });
       }
+    }
+
+    if (cloudData) {
+      localProduct = {
+        ...(localProduct || ({} as Product)),
+        ...(cloudData as Partial<Product>),
+        id: cloudData.id || resolvedDocId,
+        title: cloudData.title || localProduct?.title || 'Artified Nepal Creation',
+        subtitle: cloudData.subtitle || localProduct?.subtitle || 'Handcrafted in Kathmandu, Nepal',
+        description:
+          cloudData.description ||
+          localProduct?.description ||
+          cloudData.subtitle ||
+          'Individually handcrafted in Kathmandu, Nepal.',
+        category: cloudData.category || localProduct?.category || 'pearl-bags',
+        price:
+          typeof cloudData.price === 'number' && cloudData.price > 0
+            ? cloudData.price
+            : localProduct?.price || 1500,
+        images: selectBestProductImages(cloudData.images, localProduct?.images, true),
+      };
     }
   } catch {
     // Fallback to localProduct if Firestore is unreachable

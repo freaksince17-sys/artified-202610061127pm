@@ -1428,16 +1428,33 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
           pendingUrlProductIdRef.current = null;
           setQuickViewProduct(found);
         } else {
-          // Fallback: if shared product is a brand-new creation stored in Cloud Firestore, fetch it directly
+          // Fallback: if shared product is a brand-new creation stored in Cloud Firestore, fetch it by ID or title slug
           const targetId = prodParam;
           getDoc(doc(db, 'products', targetId))
-            .then((snap) => {
+            .then(async (snap) => {
               if (snap.exists()) {
                 const data = snap.data();
                 const cleaned = sanitizeProduct({ ...data, id: data?.id || snap.id } as Product);
                 pendingUrlProductIdRef.current = null;
                 setProducts((prev) => reconcileProductCatalog([cleaned], prev));
                 setQuickViewProduct(cleaned);
+                return;
+              }
+              const allSnap = await getDocs(collection(db, 'products'));
+              if (!allSnap.empty) {
+                const cloudItems: Product[] = [];
+                allSnap.forEach((docSnap) => {
+                  const d = docSnap.data();
+                  if (d) {
+                    cloudItems.push(sanitizeProduct({ ...d, id: d.id || docSnap.id } as Product));
+                  }
+                });
+                const matched = findMatchingProductByUrlParam(cloudItems, targetId);
+                if (matched) {
+                  pendingUrlProductIdRef.current = null;
+                  setProducts((prev) => reconcileProductCatalog(cloudItems, prev));
+                  setQuickViewProduct(matched);
+                }
               }
             })
             .catch(() => {});

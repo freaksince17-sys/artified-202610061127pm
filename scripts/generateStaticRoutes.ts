@@ -169,6 +169,16 @@ async function generateStaticRoutes() {
                 .toBuffer();
               embeddedImageDataUri = `data:image/jpeg;base64,${buf.toString('base64')}`;
             }
+          } else if (primaryImg.startsWith('http://') || primaryImg.startsWith('https://')) {
+            const imgRes = await fetch(primaryImg);
+            if (imgRes.ok) {
+              const arrBuf = await imgRes.arrayBuffer();
+              const buf = await sharp(Buffer.from(arrBuf))
+                .resize(520, 520, { fit: 'cover' })
+                .jpeg({ quality: 82 })
+                .toBuffer();
+              embeddedImageDataUri = `data:image/jpeg;base64,${buf.toString('base64')}`;
+            }
           }
         } catch {}
       }

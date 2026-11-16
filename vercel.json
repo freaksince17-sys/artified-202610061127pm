@@ -5,7 +5,15 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
-      "source": "/((?!api/|products/|workshops/|instagram_videos/|tiktok_videos/|nepal_media/|icons/|assets/).*)",
+      "source": "/og/products/:slug*",
+      "destination": "/api/product-og?product=:slug*"
+    },
+    {
+      "source": "/product/:slug*",
+      "destination": "/api/product-share?product=:slug*"
+    },
+    {
+      "source": "/((?!api/|og/|products/|workshops/|instagram_videos/|tiktok_videos/|nepal_media/|icons/|assets/).*)",
       "destination": "/index.html"
     }
   ],

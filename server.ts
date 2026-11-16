@@ -619,20 +619,22 @@ async function startServer() {
         }
       }
 
-      // 3. Sync products from Firestore
+      // 3. Sync products from Firestore (including any brand-new products created in Seller Studio)
       const prodSnap = await getDocs(collection(db, 'products'));
       if (!prodSnap.empty) {
         const cloudProdMap = new Map<string, any>();
         prodSnap.forEach((docSnap) => {
           const d = docSnap.data();
           const pid = d.id || docSnap.id;
-          if (pid) cloudProdMap.set(pid, d);
+          if (pid) cloudProdMap.set(pid, { ...d, id: pid });
         });
 
         if (fs.existsSync(productsJsonPath)) {
           try {
             const currentProds = JSON.parse(fs.readFileSync(productsJsonPath, 'utf-8'));
+            const seenIds = new Set<string>();
             const updated = currentProds.map((p: any) => {
+              if (p?.id) seenIds.add(p.id);
               const cloud = cloudProdMap.get(p.id);
               if (!cloud) return p;
               const online = typeof cloud.onlineSalesCount === 'number' ? Math.max(p.onlineSalesCount || 0, cloud.onlineSalesCount) : (p.onlineSalesCount || 0);
@@ -641,7 +643,13 @@ async function startServer() {
               const cloudHasDataImg = Array.isArray(cloud.images) && cloud.images.some((img: any) => typeof img === 'string' && img.startsWith('data:image/'));
               return {
                 ...p,
-                ...(cloudHasDataImg ? { images: cloud.images } : {}),
+                title: cloud.title || p.title,
+                subtitle: cloud.subtitle || p.subtitle,
+                description: cloud.description || p.description,
+                category: cloud.category || p.category,
+                price: typeof cloud.price === 'number' && cloud.price > 0 ? cloud.price : p.price,
+                originalPrice: typeof cloud.originalPrice === 'number' ? cloud.originalPrice : p.originalPrice,
+                ...(cloudHasDataImg ? { images: processImages(cloud.images, p.id) } : {}),
                 onlineSalesCount: online,
                 totalSold: total,
                 soldCount: base,
@@ -650,12 +658,37 @@ async function startServer() {
                 inStock: typeof cloud.inStock === 'boolean' ? cloud.inStock : p.inStock
               };
             });
-            fs.writeFileSync(productsJsonPath, JSON.stringify(updated, null, 2), 'utf-8');
+
+            // Append any newly created products from Firestore that are not yet in products.json
+            const newCloudProducts: any[] = [];
+            cloudProdMap.forEach((cloud, pid) => {
+              if (
+                !seenIds.has(pid) &&
+                cloud &&
+                cloud.title &&
+                typeof cloud.price === 'number' &&
+                cloud.price > 0 &&
+                cloud.category
+              ) {
+                seenIds.add(pid);
+                const cleanImages = processImages(Array.isArray(cloud.images) ? cloud.images : [], pid);
+                const { sku, ...restCloud } = cloud;
+                newCloudProducts.push({
+                  ...restCloud,
+                  id: pid,
+                  images: cleanImages,
+                });
+              }
+            });
+
+            const finalCatalog = [...newCloudProducts, ...updated];
+            const serializedCatalog = JSON.stringify(finalCatalog, null, 2);
+            fs.writeFileSync(productsJsonPath, serializedCatalog, 'utf-8');
             try {
-              fs.writeFileSync(path.resolve(seedDataDir, 'products.json'), JSON.stringify(updated, null, 2), 'utf-8');
+              fs.writeFileSync(path.resolve(seedDataDir, 'products.json'), serializedCatalog, 'utf-8');
             } catch {}
             try {
-              fs.writeFileSync(path.resolve(process.cwd(), 'public/products.json'), JSON.stringify(updated, null, 2), 'utf-8');
+              fs.writeFileSync(path.resolve(process.cwd(), 'public/products.json'), serializedCatalog, 'utf-8');
             } catch {}
           } catch {}
         }
@@ -814,7 +847,7 @@ async function startServer() {
 
   // Helper to sanitize images and save a static copy in /public/products/ while keeping data:image/ intact
   // so Cloud Firestore and artified.com.np never 404 on newly added creations before GitHub deployment
-  const processImages = (images: string[], productId = 'item'): string[] => {
+  function processImages(images: string[], productId = 'item'): string[] {
     const publicProductsDir = path.resolve(process.cwd(), 'public/products');
     if (!fs.existsSync(publicProductsDir)) {
       try {
