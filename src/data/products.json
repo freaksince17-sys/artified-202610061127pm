@@ -133,9 +133,9 @@
     "isBestSeller": true,
     "category": "pearl-bags",
     "soldCount": 39,
-    "isNewArrival": true,
+    "isNewArrival": false,
     "leadTime": "Handmade to order: 2 business days",
-    "updatedAt": "2026-11-15T15:25:44.051Z",
+    "updatedAt": "2026-11-17T05:07:19.256Z",
     "inventoryCount": 7,
     "totalSold": 53,
     "customReviews": [
@@ -322,7 +322,7 @@
   {
     "stockCount": 7,
     "category": "pearl-bags",
-    "isNewArrival": true,
+    "isNewArrival": false,
     "isBestSeller": true,
     "reviewsCount": 17,
     "subtitle": "An elegant, secure pearl beaded handbag perfect for special occasions.",
@@ -357,7 +357,7 @@
     "inStock": true,
     "isHandmade": true,
     "description": "Introducing the elegant Pearl Beaded Handbag, a stylish accessory for any special occasion. This handbag features a secure lockable design with magnetic snaps for easy access. The exquisite pearl beading adds a touch of sophistication, making it a perfect choice for formal events or evening gatherings. Its compact size and versatile style make it an ideal companion for women who appreciate both fashion and functionality. Elevate your ensemble with this charming Pearl Beaded Handbag and make a statement wherever you go",
-    "updatedAt": "2026-11-15T15:25:50.984Z",
+    "updatedAt": "2026-11-17T05:07:16.224Z",
     "inventoryCount": 7,
     "totalSold": 60,
     "customReviews": [

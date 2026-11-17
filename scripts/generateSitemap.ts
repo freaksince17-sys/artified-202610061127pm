@@ -69,6 +69,12 @@ async function syncFirestoreProductsToRepo(rootDir: string, currentProducts: Pro
         stockCount: typeof cloud.stockCount === 'number' ? cloud.stockCount : p.stockCount,
         inventoryCount: typeof cloud.inventoryCount === 'number' ? cloud.inventoryCount : p.inventoryCount,
         inStock: typeof cloud.inStock === 'boolean' ? cloud.inStock : p.inStock,
+        isNewArrival: typeof cloud.isNewArrival === 'boolean' ? cloud.isNewArrival : Boolean(p.isNewArrival),
+        isBestSeller: typeof cloud.isBestSeller === 'boolean' ? cloud.isBestSeller : Boolean(p.isBestSeller),
+        soldCount: typeof cloud.soldCount === 'number' ? cloud.soldCount : p.soldCount,
+        onlineSalesCount: typeof cloud.onlineSalesCount === 'number' ? cloud.onlineSalesCount : p.onlineSalesCount,
+        totalSold: typeof cloud.totalSold === 'number' ? cloud.totalSold : p.totalSold,
+        updatedAt: cloud.updatedAt || p.updatedAt,
       };
     });
 

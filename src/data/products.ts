@@ -36,8 +36,8 @@ export const PRODUCTS: Product[] = (SAVED_PRODUCTS as unknown as Product[]).map(
   customReviews: p.customReviews || PRODUCT_REVIEWS_MAP[p.id] || []
 }));
 
-export const CATALOG_BUILD_TIMESTAMP = '2026-10-30T10:30:00.000Z';
-export const CATALOG_BUILD_VERSION = 'artified_v_2026_10_30_reset_reviews_v3';
+export const CATALOG_BUILD_TIMESTAMP = '2026-11-17T08:30:00.000Z';
+export const CATALOG_BUILD_VERSION = 'artified_v_2026_11_17_new_arrival_sync_v4';
 
 const GENERIC_FALLBACK_SUBSTRINGS = [
   'photo-1566150905458-1bf1fc113f0d',
@@ -95,7 +95,11 @@ export function selectBestProductImages(
  * - Self-contained data:image/ photos and newly uploaded creation photos are strictly protected from reverting to placeholders.
  * - Custom reviews, deletion tombstones, verified sales counts, and custom products created by the artisan are preserved.
  */
-export function reconcileProductCatalog(candidateProducts?: Product[] | null, bundled: Product[] = PRODUCTS): Product[] {
+export function reconcileProductCatalog(
+  candidateProducts?: Product[] | null,
+  bundled: Product[] = PRODUCTS,
+  isAuthoritativeCloud: boolean = false
+): Product[] {
   const map = new Map<string, Product>();
 
   // 1. Initialize with authoritative bundled products (keep original reference initially)
@@ -135,7 +139,7 @@ export function reconcileProductCatalog(candidateProducts?: Product[] | null, bu
 
         const candidateTime = candidate.updatedAt ? new Date(candidate.updatedAt).getTime() : 0;
         const bundledTime = bundledItem.updatedAt ? new Date(bundledItem.updatedAt).getTime() : 0;
-        const isCandidateNewer = candidateTime > bundledTime;
+        const isCandidateNewer = isAuthoritativeCloud || (candidateTime > 0 && candidateTime >= bundledTime);
 
         const isRoyalCape =
           candidate.id === 'art-1793343690587-202g7' ||

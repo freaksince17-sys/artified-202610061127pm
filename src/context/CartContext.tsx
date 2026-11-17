@@ -359,6 +359,7 @@ const loadInitialProductsCatalog = (): Product[] => {
     if (storedBuildVersion !== CATALOG_BUILD_VERSION) {
       localStorage.removeItem('artified_products_custom');
       localStorage.removeItem('artified_products_v3');
+      localStorage.removeItem('artified_cloud_live_overrides_v1');
       localStorage.removeItem('artified_deleted_review_ids');
       localStorage.removeItem('artified_custom_reviews_v1');
       try {
@@ -914,6 +915,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const persistDebounceTimerRef = React.useRef<number | null>(null);
   const isModalEditingRef = React.useRef<boolean>(false);
   const deductedLocalOrderIdsRef = React.useRef<Set<string>>(new Set());
+  const hasHydratedFromFirestoreRef = React.useRef<boolean>(false);
 
   // Fetch initial data from backend server database (products, reels, Instagram journal & settings)
   useEffect(() => {
@@ -925,6 +927,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       unsubscribeProducts = onSnapshot(collection(db, 'products'), (snap) => {
         if (!snap.empty) {
+          hasHydratedFromFirestoreRef.current = true;
           const now = Date.now();
           const cloudProducts: Product[] = [];
           const cloudPrices: Record<string, number> = {};
@@ -948,6 +951,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 title: data.title || baseProd?.title || 'Handmade Craft',
                 category: data.category || baseProd?.category || 'pearl-bags',
                 price: typeof data.price === 'number' && data.price > 0 ? data.price : (baseProd?.price || 1500),
+                isNewArrival: typeof data.isNewArrival === 'boolean' ? data.isNewArrival : Boolean(baseProd?.isNewArrival),
                 onlineSalesCount: typeof data.onlineSalesCount === 'number' ? data.onlineSalesCount : (baseProd?.onlineSalesCount || 0),
                 soldCount: typeof data.soldCount === 'number' ? data.soldCount : (baseProd?.soldCount !== undefined ? baseProd.soldCount : 0),
                 totalSold: typeof data.totalSold === 'number' ? data.totalSold : ((typeof data.soldCount === 'number' ? data.soldCount : (baseProd?.soldCount || 0)) + (typeof data.onlineSalesCount === 'number' ? data.onlineSalesCount : (baseProd?.onlineSalesCount || 0)))
@@ -975,7 +979,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
           if (cloudProducts.length > 0) {
             setProducts((prev) => {
-              const reconciled = reconcileProductCatalog(cloudProducts, prev);
+              const reconciled = reconcileProductCatalog(cloudProducts, prev, true);
               try {
                 const overrides: Record<string, any> = {};
                 reconciled.forEach((p) => {
@@ -988,12 +992,15 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     stockCount: p.stockCount,
                     inventoryCount: p.inventoryCount,
                     inStock: p.inStock,
-                    isNewArrival: p.isNewArrival,
+                    isNewArrival: Boolean(p.isNewArrival),
                     isBestSeller: p.isBestSeller,
                     updatedAt: p.updatedAt
                   };
                 });
                 localStorage.setItem('artified_cloud_live_overrides_v1', JSON.stringify(overrides));
+                const serializedReconciled = JSON.stringify(reconciled);
+                localStorage.setItem('artified_products_v3', serializedReconciled);
+                localStorage.setItem('artified_products_custom', serializedReconciled);
               } catch {}
               return reconciled;
             });
@@ -1163,7 +1170,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
           } catch {}
         }
 
-        if (Array.isArray(items) && items.length > 0) {
+        if (Array.isArray(items) && items.length > 0 && !hasHydratedFromFirestoreRef.current) {
           setProducts((prev) => reconcileProductCatalog(items, prev));
         }
       } catch {}
@@ -2187,6 +2194,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 const spInv = typeof sp.stockCount === 'number' ? sp.stockCount : (typeof sp.inventoryCount === 'number' ? sp.inventoryCount : (prod.stockCount ?? 8));
                 const nextStock = spUpdatedTime > prodUpdatedTime ? Math.max(0, spInv) : prod.stockCount;
                 const nextInStock = spUpdatedTime > prodUpdatedTime ? (sp.inStock !== undefined ? Boolean(sp.inStock && nextStock > 0) : nextStock > 0) : prod.inStock;
+                const nextNewArrival = spUpdatedTime > prodUpdatedTime && typeof sp.isNewArrival === 'boolean' ? sp.isNewArrival : Boolean(prod.isNewArrival);
                 const nextBestSeller = mergedTotal >= bestsellerThreshold || Boolean(prod.isBestSeller);
 
                 if (
@@ -2194,6 +2202,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
                   mergedTotal !== (prod.totalSold ?? (baseSold + (prod.onlineSalesCount || 0))) ||
                   nextStock !== prod.stockCount ||
                   nextInStock !== prod.inStock ||
+                  nextNewArrival !== Boolean(prod.isNewArrival) ||
                   nextBestSeller !== Boolean(prod.isBestSeller)
                 ) {
                   changed = true;
@@ -2204,6 +2213,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     inventoryCount: nextStock,
                     stockCount: nextStock,
                     inStock: nextInStock,
+                    isNewArrival: nextNewArrival,
                     updatedAt: spUpdatedTime > prodUpdatedTime ? sp.updatedAt : prod.updatedAt,
                     isBestSeller: nextBestSeller
                   };
@@ -2361,6 +2371,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // 1. Clear local storage cache
       localStorage.removeItem('artified_products_custom');
       localStorage.removeItem('artified_products_v3');
+      localStorage.removeItem('artified_cloud_live_overrides_v1');
 
       // 2. Fetch fresh documents directly from Cloud Firestore collection `products`
       const freshCloudProducts: Product[] = [];
