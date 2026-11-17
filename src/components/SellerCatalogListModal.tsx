@@ -485,6 +485,16 @@ export const SellerCatalogListModal: React.FC = () => {
       }
 
       return true;
+    }).sort((a, b) => {
+      const isNewA = Boolean(a.isNewArrival) ? 1 : 0;
+      const isNewB = Boolean(b.isNewArrival) ? 1 : 0;
+      if (isNewB !== isNewA) return isNewB - isNewA;
+      const parsedA = a.updatedAt ? Date.parse(a.updatedAt) : 0;
+      const parsedB = b.updatedAt ? Date.parse(b.updatedAt) : 0;
+      const timeA = Number.isFinite(parsedA) ? parsedA : 0;
+      const timeB = Number.isFinite(parsedB) ? parsedB : 0;
+      if (timeB !== timeA) return timeB - timeA;
+      return (a.title || '').localeCompare(b.title || '');
     });
   }, [products, search, selectedFilter]);
 

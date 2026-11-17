@@ -121,7 +121,7 @@ export const ProductCard: React.FC<ProductCardProps> = React.memo(({ product, is
               <span>★</span> Bestseller
             </span>
           )}
-          {product.isNewArrival && !isBestSeller && !isOutOfStock && !isSellerMode && (
+          {product.isNewArrival && !isSellerMode && (
             <span className="px-1.5 py-0.5 rounded text-[8px] sm:text-[9px] font-bold tracking-wider uppercase bg-[#C5A880] text-white shadow-xs flex items-center gap-0.5">
               <span>✦</span> New
             </span>

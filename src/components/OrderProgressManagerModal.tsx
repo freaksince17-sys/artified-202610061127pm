@@ -266,7 +266,7 @@ export const OrderProgressManagerModal: React.FC<OrderProgressManagerModalProps>
   const handleCreateManualOrder = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCustomerName.trim() || !newPhone.trim()) {
-      alert('Please enter customer name and phone number');
+      showToast('Please enter customer name and phone number');
       return;
     }
 

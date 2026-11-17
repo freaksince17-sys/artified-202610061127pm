@@ -23,6 +23,7 @@ export const WebsiteExportModal: React.FC<WebsiteExportModalProps> = ({ isOpen, 
   const [isSyncing, setIsSyncing] = useState(false);
   const [workshopDownloadSuccess, setWorkshopDownloadSuccess] = useState(false);
   const [copiedSitemap, setCopiedSitemap] = useState(false);
+  const [statusNotice, setStatusNotice] = useState<string | null>(null);
   const [serverWorkshopFiles, setServerWorkshopFiles] = useState<{ filename: string; url: string; size: number; type: string }[]>([]);
 
   useEffect(() => {
@@ -116,7 +117,8 @@ export const WebsiteExportModal: React.FC<WebsiteExportModalProps> = ({ isOpen, 
       setTimeout(() => setSyncSuccess(false), 4000);
     } catch (err) {
       console.error('Failed to sync state to server disk:', err);
-      alert('Failed to sync files to server disk. Please try again.');
+      setStatusNotice('Failed to sync files to server disk. Please try again.');
+      setTimeout(() => setStatusNotice(null), 4000);
     } finally {
       setIsSyncing(false);
     }
@@ -150,7 +152,8 @@ export const WebsiteExportModal: React.FC<WebsiteExportModalProps> = ({ isOpen, 
 
   const handleDownloadAllWorkshopFiles = () => {
     if (!serverWorkshopFiles || serverWorkshopFiles.length === 0) {
-      alert('Workshop storage is currently cleaned up! Upload photos or videos in the Workshop tab to save and download files.');
+      setStatusNotice('Workshop storage is currently cleaned up. Upload photos or videos in the Workshop tab to save and download files.');
+      setTimeout(() => setStatusNotice(null), 4500);
       return;
     }
 
@@ -221,6 +224,12 @@ export const WebsiteExportModal: React.FC<WebsiteExportModalProps> = ({ isOpen, 
             </p>
           </div>
         </div>
+
+        {statusNotice && (
+          <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-medium">
+            {statusNotice}
+          </div>
+        )}
 
         {/* Summary Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

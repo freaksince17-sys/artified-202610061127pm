@@ -5,39 +5,50 @@
   <!-- 1. Primary Clean URLs & Category Landing Pages -->
   <url>
     <loc>https://www.artified.com.np/</loc>
-    <lastmod>2026-11-16</lastmod>
+    <lastmod>2026-11-17</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
     <loc>https://www.artified.com.np/pearl-bags</loc>
-    <lastmod>2026-11-16</lastmod>
+    <lastmod>2026-11-17</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
     <loc>https://www.artified.com.np/pearl-necklaces</loc>
-    <lastmod>2026-11-16</lastmod>
+    <lastmod>2026-11-17</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
     <loc>https://www.artified.com.np/macrame</loc>
-    <lastmod>2026-11-16</lastmod>
+    <lastmod>2026-11-17</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
     <loc>https://www.artified.com.np/workshops</loc>
-    <lastmod>2026-11-16</lastmod>
+    <lastmod>2026-11-17</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
 
   <!-- 2. Individual Handcrafted Products (Canonical URLs + Google Image Metadata) -->
   <url>
+    <loc>https://www.artified.com.np/product/cascading-pearl-potli/</loc>
+    <lastmod>2026-11-17</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.artified.com.np/og/products/cascading-pearl-potli.jpg</image:loc>
+      <image:title>Cascading Pearl Potli</image:title>
+      <image:caption>Elevate your festive and evening wear with the exquisite Cascading Pearl Potli by Artified_np. A true testament to artisanal craftsmanship, this breathtaking bag features a mesmerizing waterfall of meticulously hand-strung pearl beads that drape effortlessly into a luxurious silhouette. Enhanced with delicate teardrop pearl fringe and finished with smooth satin drawstrings, it strikes the perfect balance between traditional potli charm and modern haute couture. Whether you&apos;re attending a grand wedding, a festive celebration, or a high-end evening gala, this statement piece is designed to turn heads and hold your essentials in absolute elegance.</image:caption>
+    </image:image>
+  </url>
+  <url>
     <loc>https://www.artified.com.np/product/caviar-pearl-bag/</loc>
-    <lastmod>2026-11-16</lastmod>
+    <lastmod>2026-11-17</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -48,7 +59,7 @@
   </url>
   <url>
     <loc>https://www.artified.com.np/product/pearl-beaded-adjustable-choker/</loc>
-    <lastmod>2026-11-16</lastmod>
+    <lastmod>2026-11-17</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -59,7 +70,7 @@
   </url>
   <url>
     <loc>https://www.artified.com.np/product/pearl-beaded-bag/</loc>
-    <lastmod>2026-11-16</lastmod>
+    <lastmod>2026-11-17</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -70,7 +81,7 @@
   </url>
   <url>
     <loc>https://www.artified.com.np/product/red-pearl-beaded-bag/</loc>
-    <lastmod>2026-11-16</lastmod>
+    <lastmod>2026-11-17</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -81,7 +92,7 @@
   </url>
   <url>
     <loc>https://www.artified.com.np/product/three-layer-pearl-necklace-with-earrings/</loc>
-    <lastmod>2026-11-16</lastmod>
+    <lastmod>2026-11-17</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -97,7 +108,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/product/3-layer-pearl-beaded-choker/</loc>
-    <lastmod>2026-11-16</lastmod>
+    <lastmod>2026-11-17</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -108,7 +119,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/product/3-layer-pearl-necklace/</loc>
-    <lastmod>2026-11-16</lastmod>
+    <lastmod>2026-11-17</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -119,7 +130,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/product/3-layer-pearl-rose-necklace/</loc>
-    <lastmod>2026-11-16</lastmod>
+    <lastmod>2026-11-17</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -130,7 +141,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/product/3-layer-pearl-ruby-necklace/</loc>
-    <lastmod>2026-11-16</lastmod>
+    <lastmod>2026-11-17</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -141,7 +152,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/product/4-layer-pearl-necklace/</loc>
-    <lastmod>2026-11-16</lastmod>
+    <lastmod>2026-11-17</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -152,7 +163,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/product/5-layer-pearl-choker/</loc>
-    <lastmod>2026-11-16</lastmod>
+    <lastmod>2026-11-17</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -163,7 +174,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/product/5-layer-pearl-necklace-with-earrings/</loc>
-    <lastmod>2026-11-16</lastmod>
+    <lastmod>2026-11-17</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -174,7 +185,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/product/beaded-pearl-layer-necklace-with-earrings/</loc>
-    <lastmod>2026-11-16</lastmod>
+    <lastmod>2026-11-17</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -185,7 +196,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/product/crystal-bead-bracelets-with-magnetic-heart-claps/</loc>
-    <lastmod>2026-11-16</lastmod>
+    <lastmod>2026-11-17</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -196,7 +207,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/product/elegant-pearl-beaded-choker/</loc>
-    <lastmod>2026-11-16</lastmod>
+    <lastmod>2026-11-17</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -207,7 +218,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/product/elegance-multi-strand-pearl-choker-set/</loc>
-    <lastmod>2026-11-16</lastmod>
+    <lastmod>2026-11-17</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -218,7 +229,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/product/handmade-macrame-plant-hanger-without-pot/</loc>
-    <lastmod>2026-11-16</lastmod>
+    <lastmod>2026-11-17</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -229,7 +240,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/product/lustrous-pearl-hoop-earrings/</loc>
-    <lastmod>2026-11-16</lastmod>
+    <lastmod>2026-11-17</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -240,7 +251,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/product/marble-bead-hand-bag/</loc>
-    <lastmod>2026-11-16</lastmod>
+    <lastmod>2026-11-17</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -251,7 +262,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/product/pearl-beaded-adjustable-necklace/</loc>
-    <lastmod>2026-11-16</lastmod>
+    <lastmod>2026-11-17</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -262,7 +273,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/product/pearl-beaded-bracelet/</loc>
-    <lastmod>2026-11-16</lastmod>
+    <lastmod>2026-11-17</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -273,7 +284,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/product/pearl-beaded-keyring-set-of-4/</loc>
-    <lastmod>2026-11-16</lastmod>
+    <lastmod>2026-11-17</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -284,7 +295,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/product/pearl-cascade-graduated-beaded-choker/</loc>
-    <lastmod>2026-11-16</lastmod>
+    <lastmod>2026-11-17</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -295,7 +306,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/product/pearl-cascade-lattice-beaded-choker/</loc>
-    <lastmod>2026-11-16</lastmod>
+    <lastmod>2026-11-17</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -306,7 +317,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/product/pearl-dewdrop-beaded-choker/</loc>
-    <lastmod>2026-11-16</lastmod>
+    <lastmod>2026-11-17</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -317,7 +328,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/product/pearl-majesty-multi-layer-choker/</loc>
-    <lastmod>2026-11-16</lastmod>
+    <lastmod>2026-11-17</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -328,7 +339,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/product/pearl-petal-cascade-necklace/</loc>
-    <lastmod>2026-11-16</lastmod>
+    <lastmod>2026-11-17</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -339,7 +350,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/product/pearl-royale-set/</loc>
-    <lastmod>2026-11-16</lastmod>
+    <lastmod>2026-11-17</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -350,7 +361,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/product/pearl-whisper-minimalist-choker/</loc>
-    <lastmod>2026-11-16</lastmod>
+    <lastmod>2026-11-17</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -361,7 +372,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/product/round-pearl-bag/</loc>
-    <lastmod>2026-11-16</lastmod>
+    <lastmod>2026-11-17</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -372,7 +383,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/product/silk-scrunchies-set-of-4/</loc>
-    <lastmod>2026-11-16</lastmod>
+    <lastmod>2026-11-17</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -383,7 +394,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/product/twisted-pearl-choker/</loc>
-    <lastmod>2026-11-16</lastmod>
+    <lastmod>2026-11-17</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -394,7 +405,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/product/two-layer-pearl-choker/</loc>
-    <lastmod>2026-11-16</lastmod>
+    <lastmod>2026-11-17</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -405,7 +416,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/product/royal-layered-drape-pearl-cape/</loc>
-    <lastmod>2026-11-16</lastmod>
+    <lastmod>2026-11-17</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>
@@ -416,7 +427,7 @@ Keep in a proper storage to maintain appearance. Avoid moisture, perfumes, lotio
   </url>
   <url>
     <loc>https://www.artified.com.np/product/classic-woven-collar-pearl-cape/</loc>
-    <lastmod>2026-11-16</lastmod>
+    <lastmod>2026-11-17</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <image:image>

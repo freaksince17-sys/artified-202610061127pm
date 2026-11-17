@@ -414,6 +414,8 @@ const loadInitialProductsCatalog = (): Product[] => {
               stockCount: nextStock,
               inventoryCount: nextInv,
               inStock: nextInStock,
+              isNewArrival: isOvNewerOrEqual && typeof ov.isNewArrival === 'boolean' ? ov.isNewArrival : p.isNewArrival,
+              isBestSeller: isOvNewerOrEqual && typeof ov.isBestSeller === 'boolean' ? ov.isBestSeller : p.isBestSeller,
               updatedAt: isOvNewerOrEqual && ov.updatedAt ? ov.updatedAt : p.updatedAt
             };
           });
@@ -986,6 +988,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     stockCount: p.stockCount,
                     inventoryCount: p.inventoryCount,
                     inStock: p.inStock,
+                    isNewArrival: p.isNewArrival,
+                    isBestSeller: p.isBestSeller,
                     updatedAt: p.updatedAt
                   };
                 });
@@ -1588,16 +1592,18 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
     } else if (sortBy === 'newest') {
       result.sort((a, b) => {
-        // Priority 1: New Arrival status
-        const isNewA = a.isNewArrival ? 1 : 0;
-        const isNewB = b.isNewArrival ? 1 : 0;
+        // Priority 1: New Arrival status (strictly group all New Arrivals before non-New-Arrivals)
+        const isNewA = Boolean(a.isNewArrival) ? 1 : 0;
+        const isNewB = Boolean(b.isNewArrival) ? 1 : 0;
         if (isNewB !== isNewA) {
           return isNewB - isNewA;
         }
 
-        // Priority 2: Creation or update ISO date/timestamp
-        const timeA = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
-        const timeB = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+        // Priority 2: Creation or update ISO date/timestamp (NaN-safe)
+        const parsedA = a.updatedAt ? Date.parse(a.updatedAt) : 0;
+        const parsedB = b.updatedAt ? Date.parse(b.updatedAt) : 0;
+        const timeA = Number.isFinite(parsedA) ? parsedA : 0;
+        const timeB = Number.isFinite(parsedB) ? parsedB : 0;
         if (timeB !== timeA) {
           return timeB - timeA;
         }
@@ -1615,7 +1621,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return -1;
         }
 
-        return a.title.localeCompare(b.title);
+        return (a.title || '').localeCompare(b.title || '');
       });
     } else if (sortBy === 'price-asc') {
       result.sort((a, b) => a.price - b.price);
@@ -2765,8 +2771,11 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
         return p;
       });
+      latestProductsRef.current = next;
       try {
-        localStorage.setItem('artified_products_custom', JSON.stringify(next));
+        const serialized = JSON.stringify(next);
+        localStorage.setItem('artified_products_custom', serialized);
+        localStorage.setItem('artified_products_v3', serialized);
       } catch (e) {
         console.warn('Failed to save custom products', e);
       }
