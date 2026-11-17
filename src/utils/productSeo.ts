@@ -166,10 +166,10 @@ export function applyProductSeo(product: Product | null): void {
     }
     jsonLdEl.textContent = JSON.stringify(seo.schemaJsonLd, null, 2);
 
-    // 7. Update browser URL to the clean, human-readable product slug (e.g. /product/pearl-royale-set/)
+    // 7. Update browser URL to the clean, human-readable product slug (e.g. /product/pearl-royale-set)
     try {
       const slug = getProductUrlSlug(product);
-      const nextUrl = `/product/${slug}/`;
+      const nextUrl = `/product/${slug}`;
       const currentFull = window.location.pathname + window.location.search;
       if (currentFull !== nextUrl) {
         window.history.replaceState({ productId: product.id, slug }, seo.title, nextUrl);

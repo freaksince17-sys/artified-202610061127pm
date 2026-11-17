@@ -64,23 +64,47 @@ async function findProductFromFirestoreOrLocal(rawIdentifier) {
 
   const targetSlug = slugifyProductTitle(cleanId);
 
-  // 1. Check live Firestore REST API first so newly added products always resolve immediately
+  // 1a. Try direct GetDocument by document ID first (fast 200 OK when ID is passed)
   try {
-    const firestoreUrl = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/${DATABASE_ID}/documents/products?pageSize=300`;
-    const res = await fetch(firestoreUrl);
-    if (res.ok) {
-      const data = await res.json();
-      const docs = Array.isArray(data.documents) ? data.documents : [];
-      for (const rawDoc of docs) {
-        const prod = parseFirestoreDoc(rawDoc);
-        if (!prod || !prod.title) continue;
-        const pId = String(prod.id || '').trim();
-        const pSlug = slugifyProductTitle(prod.title);
-        if (
-          pId.toLowerCase() === cleanId.toLowerCase() ||
-          (targetSlug && pSlug === targetSlug)
-        ) {
-          return prod;
+    const directUrl = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/${DATABASE_ID}/documents/products/${encodeURIComponent(cleanId)}`;
+    const directRes = await fetch(directUrl);
+    if (directRes.ok) {
+      const directDoc = await directRes.json();
+      const parsed = parseFirestoreDoc(directDoc);
+      if (parsed && parsed.title) {
+        return parsed;
+      }
+    }
+  } catch {}
+
+  // 1b. Query live Firestore via :runQuery (evaluates public read rules & returns 200 OK for all products)
+  try {
+    const runQueryUrl = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/${DATABASE_ID}/documents:runQuery`;
+    const queryRes = await fetch(runQueryUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        structuredQuery: {
+          from: [{ collectionId: 'products' }],
+          limit: 500,
+        },
+      }),
+    });
+    if (queryRes.ok) {
+      const rows = await queryRes.json();
+      if (Array.isArray(rows)) {
+        for (const row of rows) {
+          if (!row || !row.document) continue;
+          const prod = parseFirestoreDoc(row.document);
+          if (!prod || !prod.title) continue;
+          const pId = String(prod.id || '').trim();
+          const pSlug = slugifyProductTitle(prod.title);
+          if (
+            pId.toLowerCase() === cleanId.toLowerCase() ||
+            (targetSlug && pSlug === targetSlug)
+          ) {
+            return prod;
+          }
         }
       }
     }
@@ -127,6 +151,7 @@ export default async function handler(req, res) {
   const rawProductParam =
     req.query?.product ||
     req.query?.slug ||
+    req.query?.id ||
     (req.url ? req.url.split('?')[0].replace(/^\/product\//i, '').replace(/\/+$/, '') : '');
 
   const htmlCandidates = [
@@ -151,7 +176,7 @@ export default async function handler(req, res) {
     const slug = slugifyProductTitle(product.title) || encodeURIComponent(product.id);
     const prodTitle = escapeHtmlAttr(`${product.title} | Artified Nepal`);
     const prodDesc = escapeHtmlAttr(buildBriefDescription(product));
-    const prodUrl = `https://www.artified.com.np/product/${slug}/`;
+    const prodUrl = `https://www.artified.com.np/product/${slug}`;
     const prodOgImg = `https://www.artified.com.np/og/products/${slug}.jpg`;
     const prodAlt = escapeHtmlAttr(
       `${product.title} — ${product.subtitle || 'Handcrafted in Kathmandu, Nepal'}`
@@ -172,9 +197,14 @@ export default async function handler(req, res) {
       .replace(/<meta name="twitter:description"[^>]*>/i, `<meta name="twitter:description" content="${prodDesc}" />`)
       .replace(/<meta name="twitter:image"[^>]*>/i, `<meta name="twitter:image" content="${prodOgImg}" />`)
       .replace(/<meta name="twitter:image:alt"[^>]*>/i, `<meta name="twitter:image:alt" content="${prodAlt}" />`);
+
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=60, stale-while-revalidate=600');
+    res.status(200).send(html);
+    return;
   }
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
-  res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=600');
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
   res.status(200).send(html);
 }

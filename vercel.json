@@ -3,17 +3,30 @@
   "framework": "vite",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
+  "functions": {
+    "api/product-og.js": {
+      "includeFiles": "api/fonts/**"
+    }
+  },
   "rewrites": [
     {
       "source": "/og/products/:slug*",
       "destination": "/api/product-og?product=:slug*"
     },
     {
+      "source": "/product/:slug/",
+      "destination": "/api/product-share?product=:slug"
+    },
+    {
+      "source": "/product/:slug",
+      "destination": "/api/product-share?product=:slug"
+    },
+    {
       "source": "/product/:slug*",
       "destination": "/api/product-share?product=:slug*"
     },
     {
-      "source": "/((?!api/|og/|products/|workshops/|instagram_videos/|tiktok_videos/|nepal_media/|icons/|assets/).*)",
+      "source": "/((?!api/|og/|product/|products/|workshops/|instagram_videos/|tiktok_videos/|nepal_media/|icons/|assets/).*)",
       "destination": "/index.html"
     }
   ],

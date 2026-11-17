@@ -36,6 +36,17 @@
 
   <!-- 2. Individual Handcrafted Products (Canonical URLs + Google Image Metadata) -->
   <url>
+    <loc>https://www.artified.com.np/product/pearl-waist-chain-kamarbandh/</loc>
+    <lastmod>2026-11-17</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.artified.com.np/og/products/pearl-waist-chain-kamarbandh.jpg</image:loc>
+      <image:title>Pearl Waist Chain (Kamarbandh)</image:title>
+      <image:caption>Elevate your waistline with timeless elegance using the Pearl Waist Chain (Kamarbandh) by Artified_np. Handcrafted with meticulous precision, this sophisticated accessory features a stunning multi-strand drape of luminous pearls that gracefully contour the body. Designed with a sleek and secure circular ring clasp at the center, it strikes the perfect balance between traditional grace and contemporary minimalism. Whether paired with a classic black dress for a chic evening look or layered over traditional attire, this versatile statement piece adds a touch of effortless sophistication to any ensemble.</image:caption>
+    </image:image>
+  </url>
+  <url>
     <loc>https://www.artified.com.np/product/cascading-pearl-potli/</loc>
     <lastmod>2026-11-17</lastmod>
     <changefreq>weekly</changefreq>

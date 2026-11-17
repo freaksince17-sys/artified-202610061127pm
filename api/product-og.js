@@ -1,6 +1,38 @@
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import { createRequire } from 'module';
+
+// Configure bundled TrueType fonts (DejaVu Sans & DejaVu Serif) BEFORE loading sharp/librsvg
+// so serverless runtimes (such as Vercel AWS Lambda) always render crisp typography without missing-glyph boxes.
+try {
+  const bundledFontsDir = path.resolve(process.cwd(), 'api/fonts');
+  // Explicit file references ensure Vercel's file tracer (@vercel/nft) always bundles these fonts
+  const fontFiles = [
+    path.join(bundledFontsDir, 'DejaVuSans.ttf'),
+    path.join(bundledFontsDir, 'DejaVuSans-Bold.ttf'),
+    path.join(bundledFontsDir, 'DejaVuSerif-Bold.ttf'),
+  ];
+  if (fontFiles.some((f) => fs.existsSync(f))) {
+    const tmpFontConfigDir = path.join(os.tmpdir(), 'artified-og-fontconfig');
+    if (!fs.existsSync(tmpFontConfigDir)) {
+      fs.mkdirSync(tmpFontConfigDir, { recursive: true });
+    }
+    const fontConfigFile = path.join(tmpFontConfigDir, 'fonts.conf');
+    if (!fs.existsSync(fontConfigFile)) {
+      const confXml = `<?xml version="1.0"?>
+<!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd">
+<fontconfig>
+  <dir>${bundledFontsDir}</dir>
+  <dir>/usr/share/fonts</dir>
+  <cachedir>${tmpFontConfigDir}</cachedir>
+</fontconfig>`;
+      fs.writeFileSync(fontConfigFile, confXml, 'utf-8');
+    }
+    process.env.FONTCONFIG_PATH = tmpFontConfigDir;
+    process.env.FONTCONFIG_FILE = fontConfigFile;
+  }
+} catch {}
 
 const require = createRequire(import.meta.url);
 let sharpLib = null;
@@ -27,6 +59,21 @@ function escapeXmlText(value) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&apos;');
+}
+
+function getCategoryDisplayLabel(category) {
+  switch (category) {
+    case 'pearl-bags':
+      return 'HANDMADE PEARL BAGS • NEPAL';
+    case 'pearl-necklaces':
+      return 'PEARL NECKLACES & CAPES • NEPAL';
+    case 'macrame':
+      return 'HANDWOVEN MACRAME • NEPAL';
+    case 'accessories':
+      return 'ARTISAN ACCESSORIES • NEPAL';
+    default:
+      return 'HANDCRAFTED WEARABLE ART • NEPAL';
+  }
 }
 
 function wrapTextIntoLines(text, maxCharsPerLine, maxLines) {
@@ -102,22 +149,47 @@ async function findProductFromFirestoreOrLocal(rawIdentifier) {
 
   const targetSlug = slugifyProductTitle(cleanId);
 
+  // 1a. Try direct GetDocument by document ID first
   try {
-    const firestoreUrl = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/${DATABASE_ID}/documents/products?pageSize=300`;
-    const res = await fetch(firestoreUrl);
-    if (res.ok) {
-      const data = await res.json();
-      const docs = Array.isArray(data.documents) ? data.documents : [];
-      for (const rawDoc of docs) {
-        const prod = parseFirestoreDoc(rawDoc);
-        if (!prod || !prod.title) continue;
-        const pId = String(prod.id || '').trim();
-        const pSlug = slugifyProductTitle(prod.title);
-        if (
-          pId.toLowerCase() === cleanId.toLowerCase() ||
-          (targetSlug && pSlug === targetSlug)
-        ) {
-          return prod;
+    const directUrl = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/${DATABASE_ID}/documents/products/${encodeURIComponent(cleanId)}`;
+    const directRes = await fetch(directUrl);
+    if (directRes.ok) {
+      const directDoc = await directRes.json();
+      const parsed = parseFirestoreDoc(directDoc);
+      if (parsed && parsed.title) {
+        return parsed;
+      }
+    }
+  } catch {}
+
+  // 1b. Query live Firestore via :runQuery (evaluates public read rules & returns 200 OK for all products)
+  try {
+    const runQueryUrl = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/${DATABASE_ID}/documents:runQuery`;
+    const queryRes = await fetch(runQueryUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        structuredQuery: {
+          from: [{ collectionId: 'products' }],
+          limit: 500,
+        },
+      }),
+    });
+    if (queryRes.ok) {
+      const rows = await queryRes.json();
+      if (Array.isArray(rows)) {
+        for (const row of rows) {
+          if (!row || !row.document) continue;
+          const prod = parseFirestoreDoc(row.document);
+          if (!prod || !prod.title) continue;
+          const pId = String(prod.id || '').trim();
+          const pSlug = slugifyProductTitle(prod.title);
+          if (
+            pId.toLowerCase() === cleanId.toLowerCase() ||
+            (targetSlug && pSlug === targetSlug)
+          ) {
+            return prod;
+          }
         }
       }
     }
@@ -151,6 +223,7 @@ export default async function handler(req, res) {
   const rawProductParam =
     req.query?.product ||
     req.query?.slug ||
+    req.query?.id ||
     (req.url ? req.url.split('?')[0].replace(/^\/og\/products\//i, '').replace(/\/+$/, '') : '');
 
   const product = await findProductFromFirestoreOrLocal(rawProductParam);
@@ -164,7 +237,23 @@ export default async function handler(req, res) {
       if (base64Part) {
         rawImageBuffer = Buffer.from(base64Part, 'base64');
       }
-    } else if (typeof primaryImg === 'string' && (primaryImg.startsWith('http://') || primaryImg.startsWith('https://'))) {
+    } else if (typeof primaryImg === 'string' && primaryImg.startsWith('/')) {
+      const localCandidates = [
+        path.resolve(process.cwd(), 'dist', primaryImg.replace(/^\/+/, '')),
+        path.resolve(process.cwd(), 'public', primaryImg.replace(/^\/+/, '')),
+      ];
+      for (const localPath of localCandidates) {
+        if (fs.existsSync(localPath)) {
+          try {
+            rawImageBuffer = fs.readFileSync(localPath);
+            break;
+          } catch {}
+        }
+      }
+    } else if (
+      typeof primaryImg === 'string' &&
+      (primaryImg.startsWith('http://') || primaryImg.startsWith('https://'))
+    ) {
       try {
         const imgRes = await fetch(primaryImg);
         if (imgRes.ok) {
@@ -180,13 +269,22 @@ export default async function handler(req, res) {
         if (rawImageBuffer) {
           const resized = await sharpLib(rawImageBuffer)
             .resize(520, 520, { fit: 'cover' })
-            .jpeg({ quality: 84 })
+            .jpeg({ quality: 86 })
             .toBuffer();
           embeddedImageDataUri = `data:image/jpeg;base64,${resized.toString('base64')}`;
         }
 
+        const categoryLabel = escapeXmlText(getCategoryDisplayLabel(product.category));
+        const isOutOfStock =
+          product.inStock === false ||
+          (typeof product.stockCount === 'number' && product.stockCount <= 0);
+        const availabilityText = isOutOfStock
+          ? 'MADE TO ORDER • KATHMANDU'
+          : 'HANDMADE CREATION • NEPAL';
+
         const titleLines = wrapTextIntoLines(product.title, 22, 3);
-        const titleFontSize = titleLines.length >= 3 ? 38 : titleLines.some((l) => l.length > 18) ? 44 : 48;
+        const titleFontSize =
+          titleLines.length >= 3 ? 38 : titleLines.some((l) => l.length > 18) ? 44 : 48;
         const lineHeight = Math.round(titleFontSize * 1.16);
         const titleStartY = titleLines.length === 1 ? 210 : titleLines.length === 2 ? 194 : 182;
 
@@ -229,9 +327,12 @@ export default async function handler(req, res) {
           </defs>
           <rect width="1200" height="630" fill="url(#creamBg)" />
           <rect x="18" y="18" width="1164" height="594" rx="28" fill="none" stroke="#D4B88C" stroke-width="2" />
+          <rect x="26" y="26" width="1148" height="578" rx="22" fill="none" stroke="#1C1B1A" stroke-opacity="0.1" stroke-width="1" />
           <rect x="50" y="50" width="518" height="530" rx="26" fill="#FFFFFF" stroke="#C5A880" stroke-width="2" />
           ${imageBlock}
-          <text x="618" y="96" font-family="'DejaVu Sans', sans-serif" font-size="15" font-weight="700" letter-spacing="3" fill="#8C6730">HANDCRAFTED WEARABLE ART • NEPAL</text>
+          <rect x="72" y="514" width="276" height="38" rx="19" fill="#1C1B1A" fill-opacity="0.9" />
+          <text x="210" y="538" text-anchor="middle" font-family="'DejaVu Sans', sans-serif" font-size="13" font-weight="700" letter-spacing="1.5" fill="#D4AF37">${availabilityText}</text>
+          <text x="618" y="96" font-family="'DejaVu Sans', sans-serif" font-size="15" font-weight="700" letter-spacing="3" fill="#8C6730">${categoryLabel}</text>
           <line x1="618" y1="116" x2="1128" y2="116" stroke="#D8CBB8" stroke-width="1.5" />
           ${titleTextElements}
           ${briefTextElements}
@@ -244,7 +345,7 @@ export default async function handler(req, res) {
 
         const jpegBuffer = await sharpLib(Buffer.from(svg))
           .resize(1200, 630)
-          .jpeg({ quality: 88, mozjpeg: true })
+          .jpeg({ quality: 90, mozjpeg: true })
           .toBuffer();
 
         res.setHeader('Content-Type', 'image/jpeg');
@@ -270,6 +371,7 @@ export default async function handler(req, res) {
   for (const fallback of fallbackCandidates) {
     if (fs.existsSync(fallback)) {
       res.setHeader('Content-Type', 'image/jpeg');
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
       res.status(200).send(fs.readFileSync(fallback));
       return;
     }

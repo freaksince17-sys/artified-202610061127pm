@@ -123,7 +123,7 @@ export function getProductShareUrl(
   ).replace(/\/+$/, '');
 
   const slug = getProductUrlSlug(product);
-  return `${resolvedOrigin}/product/${slug}/`;
+  return `${resolvedOrigin}/product/${slug}`;
 }
 
 /**
