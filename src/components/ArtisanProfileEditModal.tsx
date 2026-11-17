@@ -260,7 +260,7 @@ export const ArtisanProfileEditModal: React.FC<ArtisanProfileEditModalProps> = (
                       style={{ objectPosition: profile.avatarPosition || 'center 20%' }}
                       className="w-full h-full object-cover"
                       onError={(e) => {
-                        (e.currentTarget as HTMLImageElement).src = '/artisan_avatar.png';
+                        (e.currentTarget as HTMLImageElement).src = '/artisan_avatar.jpg';
                       }}
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />

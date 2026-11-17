@@ -1160,7 +1160,7 @@ async function startServer() {
         } catch {}
       }
 
-      // If avatarUrl is a base64 data URL, persist to public/artisan_avatar.png
+      // If avatarUrl is a base64 data URL, persist to both public/artisan_avatar.jpg and public/artisan_avatar.png
       if (incoming.avatarUrl && typeof incoming.avatarUrl === 'string' && incoming.avatarUrl.startsWith('data:image/')) {
         try {
           const publicDir = path.resolve(process.cwd(), 'public');
@@ -1169,23 +1169,21 @@ async function startServer() {
           }
           const base64Data = incoming.avatarUrl.replace(/^data:image\/\w+;base64,/, '');
           const imgBuffer = Buffer.from(base64Data, 'base64');
-          const extMatch = incoming.avatarUrl.match(/^data:image\/(\w+);/);
-          const ext = extMatch ? (extMatch[1] === 'jpeg' ? 'jpg' : extMatch[1]) : 'png';
-          const avatarFilename = `artisan_avatar_${Date.now()}.${ext}`;
-          const avatarFilePath = path.join(publicDir, avatarFilename);
-          fs.writeFileSync(avatarFilePath, imgBuffer);
-          
-          // Save backup buffer to public/artisan_avatar.png
+          fs.writeFileSync(path.join(publicDir, 'artisan_avatar.jpg'), imgBuffer);
           fs.writeFileSync(path.join(publicDir, 'artisan_avatar.png'), imgBuffer);
         } catch (imgErr) {
           console.warn('Notice: Error saving avatar image buffer to disk:', imgErr);
         }
       }
 
-      // Preserve existing avatarUrl if incoming did not specify one or if incoming is a fallback placeholder
-      const effectiveAvatarUrl = (incoming.avatarUrl && incoming.avatarUrl.length > 50)
-        ? incoming.avatarUrl
-        : (existingProfile.avatarUrl || DEFAULT_ARTISAN_PROFILE.avatarUrl);
+      // Preserve existing avatarUrl unless incoming specifies a non-empty valid avatarUrl
+      const rawIncomingAvatar = typeof incoming.avatarUrl === 'string' ? incoming.avatarUrl.trim() : '';
+      const effectiveAvatarUrl =
+        rawIncomingAvatar && rawIncomingAvatar !== '/artisan_avatar.png'
+          ? rawIncomingAvatar
+          : (existingProfile.avatarUrl && existingProfile.avatarUrl !== '/artisan_avatar.png'
+              ? existingProfile.avatarUrl
+              : '/artisan_avatar.jpg');
 
       const merged = {
         ...DEFAULT_ARTISAN_PROFILE,
@@ -1198,7 +1196,11 @@ async function startServer() {
         pillar3: { ...DEFAULT_ARTISAN_PROFILE.pillar3, ...(existingProfile.pillar3 || {}), ...(incoming.pillar3 || {}) },
         pillar4: { ...DEFAULT_ARTISAN_PROFILE.pillar4, ...(existingProfile.pillar4 || {}), ...(incoming.pillar4 || {}) },
       };
-      fs.writeFileSync(artisanProfileJsonPath, JSON.stringify(merged, null, 2), 'utf-8');
+      const serialized = JSON.stringify(merged, null, 2);
+      fs.writeFileSync(artisanProfileJsonPath, serialized, 'utf-8');
+      try {
+        fs.writeFileSync(path.resolve(seedDataDir, 'artisan_profile.json'), serialized, 'utf-8');
+      } catch {}
       return res.json({ success: true, profile: merged });
     } catch (err: any) {
       console.error('Error saving artisan_profile.json:', err);

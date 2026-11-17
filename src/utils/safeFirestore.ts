@@ -148,8 +148,12 @@ export function isBenignStreamCancellationError(err: any): boolean {
   const code = err.code || err.Code;
   return (
     code === 'cancelled' ||
+    code === 'unavailable' ||
     code === 1 ||
+    code === 14 ||
     msg.includes('cancelled') ||
+    msg.includes('econnreset') ||
+    msg.includes('unavailable') ||
     msg.includes('disconnecting idle stream') ||
     msg.includes('timed out waiting for new targets')
   );

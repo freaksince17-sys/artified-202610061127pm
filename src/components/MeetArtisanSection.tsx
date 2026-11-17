@@ -226,7 +226,7 @@ export const MeetArtisanSection: React.FC = () => {
                   src={getFreshArtisanAvatarUrl(profile.avatarUrl, profile.avatarUpdatedAt)}
                   alt="Sahina Shrestha - Founder & Creator"
                   onError={(e) => {
-                    (e.currentTarget as HTMLImageElement).src = '/artisan_avatar.png';
+                    (e.currentTarget as HTMLImageElement).src = '/artisan_avatar.jpg';
                   }}
                   style={{ objectPosition: profile.avatarPosition || 'center 20%' }}
                   className="w-full h-full object-cover group-hover:scale-104 transition-transform duration-500"

@@ -1,4 +1,7 @@
 import SAVED_ARTISAN_PROFILE from './artisan_profile.json';
+import { db } from '../firebase';
+import { doc, getDoc } from 'firebase/firestore';
+import { safeSetDoc } from '../utils/safeFirestore';
 
 export interface ArtisanPillar {
   title: string;
@@ -41,7 +44,16 @@ export interface ArtisanProfileData {
 }
 
 const savedProfile = (SAVED_ARTISAN_PROFILE as unknown as Partial<ArtisanProfileData>) || {};
-const authenticAvatar = (savedProfile.avatarUrl && savedProfile.avatarUrl.length > 50) ? savedProfile.avatarUrl : '/artisan_avatar.png';
+
+function normalizeCreatorAvatarUrl(rawUrl?: string): string {
+  const trimmed = (rawUrl || '').trim();
+  if (!trimmed || trimmed === '/artisan_avatar.png') {
+    return '/artisan_avatar.jpg';
+  }
+  return trimmed;
+}
+
+const authenticAvatar = normalizeCreatorAvatarUrl(savedProfile.avatarUrl);
 
 export const DEFAULT_ARTISAN_PROFILE: ArtisanProfileData = {
   artisanName: savedProfile.artisanName || 'Sahina Shrestha',
@@ -50,10 +62,10 @@ export const DEFAULT_ARTISAN_PROFILE: ArtisanProfileData = {
   establishedText: savedProfile.establishedText || 'Est. 2024 • 100% Handcrafted in Nepal',
   avatarUrl: authenticAvatar,
   avatarPosition: savedProfile.avatarPosition || 'center 20%',
-  avatarUpdatedAt: savedProfile.avatarUpdatedAt || '2026-10-06T00:00:00.000Z',
+  avatarUpdatedAt: savedProfile.avatarUpdatedAt || '2026-10-16T16:29:46.861Z',
   avatarMetadata: savedProfile.avatarMetadata || {
-    uploadedAt: '2026-10-06T00:00:00.000Z',
-    versionId: 'ver_founder_creator_v7',
+    uploadedAt: '2026-10-16T16:29:46.861Z',
+    versionId: 'ver_founder_creator_v8',
     source: 'Kathmandu Workshop'
   },
   stat1Value: '',
@@ -71,7 +83,7 @@ export const DEFAULT_ARTISAN_PROFILE: ArtisanProfileData = {
   instagramHandle: savedProfile.instagramHandle || '@artified_np'
 };
 
-const ARTISAN_STORAGE_KEY = 'artified_founder_creator_profile_v7';
+const ARTISAN_STORAGE_KEY = 'artified_founder_creator_profile_v8';
 
 // Global isSaving flag to prevent any re-render fallback to defaults during active saves/uploads
 let isProfileSavingInFlight = false;
@@ -82,12 +94,13 @@ export function getIsProfileSaving(): boolean {
 
 export function getArtisanProfile(): ArtisanProfileData {
   try {
-    // Purge obsolete legacy storage keys if present
+    // Purge obsolete legacy storage keys if present so stale /artisan_avatar.png never persists
     try {
       localStorage.removeItem('artified_artisan_profile');
       localStorage.removeItem('artified_founder_creator_profile_v4');
       localStorage.removeItem('artified_founder_creator_profile_v5');
       localStorage.removeItem('artified_founder_creator_profile_v6');
+      localStorage.removeItem('artified_founder_creator_profile_v7');
     } catch {}
 
     const raw = localStorage.getItem(ARTISAN_STORAGE_KEY);
@@ -98,10 +111,7 @@ export function getArtisanProfile(): ArtisanProfileData {
       }
       const parsed = JSON.parse(raw);
       if (parsed && typeof parsed === 'object') {
-        let avatarUrl = parsed.avatarUrl;
-        if (!avatarUrl || avatarUrl === '/artisan_avatar.png') {
-          avatarUrl = DEFAULT_ARTISAN_PROFILE.avatarUrl;
-        }
+        const avatarUrl = normalizeCreatorAvatarUrl(parsed.avatarUrl);
 
         return {
           ...DEFAULT_ARTISAN_PROFILE,
@@ -129,6 +139,7 @@ export async function saveArtisanProfile(data: ArtisanProfileData): Promise<void
     const versionId = `ver_${Date.now()}`;
     const enrichedData: ArtisanProfileData = {
       ...data,
+      avatarUrl: normalizeCreatorAvatarUrl(data.avatarUrl),
       avatarUpdatedAt: timestamp,
       avatarMetadata: {
         ...(data.avatarMetadata || { uploadedAt: timestamp, versionId }),
@@ -144,8 +155,13 @@ export async function saveArtisanProfile(data: ArtisanProfileData): Promise<void
       console.warn('Notice: localStorage save error:', lsErr);
     }
     window.dispatchEvent(new CustomEvent('artified_artisan_updated', { detail: enrichedData }));
-    
-    // Step 2: Explicitly persist to server JSON disk via API (permanent across reloads & server restarts)
+
+    // Step 2: Persist to Cloud Firestore store_settings/artisan_profile
+    try {
+      await safeSetDoc(doc(db, 'store_settings', 'artisan_profile'), enrichedData, { merge: true });
+    } catch {}
+
+    // Step 3: Explicitly persist to server JSON disk via API (permanent across reloads & server restarts)
     try {
       await fetch('/api/artisan-profile', {
         method: 'POST',
@@ -164,33 +180,57 @@ export async function saveArtisanProfile(data: ArtisanProfileData): Promise<void
 
 export async function fetchArtisanProfileFromServer(): Promise<ArtisanProfileData> {
   const currentLocal = getArtisanProfile();
-  
-  // Return local storage state immediately so UI never blocks or lags
-  // Fetch remote updates from server JSON disk in background (repository-authoritative)
+
+  // Fetch remote updates from server JSON disk & Firestore in background
   setTimeout(async () => {
     if (isProfileSavingInFlight) return;
+    let resolvedProfile: ArtisanProfileData | null = null;
+
     try {
-      // Fetch permanently saved profile from server disk API
-      const resp = await fetch('/api/artisan-profile');
+      const resp = await fetch(`/api/artisan-profile?t=${Date.now()}`, { cache: 'no-store' });
       if (resp.ok) {
         const serverData = await resp.json();
         if (serverData && typeof serverData === 'object' && serverData.artisanName) {
-          const merged: ArtisanProfileData = {
+          resolvedProfile = {
             ...DEFAULT_ARTISAN_PROFILE,
             ...serverData,
-            avatarUrl: (serverData.avatarUrl && serverData.avatarUrl.length > 50)
-              ? serverData.avatarUrl
-              : ((currentLocal.avatarUrl && currentLocal.avatarUrl.length > 50) ? currentLocal.avatarUrl : DEFAULT_ARTISAN_PROFILE.avatarUrl),
+            avatarUrl: normalizeCreatorAvatarUrl(serverData.avatarUrl || currentLocal.avatarUrl),
             artisanRole: 'Founder & Creator',
             atelierLocation: 'Kathmandu, Nepal'
           };
-          try {
-            localStorage.setItem(ARTISAN_STORAGE_KEY, JSON.stringify(merged));
-          } catch {}
-          window.dispatchEvent(new CustomEvent('artified_artisan_updated', { detail: merged }));
         }
       }
-    } catch (e) {}
+    } catch {}
+
+    // Also check Firestore store_settings/artisan_profile if it has a newer avatarUpdatedAt or data URI
+    try {
+      const snap = await getDoc(doc(db, 'store_settings', 'artisan_profile'));
+      if (snap.exists()) {
+        const cloudData = snap.data() as Partial<ArtisanProfileData>;
+        if (cloudData && cloudData.artisanName) {
+          const base = resolvedProfile || currentLocal;
+          const cloudTime = cloudData.avatarUpdatedAt ? new Date(cloudData.avatarUpdatedAt).getTime() : 0;
+          const baseTime = base.avatarUpdatedAt ? new Date(base.avatarUpdatedAt).getTime() : 0;
+          const preferCloudAvatar =
+            (cloudTime > baseTime && cloudData.avatarUrl) ||
+            ((!base.avatarUrl || base.avatarUrl === '/artisan_avatar.png') && cloudData.avatarUrl);
+          resolvedProfile = {
+            ...base,
+            ...cloudData,
+            avatarUrl: normalizeCreatorAvatarUrl(preferCloudAvatar ? cloudData.avatarUrl : base.avatarUrl),
+            artisanRole: 'Founder & Creator',
+            atelierLocation: 'Kathmandu, Nepal'
+          };
+        }
+      }
+    } catch {}
+
+    if (resolvedProfile && !isProfileSavingInFlight) {
+      try {
+        localStorage.setItem(ARTISAN_STORAGE_KEY, JSON.stringify(resolvedProfile));
+      } catch {}
+      window.dispatchEvent(new CustomEvent('artified_artisan_updated', { detail: resolvedProfile }));
+    }
   }, 50);
 
   return currentLocal;

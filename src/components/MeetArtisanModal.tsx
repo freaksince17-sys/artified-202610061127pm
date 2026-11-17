@@ -249,7 +249,7 @@ export const MeetArtisanModal: React.FC<MeetArtisanModalProps> = ({
                       }}
                       className="w-full h-full"
                       onError={(e) => {
-                        (e.currentTarget as HTMLImageElement).src = '/artisan_avatar.png';
+                        (e.currentTarget as HTMLImageElement).src = '/artisan_avatar.jpg';
                       }}
                     />
                   </div>
@@ -408,7 +408,7 @@ export const MeetArtisanModal: React.FC<MeetArtisanModalProps> = ({
                     }}
                     className="w-full h-full group-hover:scale-104 transition-transform duration-500"
                     onError={(e) => {
-                      (e.currentTarget as HTMLImageElement).src = '/artisan_avatar.png';
+                      (e.currentTarget as HTMLImageElement).src = '/artisan_avatar.jpg';
                     }}
                   />
                   

@@ -951,6 +951,9 @@ export function syncTrackedOrdersFromServer(ordersMap: Record<string, TrackedOrd
     });
 
     persistTrackedOrdersMapToLocalStorage(localMap);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('artified_order_updated', { detail: { source: 'server_sync' } }));
+    }
   } catch (err) {
     console.warn('Notice: Error syncing tracked orders from server:', err);
   }
@@ -1076,44 +1079,46 @@ export function getAllOrdersForSeller(): TrackedOrderData[] {
   }
 
   // 2. Add customer checkout orders from localStorage (artified_orders)
-  try {
-    const raw = localStorage.getItem('artified_orders');
-    if (raw) {
-      const customerOrders: (OrderDetails & { generation?: number; purgeEpochId?: string })[] = JSON.parse(raw);
-      customerOrders.forEach((o) => {
-        const norm = normalizeOrderId(o.orderId);
-        const canonical = getCanonicalOrderKey(norm);
-        if (!isOrderDeletedOrPurged(norm, o) && !result[canonical]) {
-          result[canonical] = buildTrackedOrderFromOrderDetails({
-            ...o,
-            orderId: `#${norm}`
-          });
-        }
-      });
+  if (typeof localStorage !== 'undefined') {
+    try {
+      const raw = localStorage.getItem('artified_orders');
+      if (raw) {
+        const customerOrders: (OrderDetails & { generation?: number; purgeEpochId?: string })[] = JSON.parse(raw);
+        customerOrders.forEach((o) => {
+          const norm = normalizeOrderId(o.orderId);
+          const canonical = getCanonicalOrderKey(norm);
+          if (!isOrderDeletedOrPurged(norm, o) && !result[canonical]) {
+            result[canonical] = buildTrackedOrderFromOrderDetails({
+              ...o,
+              orderId: `#${norm}`
+            });
+          }
+        });
+      }
+    } catch (e) {
+      console.warn('Error reading customer orders for seller', e);
     }
-  } catch (e) {
-    console.warn('Error reading customer orders for seller', e);
-  }
 
-  // 3. Overlay any seller-updated tracked orders from localStorage (artified_tracked_orders)
-  try {
-    const rawTracked = localStorage.getItem('artified_tracked_orders');
-    if (rawTracked) {
-      const trackedMap: Record<string, TrackedOrderData & { generation?: number; purgeEpochId?: string }> = JSON.parse(rawTracked);
-      Object.entries(trackedMap).forEach(([rawKey, order]) => {
-        const norm = normalizeOrderId(order.orderId || rawKey);
-        const canonical = getCanonicalOrderKey(norm);
-        if (!isOrderDeletedOrPurged(norm, order) && shouldAcceptIncomingOrder(result[canonical], order)) {
-          result[canonical] = {
-            ...result[canonical],
-            ...order,
-            orderId: `#${norm}`
-          };
-        }
-      });
+    // 3. Overlay any seller-updated tracked orders from localStorage (artified_tracked_orders)
+    try {
+      const rawTracked = localStorage.getItem('artified_tracked_orders');
+      if (rawTracked) {
+        const trackedMap: Record<string, TrackedOrderData & { generation?: number; purgeEpochId?: string }> = JSON.parse(rawTracked);
+        Object.entries(trackedMap).forEach(([rawKey, order]) => {
+          const norm = normalizeOrderId(order.orderId || rawKey);
+          const canonical = getCanonicalOrderKey(norm);
+          if (!isOrderDeletedOrPurged(norm, order) && shouldAcceptIncomingOrder(result[canonical], order)) {
+            result[canonical] = {
+              ...result[canonical],
+              ...order,
+              orderId: `#${norm}`
+            };
+          }
+        });
+      }
+    } catch (e) {
+      console.warn('Error reading tracked orders overlay', e);
     }
-  } catch (e) {
-    console.warn('Error reading tracked orders overlay', e);
   }
 
   // 4. Overlay authoritative in-memory tracked orders (highest priority for instant seller updates)
@@ -1279,6 +1284,9 @@ export async function syncOrdersFromFirestore(): Promise<TrackedOrderData[]> {
           }
         });
         persistTrackedOrdersMapToLocalStorage(map);
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('artified_order_updated', { detail: { source: 'firestore_sync' } }));
+        }
       } catch {}
     }
 
@@ -1371,6 +1379,9 @@ export function subscribeAllOrdersForSeller(onUpdate: (orders: TrackedOrderData[
           }
         });
         persistTrackedOrdersMapToLocalStorage(map);
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('artified_order_updated', { detail: { source: 'firestore_snapshot' } }));
+        }
       } catch {}
     }
 

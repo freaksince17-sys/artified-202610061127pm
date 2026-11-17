@@ -104,7 +104,7 @@ export function getOptimizedBackgroundUrl(
     fallback?: string;
   } = {}
 ): string {
-  const fallbackUrl = options.fallback || '/artisan_avatar.png';
+  const fallbackUrl = options.fallback || '/artisan_avatar.jpg';
   if (!url || typeof url !== 'string' || !url.trim()) {
     return getFreshAssetUrl(fallbackUrl, options.version || options.timestamp);
   }
@@ -125,11 +125,12 @@ export function getOptimizedBackgroundUrl(
  * to ensure that live edits and photo uploads reflect immediately without browser caching.
  */
 export function getFreshArtisanAvatarUrl(avatarUrl?: string, lastUpdated?: string): string {
-  const base = avatarUrl && avatarUrl.trim() ? avatarUrl.trim() : '/artisan_avatar.png';
+  const trimmed = avatarUrl && avatarUrl.trim() ? avatarUrl.trim() : '/artisan_avatar.jpg';
+  const base = trimmed === '/artisan_avatar.png' ? '/artisan_avatar.jpg' : trimmed;
   if (base.startsWith('data:') || base.startsWith('blob:')) {
     return base;
   }
-  const version = lastUpdated ? `ts_${new Date(lastUpdated).getTime()}` : `artisan_${Date.now()}`;
+  const version = lastUpdated ? `ts_${new Date(lastUpdated).getTime()}` : `artisan_v8`;
   return getFreshAssetUrl(base, version);
 }
 

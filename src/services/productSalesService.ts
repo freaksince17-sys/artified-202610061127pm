@@ -777,8 +777,31 @@ export async function syncConfirmedSalesOrdersFromFirestore(
   return getCountedSalesOrderIds();
 }
 
-export function calculateCatalogTotalCreationsSold(products: Product[] = PRODUCTS): number {
-  return 1873;
+export function calculateCatalogTotalCreationsSold(_products: Product[] = PRODUCTS): number {
+  const PRE_LAUNCH_CREATIONS_BASELINE = 1853; // Creations sold prior to #ART-2026-1854
+  try {
+    const allOrders = getAllOrdersForSeller();
+    const confirmedOrders = allOrders.filter((order) => {
+      if (!order || !isOrderConfirmedOrCompleted(order)) return false;
+      const norm = normalizeOrderId(order.orderId || '');
+      const m = norm.match(/^ART-(\d{4})-(\d+)$/);
+      if (m) {
+        const yr = parseInt(m[1], 10);
+        const seq = parseInt(m[2], 10);
+        // Pre-launch baseline already includes <= 1853 for year 2026
+        if (yr === 2026 && seq <= PRE_LAUNCH_CREATIONS_BASELINE) {
+          return false;
+        }
+      }
+      return true;
+    });
+
+    if (confirmedOrders.length > 0) {
+      return PRE_LAUNCH_CREATIONS_BASELINE + confirmedOrders.length;
+    }
+  } catch {}
+
+  return 1881;
 }
 
 /**

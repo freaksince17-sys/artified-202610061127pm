@@ -42,7 +42,7 @@ import { sanitizeForFirestore } from '../utils/firestoreSanitizer';
 import { sanitizeReviewItem, getProductReviews, getProductAverageRating, isProductBestSeller, calculateDiscountPercent, calculateTotalSold, invalidateReviewsCache } from '../utils/productStats';
 import { deleteProductReviewFromFirestore } from '../services/reviewService';
 
-import { buildTrackedOrderFromOrderDetails, syncTrackedOrdersFromServer, syncOrdersFromFirestore, getAllOrdersForSeller } from '../data/trackingData';
+import { buildTrackedOrderFromOrderDetails, syncTrackedOrdersFromServer, syncOrdersFromFirestore, getAllOrdersForSeller, subscribeAllOrdersForSeller } from '../data/trackingData';
 import { saveOrderToFirestore } from '../services/orderTrackingService';
 import {
   trackConfirmedOrderSalesInFirestore,
@@ -1277,17 +1277,27 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       .then((ordersMap) => {
         if (ordersMap && typeof ordersMap === 'object') {
           syncTrackedOrdersFromServer(ordersMap);
+          setOrderSyncRevision((v) => v + 1);
         }
       })
       .catch(() => {});
 
     // 8. Synchronize live orders from Firestore for real-time tracking across devices
-    syncOrdersFromFirestore().catch(() => {});
+    syncOrdersFromFirestore()
+      .then(() => {
+        setOrderSyncRevision((v) => v + 1);
+      })
+      .catch(() => {});
+
+    const unsubscribeLiveOrders = subscribeAllOrdersForSeller(() => {
+      setOrderSyncRevision((v) => v + 1);
+    });
 
     return () => {
       if (unsubscribeProducts) unsubscribeProducts();
       if (unsubscribeSalesHistory) unsubscribeSalesHistory();
       if (unsubscribeReviews) unsubscribeReviews();
+      if (unsubscribeLiveOrders) unsubscribeLiveOrders();
     };
   }, []);
 
@@ -1750,12 +1760,25 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
     };
 
+    const handleOrderUpdated = () => {
+      setOrderSyncRevision((v) => v + 1);
+    };
+
     window.addEventListener('artified_sales_incremented', handleSalesIncremented);
-    return () => window.removeEventListener('artified_sales_incremented', handleSalesIncremented);
+    window.addEventListener('artified_order_updated', handleOrderUpdated);
+    return () => {
+      window.removeEventListener('artified_sales_incremented', handleSalesIncremented);
+      window.removeEventListener('artified_order_updated', handleOrderUpdated);
+    };
   }, [bestsellerThreshold]);
 
-  // Total creations sold across the entire store catalog
-  const totalCreationsSold = React.useMemo(() => calculateCatalogTotalCreationsSold(products), [products]);
+  const [orderSyncRevision, setOrderSyncRevision] = useState<number>(0);
+
+  // Total creations sold across the entire store catalog (reactively synced with confirmed orders in Order Progress)
+  const totalCreationsSold = React.useMemo(
+    () => calculateCatalogTotalCreationsSold(products),
+    [products, orderSyncRevision]
+  );
 
   // Sync confirmed order into sales_history ledger without decrementing stock (seller phase updates never deduct stock)
   const trackOrderSalesInFirestore = async (order: any) => {
