@@ -39,9 +39,10 @@ import { submitProductReviewToFirestore, subscribeToProductReviews, FirestorePro
 import { getRealProductImage, CAVIAR_PEARL_BAG_IMAGE } from '../utils/productImages';
 import { applyProductSeo } from '../utils/productSeo';
 import {
-  generateProductOgImageDataUrl,
-  generateProductOgImageFile,
-  getProductShareUrl
+  generateProductStoryCardDataUrl,
+  generateProductStoryCardFile,
+  getProductShareUrl,
+  getProductUrlSlug
 } from '../utils/ogImageGenerator';
 import { LocalBusinessSchema } from '../utils/LocalBusinessSchema';
 
@@ -142,7 +143,7 @@ export const ProductDetailModal: React.FC = () => {
   const isOutOfStock = quickViewProduct ? (quickViewProduct.inStock === false || (typeof quickViewProduct.stockCount === 'number' && quickViewProduct.stockCount <= 0)) : false;
   const isWaitlisted = quickViewProduct ? isProductWaitlisted(quickViewProduct.id) : false;
 
-  // Auto-generate 1200x630 OpenGraph preview card whenever Social Share Assistant opens
+  // Auto-generate 9:16 (1080x1920) vertical Story preview card whenever Share modal opens
   useEffect(() => {
     let active = true;
     if (!showStoryModal || !quickViewProduct) {
@@ -150,7 +151,7 @@ export const ProductDetailModal: React.FC = () => {
       return;
     }
     setIsGeneratingOgCard(true);
-    generateProductOgImageDataUrl(quickViewProduct)
+    generateProductStoryCardDataUrl(quickViewProduct, { imageIndex: activeImageIndex })
       .then((url) => {
         if (active) setOgCardPreviewUrl(url);
       })
@@ -160,7 +161,7 @@ export const ProductDetailModal: React.FC = () => {
     return () => {
       active = false;
     };
-  }, [showStoryModal, quickViewProduct]);
+  }, [showStoryModal, quickViewProduct, activeImageIndex]);
 
   // Social Share Handlers
   const getActiveShareUrl = () => {
@@ -233,16 +234,16 @@ export const ProductDetailModal: React.FC = () => {
       .slice(0, 110);
     const shareText = `Adoring this handmade ${quickViewProduct.title} by @artified_np ✨ ${brief} • View piece: ${shareUrl}`;
 
-    // On mobile devices with native share support (attach generated Buy Now OG image card when supported)
+    // On mobile devices with native share support (attach 9:16 vertical Story card when supported)
     if (navigator.share) {
       try {
-        const ogFile = await generateProductOgImageFile(quickViewProduct);
-        if (ogFile && navigator.canShare && navigator.canShare({ files: [ogFile] })) {
+        const storyFile = await generateProductStoryCardFile(quickViewProduct, { imageIndex: activeImageIndex });
+        if (storyFile && navigator.canShare && navigator.canShare({ files: [storyFile] })) {
           await navigator.share({
             title: shareTitle,
             text: shareText,
             url: shareUrl,
-            files: [ogFile],
+            files: [storyFile],
           });
           return;
         }
@@ -263,11 +264,13 @@ export const ProductDetailModal: React.FC = () => {
 
   const handleDownloadOgCard = async () => {
     if (!quickViewProduct) return;
-    const url = ogCardPreviewUrl || (await generateProductOgImageDataUrl(quickViewProduct));
+    const url =
+      ogCardPreviewUrl ||
+      (await generateProductStoryCardDataUrl(quickViewProduct, { imageIndex: activeImageIndex }));
     const link = document.createElement('a');
     link.href = url;
-    const safeSlug = quickViewProduct.id.replace(/[^a-z0-9-_]/gi, '-').toLowerCase();
-    link.download = `artified-${safeSlug}-buy-now-card.jpg`;
+    const safeSlug = getProductUrlSlug(quickViewProduct);
+    link.download = `artified-${safeSlug}-story-9x16.jpg`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -1696,23 +1699,23 @@ export const ProductDetailModal: React.FC = () => {
               </div>
             </div>
 
-            {/* Auto-Generated 1200x630 OpenGraph Preview Card (Product Name + Buy Now CTA) */}
-            <div className="space-y-1.5">
-              <div className="relative aspect-[1200/630] w-full rounded-xl overflow-hidden border border-[#D4AF37]/40 bg-[#FAF8F5] flex items-center justify-center shadow-inner">
+            {/* Auto-Generated 9:16 Vertical Story Card (Clear Uncropped Photo + Details, Zero Price) */}
+            <div className="space-y-1.5 flex flex-col items-center">
+              <div className="relative aspect-[9/16] h-[360px] sm:h-[420px] max-h-[48vh] w-auto rounded-2xl overflow-hidden border border-[#D4AF37]/40 bg-[#FAF8F5] flex items-center justify-center shadow-lg">
                 {ogCardPreviewUrl ? (
                   <img
                     src={ogCardPreviewUrl}
-                    alt={`${product.title} — Buy Now OpenGraph preview`}
-                    className="w-full h-full object-cover"
+                    alt={`${product.title} — 9:16 Vertical Story Preview`}
+                    className="w-full h-full object-contain"
                   />
                 ) : (
                   <div className="text-center p-4 text-xs text-[#5C534B] font-medium">
-                    {isGeneratingOgCard ? 'Generating OpenGraph preview card...' : `${product.title} — Buy Now`}
+                    {isGeneratingOgCard ? 'Generating 9:16 Story card...' : product.title}
                   </div>
                 )}
               </div>
               <p className="text-[10px] text-[#B8AFA6] text-center">
-                Link preview card (shows product photo &amp; brief details without revealing price)
+                9:16 Vertical Story Card (clear photo &amp; product details, no price shown)
               </p>
             </div>
 
